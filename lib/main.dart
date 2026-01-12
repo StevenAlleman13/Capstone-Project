@@ -3,7 +3,10 @@
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+<<<<<<< HEAD
 import 'screens/login_page.dart';
+=======
+>>>>>>> 51ab965f7aa57ea71b04ef5166efe792d1d91943
 
 const Color _neonGreen = Color(0xFF00FF66);
 
@@ -48,11 +51,15 @@ class MyApp extends StatelessWidget {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[900], foregroundColor: _neonGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero)),
           ),
         ),
+<<<<<<< HEAD
         initialRoute: '/login',
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const MyHomePage(),
         },
+=======
+        home: MyHomePage(),
+>>>>>>> 51ab965f7aa57ea71b04ef5166efe792d1d91943
       ),
     );
   }
@@ -85,8 +92,11 @@ class MyAppState extends ChangeNotifier {
 }
 
 class MyHomePage extends StatefulWidget {
+<<<<<<< HEAD
   const MyHomePage({super.key});
 
+=======
+>>>>>>> 51ab965f7aa57ea71b04ef5166efe792d1d91943
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
