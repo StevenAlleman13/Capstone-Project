@@ -388,8 +388,22 @@ class EventsPage extends StatelessWidget {
 }
 
 class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  Future<void> _logout(BuildContext context) async {
+    await Supabase.instance.client.auth.signOut();
+
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox.shrink();
+    return Center(
+      child: ElevatedButton.icon(
+        icon: const Icon(Icons.logout),
+        label: const Text('Log out'),
+        onPressed: () => _logout(context),
+      ),
+    );
   }
 }
