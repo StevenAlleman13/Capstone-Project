@@ -5,11 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_page.dart';
+import 'screens/events_page.dart' show EventsPage;
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Hive.initFlutter();
+  await Hive.deleteBoxFromDisk('events');
+  await Hive.openBox('events');
 
   await Supabase.initialize(
     url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
@@ -151,7 +158,7 @@ class _MyHomePageState extends State<MyHomePage> {
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
-    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Events', 'Settings'];
+    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Calendar', 'Settings'];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
         ? pageTitles[selectedIndex]
         : '';
@@ -198,7 +205,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.event),
-                        label: 'Events',
+                        label: 'Calendar',
                       ),
                       BottomNavigationBarItem(
                         icon: Icon(Icons.settings),
@@ -243,7 +250,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       NavigationRailDestination(
                         icon: Icon(Icons.event),
-                        label: Text('Events'),
+                        label: Text('Calendar'),
                       ),
                       NavigationRailDestination(
                         icon: Icon(Icons.settings),
@@ -380,12 +387,7 @@ class FitnessPage extends StatelessWidget {
   }
 }
 
-class EventsPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
+
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
