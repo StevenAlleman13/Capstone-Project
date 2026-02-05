@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_page.dart';
 import 'screens/health_page.dart' as health;
 import 'screens/events_page.dart' show EventsPage;
+import 'screens/fitness_page.dart' as fitness;
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -147,7 +148,7 @@ class _MyHomePageState extends State<MyHomePage> {
         page = health.HealthPage();
         break;
       case 2:
-        page = FitnessPage();
+        page = fitness.FitnessPage();
         break;
       case 3:
         page = EventsPage();
@@ -159,7 +160,13 @@ class _MyHomePageState extends State<MyHomePage> {
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
-    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Calendar', 'Settings'];
+    final pageTitles = [
+      'Dashboard',
+      'Health',
+      'Fitness',
+      'Calendar',
+      'Settings',
+    ];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
         ? pageTitles[selectedIndex]
         : '';
@@ -380,15 +387,6 @@ class HealthPage extends StatelessWidget {
     return SizedBox.shrink();
   }
 }
-
-class FitnessPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
-
-
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
