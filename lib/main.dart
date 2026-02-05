@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_page.dart';
+import 'screens/health_page.dart' as health;
 import 'screens/events_page.dart' show EventsPage;
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -143,7 +144,7 @@ class _MyHomePageState extends State<MyHomePage> {
         page = DashboardPage();
         break;
       case 1:
-        page = HealthPage();
+        page = health.HealthPage();
         break;
       case 2:
         page = FitnessPage();

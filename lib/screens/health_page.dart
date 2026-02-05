@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 
-class HealthTab extends StatelessWidget {
-  const HealthTab({
+class HealthPage extends StatelessWidget {
+  const HealthPage({
     super.key,
     this.ingredients = const [],
     this.healthFacts = const [],
+    this.recipeCards = const [],
     this.onAddIngredient,
     this.onRemoveIngredient,
     this.onRefreshFacts,
     this.onRefreshRecipes,
-    this.recipeCards = const [],
     this.onRecipeTap,
+    this.onAddRecipe,
   });
 
   // Data
@@ -24,73 +25,76 @@ class HealthTab extends StatelessWidget {
   final VoidCallback? onRefreshFacts;
   final VoidCallback? onRefreshRecipes;
   final void Function(RecipeCardUi recipe)? onRecipeTap;
+  final VoidCallback? onAddRecipe;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _SectionFrame(
-          title: 'INGREDIENTS',
-          rightAction: IconButton(
-            icon: const Icon(Icons.add, size: 22),
-            tooltip: 'Add ingredient',
-            onPressed: onAddIngredient,
+    return Scaffold(
+      //appBar: AppBar(title: const Text('Health')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        physics: const BouncingScrollPhysics(),
+        children: [
+          _SectionFrame(
+            title: 'INGREDIENTS',
+            rightAction: IconButton(
+              icon: const Icon(Icons.add, size: 22),
+              tooltip: 'Add ingredient',
+              onPressed: onAddIngredient,
+            ),
+            child: ingredients.isEmpty
+                ? const _EmptyHint(text: 'Tap + to add ingredients.')
+                : _IngredientChips(items: ingredients, onRemove: onRemoveIngredient),
           ),
-          child: ingredients.isEmpty
-              ? const _EmptyHint(text: 'Tap + to add ingredients.')
-              : _IngredientChips(
-                  items: ingredients,
-                  onRemove: onRemoveIngredient,
-                ),
-        ),
-        const SizedBox(height: 14),
+          const SizedBox(height: 14),
 
-        _SectionFrame(
-          title: 'HEALTH FACTS',
-          rightAction: IconButton(
-            icon: const Icon(Icons.refresh, size: 20),
-            tooltip: 'Refresh facts',
-            onPressed: onRefreshFacts,
+          _SectionFrame(
+            title: 'HEALTH FACTS',
+            rightAction: IconButton(
+              icon: const Icon(Icons.refresh, size: 20),
+              tooltip: 'Refresh facts',
+              onPressed: onRefreshFacts,
+            ),
+            child: healthFacts.isEmpty
+                ? const _EmptyHint(text: 'Add ingredients to generate health facts.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final fact in healthFacts)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _NeonBullet(text: fact),
+                        ),
+                    ],
+                  ),
           ),
-          child: healthFacts.isEmpty
-              ? const _EmptyHint(text: 'Add ingredients to generate health facts.')
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final fact in healthFacts)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _NeonBullet(text: fact),
+          const SizedBox(height: 14),
+
+          _SectionFrame(
+            title: 'RECIPES',
+            rightAction: IconButton(
+              icon: const Icon(Icons.add, size: 22),
+              tooltip: 'Add recipe',
+              onPressed: onAddRecipe,
+            ),
+            child: recipeCards.isEmpty
+                ? const _EmptyHint(text: 'Add ingredients to get recipes.')
+                : SizedBox(
+                    height: 190,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: recipeCards.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, i) => _RecipeCard(
+                        recipe: recipeCards[i],
+                        onTap: onRecipeTap,
                       ),
-                  ],
-                ),
-        ),
-        const SizedBox(height: 14),
-
-        _SectionFrame(
-          title: 'RECIPES',
-          rightAction: IconButton(
-            icon: const Icon(Icons.refresh, size: 20),
-            tooltip: 'Refresh recipes',
-            onPressed: onRefreshRecipes,
-          ),
-          child: recipeCards.isEmpty
-              ? const _EmptyHint(text: 'Add ingredients to get recipes.')
-              : SizedBox(
-                  height: 180,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: recipeCards.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, i) => _RecipeCard(
-                      recipe: recipeCards[i],
-                      onTap: onRecipeTap,
                     ),
                   ),
-                ),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -101,10 +105,7 @@ class _IngredientChips extends StatelessWidget {
   final List<String> items;
   final void Function(String ingredient)? onRemove;
 
-  const _IngredientChips({
-    required this.items,
-    this.onRemove,
-  });
+  const _IngredientChips({required this.items, this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -126,10 +127,7 @@ class _NeonChip extends StatelessWidget {
   final String label;
   final VoidCallback? onDelete;
 
-  const _NeonChip({
-    required this.label,
-    this.onDelete,
-  });
+  const _NeonChip({required this.label, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -138,6 +136,7 @@ class _NeonChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: neon.withOpacity(0.75), width: 1.2),
         boxShadow: [BoxShadow(color: neon.withOpacity(0.15), blurRadius: 10)],
         color: Colors.black,
@@ -149,8 +148,12 @@ class _NeonChip extends StatelessWidget {
           if (onDelete != null) ...[
             const SizedBox(width: 10),
             InkWell(
+              borderRadius: BorderRadius.circular(999),
               onTap: onDelete,
-              child: Icon(Icons.close, size: 18, color: neon),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(Icons.close, size: 18, color: neon),
+              ),
             ),
           ],
         ],
@@ -169,21 +172,31 @@ class _NeonBullet extends StatelessWidget {
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 6),
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            border: Border.all(color: neon.withOpacity(0.8), width: 1),
-            boxShadow: [BoxShadow(color: neon.withOpacity(0.18), blurRadius: 10)],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: neon.withOpacity(0.55), width: 1),
+        boxShadow: [BoxShadow(color: neon.withOpacity(0.10), blurRadius: 10)],
+        color: Colors.black,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 6),
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: neon.withOpacity(0.85), width: 1),
+              boxShadow: [BoxShadow(color: neon.withOpacity(0.18), blurRadius: 10)],
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(child: Text(text)),
-      ],
+          const SizedBox(width: 10),
+          Expanded(child: Text(text)),
+        ],
+      ),
     );
   }
 }
@@ -206,61 +219,62 @@ class _RecipeCard extends StatelessWidget {
   final RecipeCardUi recipe;
   final void Function(RecipeCardUi recipe)? onTap;
 
-  const _RecipeCard({
-    required this.recipe,
-    this.onTap,
-  });
+  const _RecipeCard({required this.recipe, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
 
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        border: Border.all(color: neon.withOpacity(0.7), width: 1.2),
-        boxShadow: [BoxShadow(color: neon.withOpacity(0.12), blurRadius: 14)],
-        color: Colors.black,
-      ),
+    return Material(
+      color: Colors.black,
+      borderRadius: BorderRadius.circular(18),
       child: InkWell(
+        borderRadius: BorderRadius.circular(18),
         onTap: onTap == null ? null : () => onTap!(recipe),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (recipe.imageUrl.isNotEmpty)
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Image.network(
-                  recipe.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(color: Colors.black),
-                ),
-              )
-            else
-              Container(height: 110, color: Colors.black),
-
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Text(
-                recipe.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
-            if (recipe.subtitle.isNotEmpty)
+        child: Container(
+          width: 220,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: neon.withOpacity(0.7), width: 1.2),
+            boxShadow: [BoxShadow(color: neon.withOpacity(0.12), blurRadius: 14)],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (recipe.imageUrl.isNotEmpty)
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.network(
+                    recipe.imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(color: Colors.black),
+                  ),
+                )
+              else
+                Container(height: 110, color: Colors.black),
               Padding(
-                padding: const EdgeInsets.only(left: 10, right: 10, bottom: 10),
+                padding: const EdgeInsets.all(10),
                 child: Text(
-                  recipe.subtitle,
-                  maxLines: 1,
+                  recipe.title,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: neon.withOpacity(0.85),
-                      ),
                 ),
               ),
-          ],
+              if (recipe.subtitle.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 10, right: 10, bottom: 10),
+                  child: Text(
+                    recipe.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: neon.withOpacity(0.85),
+                        ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -274,11 +288,7 @@ class _SectionFrame extends StatelessWidget {
   final Widget child;
   final Widget? rightAction;
 
-  const _SectionFrame({
-    required this.title,
-    required this.child,
-    this.rightAction,
-  });
+  const _SectionFrame({required this.title, required this.child, this.rightAction});
 
   @override
   Widget build(BuildContext context) {
@@ -287,6 +297,7 @@ class _SectionFrame extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: neon.withOpacity(0.8), width: 1.2),
         boxShadow: [BoxShadow(color: neon.withOpacity(0.12), blurRadius: 16)],
         color: Colors.black,
@@ -322,6 +333,14 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(opacity: 0.8, child: Text(text));
+    return Opacity(
+      opacity: 0.85,
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withOpacity(0.85),
+            ),
+      ),
+    );
   }
 }
