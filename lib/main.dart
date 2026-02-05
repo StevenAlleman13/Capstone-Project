@@ -3,11 +3,38 @@
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+<<<<<<< Updated upstream
 
 const Color _neonGreen = Color(0xFF00FF66);
 
 void main() {
   runApp(MyApp());
+=======
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'screens/login_page.dart';
+import 'screens/events_page.dart' show EventsPage;
+import 'screens/fitness_page.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+const Color _neonGreen = Color(0xFF00FF66);
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Hive.initFlutter();
+  await Hive.deleteBoxFromDisk('events');
+  await Hive.openBox('events');
+  await Hive.openBox<double>('weights');
+
+  await Supabase.initialize(
+    url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmenFiYXRkenV6YXVrbXFpZmVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcyODM1NjUsImV4cCI6MjA4Mjg1OTU2NX0.2kuf8GKWCMtZeKXPLgTSrOHUjYfOb7qCpwaIyFX7Ik8',
+  );
+
+  runApp(const MyApp());
+>>>>>>> Stashed changes
 }
 
 
@@ -112,9 +139,22 @@ class _MyHomePageState extends State<MyHomePage> {
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
+<<<<<<< Updated upstream
     // Determine the page title based on the selected index.
     final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Events', 'Settings'];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length) ? pageTitles[selectedIndex] : '';
+=======
+    final pageTitles = [
+      'Dashboard',
+      'Health',
+      'Fitness',
+      'Calendar',
+      'Settings',
+    ];
+    final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
+        ? pageTitles[selectedIndex]
+        : '';
+>>>>>>> Stashed changes
 
     // The container for the current page, with its background color
     // and subtle switching animation.
@@ -347,6 +387,7 @@ class HealthPage extends StatelessWidget {
   }
 }
 
+<<<<<<< Updated upstream
 class FitnessPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -355,6 +396,17 @@ class FitnessPage extends StatelessWidget {
 }
 
 class EventsPage extends StatelessWidget {
+=======
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  Future<void> _logout(BuildContext context) async {
+    await Supabase.instance.client.auth.signOut();
+
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
+>>>>>>> Stashed changes
   @override
   Widget build(BuildContext context) {
     return SizedBox.shrink();
