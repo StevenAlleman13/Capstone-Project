@@ -3,13 +3,22 @@
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'screens/login_page.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 
-void main() {
-  runApp(MyApp());
-}
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
+  await Supabase.initialize(
+    url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmenFiYXRkenV6YXVrbXFpZmVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcyODM1NjUsImV4cCI6MjA4Mjg1OTU2NX0.2kuf8GKWCMtZeKXPLgTSrOHUjYfOb7qCpwaIyFX7Ik8',
+  );
+
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -36,18 +45,46 @@ class MyApp extends StatelessWidget {
             onError: Colors.white,
           ),
           textTheme: TextTheme(
-            titleLarge: TextStyle(color: _neonGreen, shadows: [Shadow(color: _neonGreen, blurRadius: 12.0)], fontSize: 20),
-            displayMedium: TextStyle(color: _neonGreen, shadows: [Shadow(color: _neonGreen, blurRadius: 16.0)], fontSize: 24),
-            bodyMedium: TextStyle(color: _neonGreen, shadows: [Shadow(color: _neonGreen, blurRadius: 8.0)]),
+            titleLarge: TextStyle(
+              color: _neonGreen,
+              shadows: [Shadow(color: _neonGreen, blurRadius: 12.0)],
+              fontSize: 20,
+            ),
+            displayMedium: TextStyle(
+              color: _neonGreen,
+              shadows: [Shadow(color: _neonGreen, blurRadius: 16.0)],
+              fontSize: 24,
+            ),
+            bodyMedium: TextStyle(
+              color: _neonGreen,
+              shadows: [Shadow(color: _neonGreen, blurRadius: 8.0)],
+            ),
           ),
           iconTheme: IconThemeData(color: _neonGreen),
-          appBarTheme: AppBarTheme(backgroundColor: Colors.black, foregroundColor: _neonGreen, elevation: 0),
-          cardTheme: CardThemeData(color: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero)),
+          appBarTheme: AppBarTheme(
+            backgroundColor: Colors.black,
+            foregroundColor: _neonGreen,
+            elevation: 0,
+          ),
+          cardTheme: CardThemeData(
+            color: Colors.black,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          ),
           elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[900], foregroundColor: _neonGreen, shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey[900],
+              foregroundColor: _neonGreen,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            ),
           ),
         ),
-        home: MyHomePage(),
+
+        // Login-first flow:
+        initialRoute: '/login',
+        routes: {
+          '/login': (context) => const LoginPage(),
+          '/home': (context) => const MyHomePage(),
+        },
       ),
     );
   }
@@ -80,6 +117,8 @@ class MyAppState extends ChangeNotifier {
 }
 
 class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
+
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
@@ -112,12 +151,11 @@ class _MyHomePageState extends State<MyHomePage> {
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
-    // Determine the page title based on the selected index.
     final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Events', 'Settings'];
-    final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length) ? pageTitles[selectedIndex] : '';
+    final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
+        ? pageTitles[selectedIndex]
+        : '';
 
-    // The container for the current page, with its background color
-    // and subtle switching animation.
     var mainArea = ColoredBox(
       color: colorScheme.surfaceVariant,
       child: AnimatedSwitcher(
@@ -131,16 +169,11 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Colors.black,
         elevation: 0,
         centerTitle: false,
-        title: Text(
-          pageTitle,
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        title: Text(pageTitle, style: Theme.of(context).textTheme.titleLarge),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth < 450) {
-            // Use a more mobile-friendly layout with BottomNavigationBar
-            // on narrow screens.
             return Column(
               children: [
                 Expanded(child: mainArea),
@@ -179,7 +212,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       });
                     },
                   ),
-                )
+                ),
               ],
             );
           } else {
@@ -192,7 +225,9 @@ class _MyHomePageState extends State<MyHomePage> {
                     selectedIconTheme: IconThemeData(color: _neonGreen),
                     unselectedIconTheme: IconThemeData(color: Colors.grey[500]),
                     selectedLabelTextStyle: TextStyle(color: _neonGreen),
-                    unselectedLabelTextStyle: TextStyle(color: Colors.grey[500]),
+                    unselectedLabelTextStyle: TextStyle(
+                      color: Colors.grey[500],
+                    ),
                     destinations: [
                       NavigationRailDestination(
                         icon: Icon(Icons.dashboard),
@@ -241,10 +276,7 @@ class GeneratorPage extends StatelessWidget {
 }
 
 class BigCard extends StatelessWidget {
-  const BigCard({
-    Key? key,
-    required this.pair,
-  }) : super(key: key);
+  const BigCard({Key? key, required this.pair}) : super(key: key);
 
   final WordPair pair;
 
@@ -261,8 +293,6 @@ class BigCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: AnimatedSize(
           duration: Duration(milliseconds: 200),
-          // Make sure that the compound word wraps correctly when the window
-          // is too narrow.
           child: MergeSemantics(
             child: Wrap(
               children: [
@@ -273,7 +303,7 @@ class BigCard extends StatelessWidget {
                 Text(
                   pair.second,
                   style: style.copyWith(fontWeight: FontWeight.bold),
-                )
+                ),
               ],
             ),
           ),
@@ -290,9 +320,7 @@ class FavoritesPage extends StatelessWidget {
     var appState = context.watch<MyAppState>();
 
     if (appState.favorites.isEmpty) {
-      return Center(
-        child: Text('No favorites yet.'),
-      );
+      return Center(child: Text('No favorites yet.'));
     }
 
     return Column(
@@ -300,11 +328,9 @@ class FavoritesPage extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.all(30),
-          child: Text('You have '
-              '${appState.favorites.length} favorites:'),
+          child: Text('You have ${appState.favorites.length} favorites:'),
         ),
         Expanded(
-          // Make better use of wide windows with a grid.
           child: GridView(
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 400,
@@ -362,10 +388,22 @@ class EventsPage extends StatelessWidget {
 }
 
 class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
+
+  Future<void> _logout(BuildContext context) async {
+    await Supabase.instance.client.auth.signOut();
+
+    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox.shrink();
+    return Center(
+      child: ElevatedButton.icon(
+        icon: const Icon(Icons.logout),
+        label: const Text('Log out'),
+        onPressed: () => _logout(context),
+      ),
+    );
   }
 }
-
-
