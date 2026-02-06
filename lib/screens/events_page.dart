@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:table_calendar/table_calendar.dart' show isSameDay;
@@ -6,105 +7,251 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// Overlay Dismissible widget for task row
+class _TaskDismissibleOverlay extends StatefulWidget {
+  final Map<String, dynamic> task;
+  final int idx;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+  const _TaskDismissibleOverlay({Key? key, required this.task, required this.idx, required this.onDelete, required this.onEdit}) : super(key: key);
+
+  @override
+  State<_TaskDismissibleOverlay> createState() => _TaskDismissibleOverlayState();
+}
+
+class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay> {
+  double _swipeAmount = 0.0;
+  bool _showActions = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onHorizontalDragUpdate: (details) {
+        setState(() {
+          _swipeAmount += details.delta.dx;
+          if (_swipeAmount < -60) {
+            _showActions = true;
+          } else if (_swipeAmount > -20) {
+            _showActions = false;
+          }
+        });
+      },
+      onHorizontalDragEnd: (_) {
+        setState(() {
+          if (_swipeAmount < -60) {
+            _showActions = true;
+            _swipeAmount = -60;
+          } else {
+            _showActions = false;
+            _swipeAmount = 0.0;
+          }
+        });
+      },
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[850],
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+              border: Border.all(
+                color: Color(0xFF39FF14), // Neon green
+                width: 2.0,
+              ),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              title: Text(widget.task['name'] ?? '', style: const TextStyle(color: Colors.white)),
+              subtitle: Text(
+                (widget.task['days'] as List<String>).isNotEmpty
+                  ? 'Repeats on: ${(widget.task['days'] as List<String>).join(", ")}'
+                  : 'No repeat days selected',
+                style: const TextStyle(color: Colors.white60),
+              ),
+            ),
+          ),
+          AnimatedOpacity(
+            opacity: _showActions ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              width: 120,
+              height: 72,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.white),
+                    tooltip: 'Edit',
+                    onPressed: widget.onEdit,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.white),
+                    tooltip: 'Delete',
+                    onPressed: widget.onDelete,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class EventsPage extends StatefulWidget {
   @override
   _EventsPageState createState() => _EventsPageState();
 }
 
 class _EventsPageState extends State<EventsPage> {
-              // Temporary in-memory task list for demonstration
-              List<Map<String, dynamic>> _tasks = [];
+  // Persistent task list using Hive
+  List<Map<String, dynamic>> _tasks = [];
+  Box? _tasksBox;
+
+  @override
+  void initState() {
+    super.initState();
+    if (Hive.isBoxOpen('tasks')) {
+      _tasksBox = Hive.box('tasks');
+      _loadTasksFromHive();
+    } else {
+      Hive.openBox('tasks').then((box) {
+        setState(() {
+          _tasksBox = box;
+          _loadTasksFromHive();
+        });
+      });
+    }
+  }
+
+  void _loadTasksFromHive() {
+    if (_tasksBox == null) return;
+    final loaded = _tasksBox!.values
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m as Map))
+        .toList();
+    setState(() {
+      _tasks = loaded;
+    });
+  }
             static const List<String> _fullWeekdays = [
               'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
             ];
           void _showAddTaskDialog() {
             final TextEditingController taskNameController = TextEditingController();
             List<bool> selectedDays = List.generate(7, (_) => false);
-            showDialog(
-              context: context,
-              builder: (context) {
-                return StatefulBuilder(
-                  builder: (context, setState) {
-                    return AlertDialog(
-                      title: const Text('Add Task'),
-                      content: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            TextField(
-                              controller: taskNameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Task Name',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            const Text('Repeat on:', style: TextStyle(fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            Column(
-                              children: List.generate(_fullWeekdays.length, (i) {
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 2.0),
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: selectedDays[i] ? Colors.green[400] : Colors.grey[800],
-                                      foregroundColor: Colors.white,
-                                      minimumSize: const Size(double.infinity, 40),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        selectedDays[i] = !selectedDays[i];
-                                      });
-                                    },
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Text(_fullWeekdays[i], style: const TextStyle(fontSize: 16)),
-                                        if (selectedDays[i]) ...[
-                                          const SizedBox(width: 8),
-                                          const Icon(Icons.check, color: Colors.white),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ],
-                        ),
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Add Task'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: taskNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Task Name',
+                        border: OutlineInputBorder(),
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            // Save the task with name and selectedDays
-                            setState(() {
-                              _tasks.add({
-                                'name': taskNameController.text,
-                                'days': List.generate(_fullWeekdays.length, (i) => selectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text('Repeat on:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Column(
+                      children: List.generate(_fullWeekdays.length, (i) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: selectedDays[i] ? Colors.green[400] : Colors.grey[800],
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(double.infinity, 40),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                selectedDays[i] = !selectedDays[i];
                               });
-                            });
-                            Navigator.of(context).pop();
-                          },
-                          child: const Text('Save'),
-                        ),
-                      ],
-                    );
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(_fullWeekdays[i], style: const TextStyle(fontSize: 16)),
+                                if (selectedDays[i]) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.check, color: Colors.white),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final newTask = {
+                      'name': taskNameController.text,
+                      'days': List.generate(_fullWeekdays.length, (i) => selectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
+                    };
+                    setState(() {
+                      _tasks.add(newTask);
+                    });
+                    _tasksBox?.add(newTask);
+                    Navigator.of(context).pop();
                   },
-                );
-              },
+                  child: const Text('Save'),
+                ),
+              ],
             );
+          },
+        );
+      },
+    );
           }
         bool _isEventCompleted(Map event) {
           if (event['allDay'] == true) {
-            // For all day events, consider completed if the day is before today
+            // For all day events, consider completed only if the day is before today (not today),
+            // or if today but the time is past 23:59:59
             final eventDate = DateTime.tryParse(event['date'] ?? '') ?? DateTime.now();
-            return eventDate.isBefore(DateTime.now());
+            final now = DateTime.now();
+            // If eventDate is before today, it's completed
+            if (eventDate.isBefore(DateTime(now.year, now.month, now.day))) {
+              return true;
+            }
+            // If eventDate is today, only completed after today ends
+            if (eventDate.year == now.year && eventDate.month == now.month && eventDate.day == now.day) {
+              // Completed only after today is over
+              return now.isAfter(DateTime(now.year, now.month, now.day, 23, 59, 59));
+            }
+            // If eventDate is in the future, not completed
+            return false;
           }
           // Parse end time
           final date = event['date'] ?? '';
@@ -174,6 +321,9 @@ class _EventsPageState extends State<EventsPage> {
     int hour = initial.hourOfPeriod == 0 ? 12 : initial.hourOfPeriod;
     int minute = initial.minute;
     bool isAm = initial.period == DayPeriod.am;
+    // Set hourController to scroll to the current hour by default
+    int hourIndex = hour - 1; // 0-based index for ListWheelScrollView (1-12)
+    FixedExtentScrollController hourController = FixedExtentScrollController(initialItem: hourIndex);
     FixedExtentScrollController minuteController = FixedExtentScrollController(initialItem: minute);
     FixedExtentScrollController ampmController = FixedExtentScrollController(initialItem: isAm ? 0 : 1);
     return await showDialog<TimeOfDay>(
@@ -188,6 +338,7 @@ class _EventsPageState extends State<EventsPage> {
               SizedBox(
                 width: 60,
                 child: ListWheelScrollView.useDelegate(
+                  controller: hourController,
                   itemExtent: 28,
                   diameterRatio: 0.8,
                   physics: FixedExtentScrollPhysics(),
@@ -1022,61 +1173,28 @@ class _EventsPageState extends State<EventsPage> {
                               ),
                               const SizedBox(height: 10),
                               if (_tasks.isNotEmpty) ...[
-                                ..._tasks.map((task) => Container(
-                                  margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[850],
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.15),
-                                        blurRadius: 6,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                    border: Border.all(
-                                      color: Color(0xFF39FF14), // Neon green
-                                      width: 2.0,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: ListTile(
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                          title: Text(task['name'] ?? '', style: const TextStyle(color: Colors.white)),
-                                          subtitle: Text(
-                                            (task['days'] as List<String>).isNotEmpty
-                                              ? 'Repeats on: ${(task['days'] as List<String>).join(", ")}'
-                                              : 'No repeat days selected',
-                                            style: const TextStyle(color: Colors.white60),
-                                          ),
-                                        ),
-                                      ),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.edit, color: Colors.white70),
-                                            tooltip: 'Edit',
-                                            onPressed: () {
-                                              // TODO: Implement edit task functionality
-                                            },
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                            tooltip: 'Delete',
-                                            onPressed: () {
-                                              setState(() {
-                                                _tasks.remove(task);
-                                              });
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                )),
+                                ..._tasks.asMap().entries.map((entry) {
+                                  final idx = entry.key;
+                                  final task = entry.value;
+                                  return _TaskDismissibleOverlay(
+                                    key: ValueKey('task-$idx'),
+                                    task: task,
+                                    idx: idx,
+                                    onDelete: () {
+                                      setState(() {
+                                        _tasks.removeAt(idx);
+                                        if (_tasksBox != null && _tasksBox!.isOpen) {
+                                          _tasksBox!.deleteAt(idx);
+                                        }
+                                      });
+                                    },
+                                    onEdit: () {
+                                      // TODO: Implement edit task functionality
+                                    },
+                                  );
+                                }),
+
+
                               ]
                               else ...[
                                 Padding(

@@ -5,9 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_page.dart';
-import 'screens/health_page.dart' as health;
 import 'screens/events_page.dart' show EventsPage;
-import 'screens/fitness_page.dart' as fitness;
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -19,6 +17,7 @@ Future<void> main() async {
   await Hive.initFlutter();
   await Hive.deleteBoxFromDisk('events');
   await Hive.openBox('events');
+  await Hive.openBox('tasks');
 
   await Supabase.initialize(
     url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
@@ -46,8 +45,6 @@ class MyApp extends StatelessWidget {
             onPrimary: _neonGreen,
             secondary: _neonGreen,
             onSecondary: Colors.black,
-            background: Colors.black,
-            onBackground: _neonGreen,
             surface: Colors.black,
             onSurface: _neonGreen,
             error: Colors.red,
@@ -143,36 +140,25 @@ class _MyHomePageState extends State<MyHomePage> {
     switch (selectedIndex) {
       case 0:
         page = DashboardPage();
-        break;
       case 1:
-        page = health.HealthPage();
-        break;
+        page = HealthPage();
       case 2:
-        page = fitness.FitnessPage();
-        break;
+        page = FitnessPage();
       case 3:
         page = EventsPage();
-        break;
       case 4:
         page = SettingsPage();
-        break;
       default:
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
-    final pageTitles = [
-      'Dashboard',
-      'Health',
-      'Fitness',
-      'Calendar',
-      'Settings',
-    ];
+    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Calendar', 'Settings'];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
         ? pageTitles[selectedIndex]
         : '';
 
     var mainArea = ColoredBox(
-      color: colorScheme.surfaceVariant,
+      color: colorScheme.surfaceContainerHighest,
       child: AnimatedSwitcher(
         duration: Duration(milliseconds: 200),
         child: page,
@@ -291,7 +277,7 @@ class GeneratorPage extends StatelessWidget {
 }
 
 class BigCard extends StatelessWidget {
-  const BigCard({Key? key, required this.pair}) : super(key: key);
+  const BigCard({super.key, required this.pair});
 
   final WordPair pair;
 
@@ -387,6 +373,15 @@ class HealthPage extends StatelessWidget {
     return SizedBox.shrink();
   }
 }
+
+class FitnessPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.shrink();
+  }
+}
+
+
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
