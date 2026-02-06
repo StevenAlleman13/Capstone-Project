@@ -13,7 +13,8 @@ class _TaskDismissibleOverlay extends StatefulWidget {
   final int idx;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
-  const _TaskDismissibleOverlay({Key? key, required this.task, required this.idx, required this.onDelete, required this.onEdit}) : super(key: key);
+  final VoidCallback? onMarkDone;
+  const _TaskDismissibleOverlay({Key? key, required this.task, required this.idx, required this.onDelete, required this.onEdit, this.onMarkDone}) : super(key: key);
 
   @override
   State<_TaskDismissibleOverlay> createState() => _TaskDismissibleOverlayState();
@@ -67,44 +68,110 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay> {
                 width: 2.0,
               ),
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              title: Text(widget.task['name'] ?? '', style: const TextStyle(color: Colors.white)),
-              subtitle: Text(
-                (widget.task['days'] as List<String>).isNotEmpty
-                  ? 'Repeats on: ${(widget.task['days'] as List<String>).join(", ")}'
-                  : 'No repeat days selected',
-                style: const TextStyle(color: Colors.white60),
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    title: Text(widget.task['name'] ?? '', style: const TextStyle(color: Colors.white)),
+                    subtitle: Text(
+                      (widget.task['days'] as List<String>).isNotEmpty
+                        ? 'Repeats on: ${(widget.task['days'] as List<String>).join(", ")}'
+                        : 'No repeat days selected',
+                      style: const TextStyle(color: Colors.white60),
+                    ),
+                  ),
+                ),
+                if (!_showActions && widget.task['completed'] != true)
+                  Container(
+                    margin: const EdgeInsets.only(top: 6, bottom: 6, right: 24, left: 2),
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Color(0xFF39FF14),
+                        width: 3.0,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0xFF39FF14).withOpacity(0.3),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.check, color: Color(0xFF39FF14)),
+                      tooltip: 'Mark as done',
+                      onPressed: widget.onMarkDone,
+                    ),
+                  ),
+              ],
             ),
           ),
           AnimatedOpacity(
             opacity: _showActions ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              width: 120,
-              height: 72,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.white),
-                    tooltip: 'Edit',
-                    onPressed: widget.onEdit,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.white),
-                    tooltip: 'Delete',
-                    onPressed: widget.onDelete,
-                  ),
-                ],
-              ),
-            ),
+            child: _showActions
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (widget.task['completed'] != true)
+                        Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Color(0xFF39FF14),
+                              width: 3.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0xFF39FF14).withOpacity(0.3),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ],
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.white),
+                            tooltip: 'Edit',
+                            onPressed: widget.onEdit,
+                          ),
+                        ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 6, bottom: 6, right: 24, left: 2),
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Color(0xFF39FF14),
+                            width: 3.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF39FF14).withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.white),
+                          tooltip: 'Delete',
+                          onPressed: widget.onDelete,
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -118,6 +185,94 @@ class EventsPage extends StatefulWidget {
 }
 
 class _EventsPageState extends State<EventsPage> {
+    void _showEditTaskDialog(int idx) {
+      final task = _tasks[idx];
+      final TextEditingController taskNameController = TextEditingController(text: task['name'] ?? '');
+      List<bool> selectedDays = List.generate(_fullWeekdays.length, (i) => (task['days'] as List<String>).contains(_fullWeekdays[i]));
+      showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text('Edit Task'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: taskNameController,
+                        decoration: const InputDecoration(
+                          labelText: 'Task Name',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text('Repeat on:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Column(
+                        children: List.generate(_fullWeekdays.length, (i) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.0),
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: selectedDays[i] ? Colors.green[400] : Colors.grey[800],
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(double.infinity, 40),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  selectedDays[i] = !selectedDays[i];
+                                });
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(_fullWeekdays[i], style: const TextStyle(fontSize: 16)),
+                                  if (selectedDays[i]) ...[
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.check, color: Colors.white),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      final updatedTask = {
+                        ...task,
+                        'name': taskNameController.text,
+                        'days': List.generate(_fullWeekdays.length, (i) => selectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
+                      };
+                      setState(() {
+                        _tasks[idx] = updatedTask;
+                        if (_tasksBox != null && _tasksBox!.isOpen) {
+                          _tasksBox!.putAt(idx, updatedTask);
+                        }
+                      });
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Save'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
   // Persistent task list using Hive
   List<Map<String, dynamic>> _tasks = [];
   Box? _tasksBox;
@@ -146,6 +301,25 @@ class _EventsPageState extends State<EventsPage> {
         .toList();
     setState(() {
       _tasks = loaded;
+    });
+  }
+
+  void _markTaskAsCompleted(int idx) {
+    setState(() {
+      if (idx >= 0 && idx < _tasks.length) {
+        final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+        if (_tasks[idx]['completedDates'] == null) {
+          _tasks[idx]['completedDates'] = <String>[];
+        }
+        final List completedDates = List<String>.from(_tasks[idx]['completedDates'] ?? []);
+        if (!completedDates.contains(todayStr)) {
+          completedDates.add(todayStr);
+        }
+        _tasks[idx]['completedDates'] = completedDates;
+        if (_tasksBox != null && _tasksBox!.isOpen) {
+          _tasksBox!.putAt(idx, _tasks[idx]);
+        }
+      }
     });
   }
             static const List<String> _fullWeekdays = [
@@ -219,6 +393,7 @@ class _EventsPageState extends State<EventsPage> {
                     final newTask = {
                       'name': taskNameController.text,
                       'days': List.generate(_fullWeekdays.length, (i) => selectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
+                      'completed': false,
                     };
                     setState(() {
                       _tasks.add(newTask);
@@ -1100,7 +1275,6 @@ class _EventsPageState extends State<EventsPage> {
                                                 icon: const Icon(Icons.delete, color: Colors.redAccent),
                                                 tooltip: 'Delete',
                                                 onPressed: () {
-                                                  // TODO: Implement delete event functionality
                                                 },
                                               ),
                                             ],
@@ -1127,6 +1301,7 @@ class _EventsPageState extends State<EventsPage> {
                 )
               : ListView(
                   children: [
+                    // To-Do List Section
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       child: Container(
@@ -1146,7 +1321,7 @@ class _EventsPageState extends State<EventsPage> {
                           ),
                         ),
                         child: Padding(
-                          padding: EdgeInsets.only(bottom: 12), // Remove top padding so black background touches border
+                          padding: EdgeInsets.only(bottom: 12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1172,38 +1347,145 @@ class _EventsPageState extends State<EventsPage> {
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              if (_tasks.isNotEmpty) ...[
-                                ..._tasks.asMap().entries.map((entry) {
-                                  final idx = entry.key;
-                                  final task = entry.value;
-                                  return _TaskDismissibleOverlay(
-                                    key: ValueKey('task-$idx'),
-                                    task: task,
-                                    idx: idx,
-                                    onDelete: () {
-                                      setState(() {
-                                        _tasks.removeAt(idx);
-                                        if (_tasksBox != null && _tasksBox!.isOpen) {
-                                          _tasksBox!.deleteAt(idx);
-                                        }
-                                      });
-                                    },
-                                    onEdit: () {
-                                      // TODO: Implement edit task functionality
-                                    },
-                                  );
-                                }),
-
-
-                              ]
-                              else ...[
+                              ..._tasks.asMap().entries.where((entry) {
+                                final task = entry.value;
+                                final List<String> days = List<String>.from(task['days'] ?? []);
+                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                // Show in To-Do if:
+                                // - Not completed for today
+                                // - AND (either not repeating, or today is a repeat day)
+                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                return isRepeatToday && !completedDates.contains(todayStr);
+                              }).map((entry) {
+                                final idx = entry.key;
+                                final task = entry.value;
+                                return _TaskDismissibleOverlay(
+                                  key: ValueKey('task-$idx'),
+                                  task: task,
+                                  idx: idx,
+                                  onDelete: () {
+                                    setState(() {
+                                      _tasks.removeAt(idx);
+                                      if (_tasksBox != null && _tasksBox!.isOpen) {
+                                        _tasksBox!.deleteAt(idx);
+                                      }
+                                    });
+                                  },
+                                  onEdit: () {
+                                    _showEditTaskDialog(idx);
+                                  },
+                                  onMarkDone: () {
+                                    _markTaskAsCompleted(idx);
+                                  },
+                                );
+                              }),
+                              if (_tasks.asMap().entries.where((entry) {
+                                final task = entry.value;
+                                final List<String> days = List<String>.from(task['days'] ?? []);
+                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                return isRepeatToday && !completedDates.contains(todayStr);
+                              }).isEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 24.0),
                                   child: Center(
                                     child: Text('No tasks added.', style: TextStyle(color: Colors.white54)),
                                   ),
                                 ),
-                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Completed Tasks Section (always show when Tasks tab is active)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.grey[900],
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.18),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Color(0xFF39FF14), // Neon green
+                            width: 2.5,
+                          ),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 8, bottom: 6),
+                                  child: Center(
+                                    child: Text('Completed Tasks', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                height: 3,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF39FF14), // Neon green
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              ..._tasks.asMap().entries.where((entry) {
+                                final task = entry.value;
+                                final List<String> days = List<String>.from(task['days'] ?? []);
+                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                return isRepeatToday && completedDates.contains(todayStr);
+                              }).map((entry) {
+                                final idx = entry.key;
+                                final task = entry.value;
+                                return _TaskDismissibleOverlay(
+                                  key: ValueKey('task-completed-$idx'),
+                                  task: task,
+                                  idx: idx,
+                                  onDelete: () {
+                                    setState(() {
+                                      _tasks.removeAt(idx);
+                                      if (_tasksBox != null && _tasksBox!.isOpen) {
+                                        _tasksBox!.deleteAt(idx);
+                                      }
+                                    });
+                                  },
+                                  onEdit: () {
+                                    // No edit for completed
+                                  },
+                                );
+                              }),
+                              if (_tasks.asMap().entries.where((entry) {
+                                final task = entry.value;
+                                final List<String> days = List<String>.from(task['days'] ?? []);
+                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                return isRepeatToday && completedDates.contains(todayStr);
+                              }).isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 24.0),
+                                  child: Center(
+                                    child: Text('No completed tasks.', style: TextStyle(color: Colors.white54)),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
