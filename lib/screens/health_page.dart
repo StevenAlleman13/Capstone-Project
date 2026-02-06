@@ -1,36 +1,163 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class HealthPage extends StatelessWidget {
+class HealthPage extends StatefulWidget {
   const HealthPage({
     super.key,
-    this.ingredients = const [],
     this.healthFacts = const [],
     this.recipeCards = const [],
-    this.onAddIngredient,
-    this.onRemoveIngredient,
     this.onRefreshFacts,
     this.onRefreshRecipes,
     this.onRecipeTap,
     this.onAddRecipe,
   });
 
-  // Data
-  final List<String> ingredients;
   final List<String> healthFacts;
   final List<RecipeCardUi> recipeCards;
 
-  // Actions
-  final VoidCallback? onAddIngredient;
-  final void Function(String ingredient)? onRemoveIngredient;
   final VoidCallback? onRefreshFacts;
   final VoidCallback? onRefreshRecipes;
   final void Function(RecipeCardUi recipe)? onRecipeTap;
   final VoidCallback? onAddRecipe;
 
   @override
+  State<HealthPage> createState() => _HealthPageState();
+}
+
+class _HealthPageState extends State<HealthPage> {
+  final _supabase = Supabase.instance.client;
+
+  List<String> _ingredients = const [];
+  bool _loadingIngredients = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIngredients();                                    // initial load
+  }
+
+  Future<void> _loadIngredients() async {
+    final user = _supabase.auth.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _ingredients = const [];
+        _loadingIngredients = false;
+      });
+      return;
+    }
+
+    try {
+      if (mounted) {
+        setState(() => _loadingIngredients = true);
+      }
+
+      final rows = await _supabase
+          .from('ingredients')
+          .select('name')
+          .eq('user_id', user.id)
+          .order('created_at');
+
+      final list = (rows as List)
+          .map((r) => (r['name'] ?? '').toString().trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      if (!mounted) return;
+      setState(() {
+        _ingredients = list;
+        _loadingIngredients = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingIngredients = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading ingredients: $e')),
+      );
+    }
+  }
+
+  Future<void> _addIngredientDialog() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in first.')),
+      );
+      return;
+    }
+
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black,
+        title: const Text('Add Ingredient'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'e.g., bananas',
+              hintStyle: TextStyle(color: Colors.white54),
+            ),
+            validator: (v) {
+              final s = (v ?? '').trim();
+              if (s.isEmpty) return 'Enter an ingredient';
+              if (s.length > 40) return 'Keep it short';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() != true) return;
+              Navigator.pop(context, controller.text.trim());
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+
+    if (name == null) return;
+
+    await _supabase.from('ingredients').insert({
+      'user_id': user.id,
+      'name': name,
+    });
+
+    await _loadIngredients();                                  // refresh immediately after add
+  }
+
+  Future<void> _removeIngredient(String name) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    await _supabase
+        .from('ingredients')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('name', name);
+
+    await _loadIngredients();                                  // refresh immediately after delete
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final ingredients = _ingredients;
+
     return Scaffold(
-      //appBar: AppBar(title: const Text('Health')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
@@ -40,11 +167,16 @@ class HealthPage extends StatelessWidget {
             rightAction: IconButton(
               icon: const Icon(Icons.add, size: 22),
               tooltip: 'Add ingredient',
-              onPressed: onAddIngredient,
+              onPressed: _addIngredientDialog,
             ),
-            child: ingredients.isEmpty
-                ? const _EmptyHint(text: 'Tap + to add ingredients.')
-                : _IngredientChips(items: ingredients, onRemove: onRemoveIngredient),
+            child: _loadingIngredients
+                ? const _EmptyHint(text: 'Loading ingredients...')
+                : ingredients.isEmpty
+                    ? const _EmptyHint(text: 'Tap + to add ingredients.')
+                    : _IngredientChips(
+                        items: ingredients,
+                        onRemove: (name) => _removeIngredient(name),
+                      ),
           ),
           const SizedBox(height: 14),
 
@@ -53,14 +185,14 @@ class HealthPage extends StatelessWidget {
             rightAction: IconButton(
               icon: const Icon(Icons.refresh, size: 20),
               tooltip: 'Refresh facts',
-              onPressed: onRefreshFacts,
+              onPressed: widget.onRefreshFacts,
             ),
-            child: healthFacts.isEmpty
+            child: widget.healthFacts.isEmpty
                 ? const _EmptyHint(text: 'Add ingredients to generate health facts.')
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final fact in healthFacts)
+                      for (final fact in widget.healthFacts)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _NeonBullet(text: fact),
@@ -75,20 +207,20 @@ class HealthPage extends StatelessWidget {
             rightAction: IconButton(
               icon: const Icon(Icons.add, size: 22),
               tooltip: 'Add recipe',
-              onPressed: onAddRecipe,
+              onPressed: widget.onAddRecipe,
             ),
-            child: recipeCards.isEmpty
+            child: widget.recipeCards.isEmpty
                 ? const _EmptyHint(text: 'Add ingredients to get recipes.')
                 : SizedBox(
                     height: 190,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
-                      itemCount: recipeCards.length,
+                      itemCount: widget.recipeCards.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 12),
                       itemBuilder: (context, i) => _RecipeCard(
-                        recipe: recipeCards[i],
-                        onTap: onRecipeTap,
+                        recipe: widget.recipeCards[i],
+                        onTap: widget.onRecipeTap,
                       ),
                     ),
                   ),

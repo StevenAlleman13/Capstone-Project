@@ -4,8 +4,14 @@ import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'screens/login_page.dart';
+import 'screens/dashboard_page.dart' as dash;
+import 'screens/health_page.dart' as health;
+import 'screens/fitness_page.dart' as fit;
 import 'screens/events_page.dart' show EventsPage;
+import 'screens/settings_page.dart' as settings;
+
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -139,18 +145,24 @@ class _MyHomePageState extends State<MyHomePage> {
     Widget page;
     switch (selectedIndex) {
       case 0:
-        page = DashboardPage();
+        page = const dash.DashboardPage();
+        break;
       case 1:
-        page = HealthPage();
+        page = const health.HealthPage(); // or HealthPageDb if you made the DB wrapper
+        break;
       case 2:
-        page = FitnessPage();
+        page = const fit.FitnessPage();
+        break;
       case 3:
         page = EventsPage();
+        break;
       case 4:
-        page = SettingsPage();
+        page = const settings.SettingsPage();
+        break;
       default:
         throw UnimplementedError('no widget for $selectedIndex');
     }
+
 
     final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Calendar', 'Settings'];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
@@ -360,46 +372,7 @@ class FavoritesPage extends StatelessWidget {
   }
 }
 
-class DashboardPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
-
-class HealthPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
-
-class FitnessPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
 
 
 
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
 
-  Future<void> _logout(BuildContext context) async {
-    await Supabase.instance.client.auth.signOut();
-
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.logout),
-        label: const Text('Log out'),
-        onPressed: () => _logout(context),
-      ),
-    );
-  }
-}
