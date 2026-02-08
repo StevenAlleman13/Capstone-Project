@@ -1,5 +1,5 @@
-
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:table_calendar/table_calendar.dart' show isSameDay;
 import 'package:hive/hive.dart';
@@ -118,32 +118,182 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay> {
                 ? Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      if (widget.task['completed'] != true)
-                        Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Color(0xFF39FF14),
-                              width: 3.0,
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Color(0xFF39FF14),
+                            width: 3.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF39FF14).withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 1,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(0xFF39FF14).withOpacity(0.3),
-                                blurRadius: 8,
-                                spreadRadius: 1,
-                              ),
-                            ],
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.white),
-                            tooltip: 'Edit',
-                            onPressed: widget.onEdit,
-                          ),
+                          ],
                         ),
+                        child: IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.white),
+                          tooltip: 'Edit',
+                          onPressed: widget.onEdit,
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 6, bottom: 6, right: 24, left: 2),
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Color(0xFF39FF14),
+                            width: 3.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF39FF14).withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.white),
+                          tooltip: 'Delete',
+                          onPressed: widget.onDelete,
+                        ),
+                      ),
+                    ],
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Overlay Dismissible widget for events
+class _EventDismissibleOverlay extends StatefulWidget {
+  final Map<String, dynamic> event;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+  const _EventDismissibleOverlay({Key? key, required this.event, required this.onDelete, required this.onEdit}) : super(key: key);
+
+  @override
+  State<_EventDismissibleOverlay> createState() => _EventDismissibleOverlayState();
+}
+
+class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
+  double _swipeAmount = 0.0;
+  bool _showActions = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onHorizontalDragUpdate: (details) {
+        setState(() {
+          _swipeAmount += details.delta.dx;
+          if (_swipeAmount < -60) {
+            _showActions = true;
+          } else if (_swipeAmount > -20) {
+            _showActions = false;
+          }
+        });
+      },
+      onHorizontalDragEnd: (_) {
+        setState(() {
+          if (_swipeAmount < -60) {
+            _showActions = true;
+            _swipeAmount = -60;
+          } else {
+            _showActions = false;
+            _swipeAmount = 0.0;
+          }
+        });
+      },
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[850],
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.15),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+              border: Border.all(
+                color: Color(0xFF39FF14), // Neon green
+                width: 2.0,
+              ),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              title: Text(widget.event['title'] ?? '', style: const TextStyle(color: Colors.white)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.event['description'] != null && widget.event['description'].toString().isNotEmpty
+                        ? widget.event['description']
+                        : 'No description',
+                    style: const TextStyle(color: Colors.white60),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.event['all_day'] == true
+                        ? 'All Day'
+                        : (widget.event['start_time'] != null && widget.event['end_time'] != null
+                            ? '${widget.event['start_time']} - ${widget.event['end_time']}'
+                            : 'Time not set'),
+                    style: const TextStyle(color: Color(0xFF39FF14), fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedOpacity(
+            opacity: _showActions ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: _showActions
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Color(0xFF39FF14),
+                            width: 3.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF39FF14).withOpacity(0.3),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.edit, color: Colors.white),
+                          tooltip: 'Edit',
+                          onPressed: widget.onEdit,
+                        ),
+                      ),
                       Container(
                         margin: const EdgeInsets.only(top: 6, bottom: 6, right: 24, left: 2),
                         width: 48,
@@ -277,19 +427,23 @@ class _EventsPageState extends State<EventsPage> {
   List<Map<String, dynamic>> _tasks = [];
   Box? _tasksBox;
 
-  @override
-  void initState() {
-    super.initState();
-    if (Hive.isBoxOpen('tasks')) {
-      _tasksBox = Hive.box('tasks');
-      _loadTasksFromHive();
-    } else {
-      Hive.openBox('tasks').then((box) {
-        setState(() {
-          _tasksBox = box;
-          _loadTasksFromHive();
-        });
-      });
+  // Duplicate initState removed. Only one initState should exist in this class.
+
+  Future<void> _fetchEventsFromSupabase() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    final response = await Supabase.instance.client
+      .from('user_events')
+      .select()
+      .eq('user_id', userId)
+      .order('date', ascending: true);
+    if (response != null && response is List) {
+      for (final ev in response) {
+        if (ev['id'] != null) {
+          _box.put(ev['id'], ev);
+        }
+      }
+      setState(() {});
     }
   }
 
@@ -411,36 +565,49 @@ class _EventsPageState extends State<EventsPage> {
     );
           }
         bool _isEventCompleted(Map event) {
-          if (event['allDay'] == true) {
-            // For all day events, consider completed only if the day is before today (not today),
-            // or if today but the time is past 23:59:59
+          if (event['all_day'] == true) {
             final eventDate = DateTime.tryParse(event['date'] ?? '') ?? DateTime.now();
             final now = DateTime.now();
-            // If eventDate is before today, it's completed
             if (eventDate.isBefore(DateTime(now.year, now.month, now.day))) {
               return true;
             }
-            // If eventDate is today, only completed after today ends
             if (eventDate.year == now.year && eventDate.month == now.month && eventDate.day == now.day) {
-              // Completed only after today is over
               return now.isAfter(DateTime(now.year, now.month, now.day, 23, 59, 59));
             }
-            // If eventDate is in the future, not completed
             return false;
           }
-          // Parse end time
           final date = event['date'] ?? '';
-          final endAt = event['endAt'] ?? '';
-          if (date.isEmpty || endAt.isEmpty) return false;
+          final endTime = event['end_time'] ?? '';
+          if (date.isEmpty || endTime.isEmpty) return false;
           try {
-            final endParts = endAt.split(":");
+            final endParts = endTime.split(":");
             int hour = int.parse(endParts[0]);
-            int minute = int.parse(endParts[1].split(' ')[0]);
-            final ampm = endParts[1].split(' ').length > 1 ? endParts[1].split(' ')[1] : '';
-            if (ampm == 'PM' && hour != 12) hour += 12;
-            if (ampm == 'AM' && hour == 12) hour = 0;
-            final eventEnd = DateTime.parse(date).add(Duration(hours: hour, minutes: minute));
-            return eventEnd.isBefore(DateTime.now());
+            int minute = int.parse(endParts[1]);
+            final now = DateTime.now();
+            // Use the event's date and end time to get the correct DateTime
+            final eventEnd = DateTime.parse(date);
+            DateTime eventEndDateTime = DateTime(
+              eventEnd.year,
+              eventEnd.month,
+              eventEnd.day,
+              hour,
+              minute,
+            );
+            // If endTime is in PM format, adjust hour
+            if (event['end_time'].toString().toUpperCase().contains('PM')) {
+              if (hour < 12) eventEndDateTime = eventEndDateTime.add(Duration(hours: 12));
+            }
+            // If endTime is in AM format and hour is 12, set hour to 0
+            if (event['end_time'].toString().toUpperCase().contains('AM') && hour == 12) {
+              eventEndDateTime = DateTime(
+                eventEnd.year,
+                eventEnd.month,
+                eventEnd.day,
+                0,
+                minute,
+              );
+            }
+            return eventEndDateTime.isBefore(now);
           } catch (_) {
             return false;
           }
@@ -479,7 +646,7 @@ class _EventsPageState extends State<EventsPage> {
     return _box.values
         .where((ev) =>
             ev['date']?.substring(0, 10) == day.toIso8601String().substring(0, 10) &&
-            (ev['userId'] == userId))
+            (ev['user_id'] == userId))
         .cast<Map>()
         .toList();
   }
@@ -700,7 +867,7 @@ class _EventsPageState extends State<EventsPage> {
                   child: Text('Cancel'),
                 ),
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (titleCtl.text.trim().isEmpty) {
                       setState(() {
                         titleError = true;
@@ -708,17 +875,41 @@ class _EventsPageState extends State<EventsPage> {
                       return;
                     }
                     final id = Uuid().v4();
+                    final userId = Supabase.instance.client.auth.currentUser?.id;
                     final event = {
                       'id': id,
                       'title': titleCtl.text,
                       'description': descController.text,
                       'date': day.toIso8601String(),
-                      'userId': Supabase.instance.client.auth.currentUser?.id,
-                      'allDay': allDay,
-                      'startAt': allDay ? null : startTime?.format(context),
-                      'endAt': allDay ? null : endTime?.format(context),
+                      'user_id': userId,
+                      'start_time': allDay ? '00:00' : startTime?.format(context) ?? '00:00',
+                      'end_time': allDay ? '23:59' : endTime?.format(context) ?? '23:59',
+                      'all_day': allDay,
                     };
                     _box.put(id, event);
+                    // Upload to Supabase
+                    try {
+                      final response = await Supabase.instance.client
+                        .from('user_events')
+                        .insert([
+                          {
+                            'id': id,
+                            'title': titleCtl.text,
+                            'description': descController.text,
+                            'date': day.toIso8601String(),
+                            'user_id': userId,
+                            'start_time': allDay ? '00:00' : startTime?.format(context) ?? '00:00',
+                            'end_time': allDay ? '23:59' : endTime?.format(context) ?? '23:59',
+                            'all_day': allDay,
+                          }
+                        ]);
+                      print('Supabase upload response: $response');
+                    } catch (e) {
+                      print('Supabase upload error: $e');
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to upload event to Supabase.')),
+                      );
+                    }
                     Navigator.of(context).pop();
                   },
                   child: Text('Add'),
@@ -730,6 +921,78 @@ class _EventsPageState extends State<EventsPage> {
       },
     );
     setState(() {});
+  }
+
+  // Update event completion logic and sync with Supabase
+  void _checkAndMoveCompletedEvents() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final events = _box.values
+        .where((ev) => ev['user_id'] == userId)
+        .cast<Map>()
+        .toList();
+    for (final ev in events) {
+      final event = Map<String, dynamic>.from(ev);
+      if (_isEventCompleted(event) && event['completed'] != true) {
+        event['completed'] = true;
+        _box.put(event['id'], event);
+        // Optionally sync with Supabase here
+        Supabase.instance.client
+          .from('user_events')
+          .update({'completed': true})
+          .eq('id', event['id']);
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (Hive.isBoxOpen('tasks')) {
+      _tasksBox = Hive.box('tasks');
+      _loadTasksFromHive();
+    } else {
+      Hive.openBox('tasks').then((box) {
+        setState(() {
+          _tasksBox = box;
+          _loadTasksFromHive();
+        });
+      });
+    }
+
+    // Supabase realtime subscription for user_events
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final channel = Supabase.instance.client.channel('public:user_events');
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'user_events',
+        callback: (payload) {
+          _fetchEventsFromSupabase();
+        },
+      );
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'user_events',
+        callback: (payload) {
+          _fetchEventsFromSupabase();
+        },
+      );
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: 'user_events',
+        callback: (payload) {
+          _fetchEventsFromSupabase();
+        },
+      );
+      channel.subscribe();
+    }
+    Future.delayed(Duration.zero, () {
+      _checkAndMoveCompletedEvents();
+    });
   }
 
   @override
@@ -1052,8 +1315,25 @@ class _EventsPageState extends State<EventsPage> {
                   valueListenable: _box.listenable(),
                   builder: (context, Box box, _) {
                     final events = _eventsForDay(_selectedDay);
-                    final upcoming = events.where((ev) => !_isEventCompleted(ev)).toList();
-                    final completed = events.where((ev) => _isEventCompleted(ev)).toList();
+                    for (final ev in events) {
+                      final event = Map<String, dynamic>.from(ev);
+                      if (_isEventCompleted(event) && event['completed'] != true) {
+                        event['completed'] = true;
+                        _box.put(event['id'], event);
+                        Supabase.instance.client
+                          .from('user_events')
+                          .update({'completed': true})
+                          .eq('id', event['id']);
+                      }
+                    }
+                    final upcoming = events.where((ev) {
+                      final event = Map<String, dynamic>.from(ev);
+                      return event['completed'] != true;
+                    }).toList();
+                    final completed = events.where((ev) {
+                      final event = Map<String, dynamic>.from(ev);
+                      return event['completed'] == true;
+                    }).toList();
                     return ListView(
                       children: [
                         // Upcoming Events section with contrast box
@@ -1103,72 +1383,43 @@ class _EventsPageState extends State<EventsPage> {
                                   ),
                                   const SizedBox(height: 10),
                                   if (upcoming.isNotEmpty) ...[
-                                    ...upcoming.map((ev) => Container(
-                                      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[850],
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.15),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                        border: Border.all(
-                                          color: Color(0xFF39FF14), // Neon green
-                                          width: 2.0,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: ListTile(
-                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                              title: Text(ev['title'] ?? '', style: const TextStyle(color: Colors.white)),
-                                              subtitle: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    ev['description'] != null && ev['description'].toString().isNotEmpty
-                                                        ? ev['description']
-                                                        : 'No description',
-                                                    style: const TextStyle(color: Colors.white60),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    ev['allDay'] == true
-                                                        ? 'All Day'
-                                                        : (ev['startAt'] != null && ev['endAt'] != null
-                                                            ? '${ev['startAt']} - ${ev['endAt']}'
-                                                            : 'Time not set'),
-                                                    style: const TextStyle(color: Color(0xFF39FF14), fontWeight: FontWeight.bold),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(Icons.edit, color: Colors.white70),
-                                                tooltip: 'Edit',
-                                                onPressed: () {
-                                                  // TODO: Implement edit event functionality
-                                                },
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                                tooltip: 'Delete',
-                                                onPressed: () {
-                                                  // TODO: Implement delete event functionality
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                    ...upcoming.map((ev) => _EventDismissibleOverlay(
+                                      event: Map<String, dynamic>.from(ev),
+                                      onEdit: () {
+                                        // TODO: Implement edit event dialog
+                                      },
+                                      onDelete: () async {
+                                        setState(() {
+                                          _box.delete(ev['id']);
+  });
+  try {
+    print('Attempting to delete event with id: ${ev['id']}');
+    final response = await Supabase.instance.client
+      .from('user_events')
+      .delete()
+      .eq('id', ev['id']);
+    print('Supabase delete response: $response');
+    final check = await Supabase.instance.client
+      .from('user_events')
+      .select()
+      .eq('id', ev['id']);
+    print('Event after delete: $check');
+    // Supabase returns null for successful delete, so only show error if response contains error
+    if (response is Map && response['error'] != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete event from Supabase.')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Event deleted from Supabase.')),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Supabase delete error: $e')),
+    );
+  }
+},
                                     )),
                                   ]
                                   else ...[
@@ -1230,63 +1481,26 @@ class _EventsPageState extends State<EventsPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 10),
-                                    ...completed.map((ev) => Container(
-                                      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[850],
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.15),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                        border: Border.all(
-                                          color: Color(0xFF39FF14), // Neon green
-                                          width: 2.0,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: ListTile(
-                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                              title: Text(ev['title'] ?? '', style: const TextStyle(color: Colors.white)),
-                                              subtitle: Text(
-                                                ev['description'] != null && ev['description'].toString().isNotEmpty
-                                                    ? ev['description']
-                                                    : 'No description',
-                                                style: const TextStyle(color: Colors.white60),
-                                              ),
-                                            ),
-                                          ),
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                icon: const Icon(Icons.edit, color: Colors.white70),
-                                                tooltip: 'Edit',
-                                                onPressed: () {
-                                                  // TODO: Implement edit event functionality
-                                                },
-                                              ),
-                                              IconButton(
-                                                icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                                tooltip: 'Delete',
-                                                onPressed: () {
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                                    ...completed.map((ev) => _EventDismissibleOverlay(
+                                      event: Map<String, dynamic>.from(ev),
+                                      onEdit: () {
+                                        // TODO: Implement edit event dialog
+                                      },
+                                      onDelete: () {
+                                        setState(() {
+                                          _box.delete(ev['id']);
+                                        });
+                                        Supabase.instance.client
+                                          .from('user_events')
+                                          .delete()
+                                          .eq('id', ev['id']);
+                                      },
                                     )),
                                     if (completed.isEmpty)
                                       Padding(
                                         padding: const EdgeInsets.symmetric(vertical: 24.0),
                                         child: Center(
-                                          child: Text('No Completed Events', style: TextStyle(color: Colors.white54)),
+                                          child: Text('No completed tasks.', style: TextStyle(color: Colors.white54)),
                                         ),
                                       ),
                                   ],
