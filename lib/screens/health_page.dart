@@ -1,11 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:http/http.dart' as http;
 
 class HealthPage extends StatefulWidget {
   const HealthPage({
     super.key,
     this.healthFacts = const [],
-    this.recipeCards = const [],
+    this.recipeCards = const [], // (kept, but we won't rely on it anymore)
     this.onRefreshFacts,
     this.onRefreshRecipes,
     this.onRecipeTap,
@@ -27,13 +29,20 @@ class HealthPage extends StatefulWidget {
 class _HealthPageState extends State<HealthPage> {
   final _supabase = Supabase.instance.client;
 
+  // Spoonacular
+  static const String _spoonacularApiKey = 'd9928e2e194e429bb0f8ff330651ad89';
+
   List<String> _ingredients = const [];
   bool _loadingIngredients = true;
+
+  // NEW: recipes state
+  List<RecipeCardUi> _recipeCards = const [];
+  bool _loadingRecipes = false;
 
   @override
   void initState() {
     super.initState();
-    _loadIngredients();                                    // initial load
+    _loadIngredients(); // initial load (will also load recipes)
   }
 
   Future<void> _loadIngredients() async {
@@ -44,6 +53,7 @@ class _HealthPageState extends State<HealthPage> {
       setState(() {
         _ingredients = const [];
         _loadingIngredients = false;
+        _recipeCards = const [];
       });
       return;
     }
@@ -65,10 +75,19 @@ class _HealthPageState extends State<HealthPage> {
           .toList();
 
       if (!mounted) return;
+
+      // Detect if ingredients changed (so we can refresh recipes)
+      final bool changed = !_sameList(_ingredients, list);
+
       setState(() {
         _ingredients = list;
         _loadingIngredients = false;
       });
+
+      // NEW: refresh recipes when ingredients change
+      if (changed) {
+        await _loadRecipes();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingIngredients = false);
@@ -76,6 +95,14 @@ class _HealthPageState extends State<HealthPage> {
         SnackBar(content: Text('Error loading ingredients: $e')),
       );
     }
+  }
+
+  bool _sameList(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   Future<void> _addIngredientDialog() async {
@@ -137,7 +164,7 @@ class _HealthPageState extends State<HealthPage> {
       'name': name,
     });
 
-    await _loadIngredients();                                  // refresh immediately after add
+    await _loadIngredients(); // refresh immediately after add (will refresh recipes too)
   }
 
   Future<void> _removeIngredient(String name) async {
@@ -150,7 +177,59 @@ class _HealthPageState extends State<HealthPage> {
         .eq('user_id', user.id)
         .eq('name', name);
 
-    await _loadIngredients();                                  // refresh immediately after delete
+    await _loadIngredients(); // refresh immediately after delete (will refresh recipes too)
+  }
+
+  // NEW: fetch recipes from Spoonacular based on ingredients
+  Future<void> _loadRecipes() async {
+    final ingredients = _ingredients;
+    if (ingredients.isEmpty) {
+      if (!mounted) return;
+      setState(() => _recipeCards = const []);
+      return;
+    }
+
+    try {
+      if (mounted) setState(() => _loadingRecipes = true);
+
+      final joined = Uri.encodeQueryComponent(ingredients.take(10).join(','));
+
+      final uri = Uri.parse(
+        'https://api.spoonacular.com/recipes/findByIngredients'
+        '?ingredients=$joined&number=12&ranking=1&ignorePantry=true&apiKey=$_spoonacularApiKey',
+      );
+
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) {
+        throw Exception('Spoonacular ${resp.statusCode}: ${resp.body}');
+      }
+
+      final list = jsonDecode(resp.body) as List<dynamic>;
+
+      final cards = list.map((e) {
+        final m = e as Map<String, dynamic>;
+        final title = (m['title'] ?? 'Recipe').toString();
+        final image = (m['image'] ?? '').toString();
+        final used = (m['usedIngredientCount'] ?? 0).toString();
+        final missed = (m['missedIngredientCount'] ?? 0).toString();
+
+        return RecipeCardUi(
+          title: title,
+          imageUrl: image,
+          subtitle: 'Used: $used • Missing: $missed',
+        );
+      }).toList();
+
+      if (!mounted) return;
+      setState(() => _recipeCards = cards);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading recipes: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loadingRecipes = false);
+    }
   }
 
   @override
@@ -205,25 +284,29 @@ class _HealthPageState extends State<HealthPage> {
           _SectionFrame(
             title: 'RECIPES',
             rightAction: IconButton(
-              icon: const Icon(Icons.add, size: 22),
-              tooltip: 'Add recipe',
-              onPressed: widget.onAddRecipe,
+              icon: const Icon(Icons.refresh, size: 20),
+              tooltip: 'Refresh recipes',
+              onPressed: _loadRecipes,
             ),
-            child: widget.recipeCards.isEmpty
+            child: ingredients.isEmpty
                 ? const _EmptyHint(text: 'Add ingredients to get recipes.')
-                : SizedBox(
-                    height: 190,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: widget.recipeCards.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, i) => _RecipeCard(
-                        recipe: widget.recipeCards[i],
-                        onTap: widget.onRecipeTap,
-                      ),
-                    ),
-                  ),
+                : _loadingRecipes
+                    ? const _EmptyHint(text: 'Loading recipes...')
+                    : _recipeCards.isEmpty
+                        ? const _EmptyHint(text: 'No recipes found.')
+                        : SizedBox(
+                            height: 190,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: _recipeCards.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 12),
+                              itemBuilder: (context, i) => _RecipeCard(
+                                recipe: _recipeCards[i],
+                                onTap: widget.onRecipeTap,
+                              ),
+                            ),
+                          ),
           ),
         ],
       ),
