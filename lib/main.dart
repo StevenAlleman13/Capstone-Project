@@ -146,28 +146,24 @@ class _MyHomePageState extends State<MyHomePage> {
     switch (selectedIndex) {
       case 0:
         page = const dash.DashboardPage();
-        break;
       case 1:
         page = const health.HealthPage(); // or HealthPageDb if you made the DB wrapper
-        break;
       case 2:
         page = const fit.FitnessPage();
-        break;
       case 3:
         page = EventsPage();
-        break;
       case 4:
         page = const settings.SettingsPage();
-        break;
       default:
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
 
-    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Calendar', 'Settings'];
-    final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
-        ? pageTitles[selectedIndex]
-        : '';
+    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Settings'];
+    // If selectedIndex == 3 (Calendar), show blank title
+    final pageTitle = (selectedIndex == 3)
+      ? ''
+      : (selectedIndex >= 0 && selectedIndex < pageTitles.length ? pageTitles[selectedIndex] : '');
 
     var mainArea = ColoredBox(
       color: colorScheme.surfaceContainerHighest,
@@ -178,12 +174,14 @@ class _MyHomePageState extends State<MyHomePage> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        centerTitle: false,
-        title: Text(pageTitle, style: Theme.of(context).textTheme.titleLarge),
-      ),
+      appBar: (selectedIndex == 3)
+          ? null
+          : AppBar(
+              backgroundColor: Colors.black,
+              elevation: 0,
+              centerTitle: false,
+              title: Text(pageTitle, style: Theme.of(context).textTheme.titleLarge),
+            ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth < 450) {
