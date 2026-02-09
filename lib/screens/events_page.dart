@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:table_calendar/table_calendar.dart';
-import 'package:table_calendar/table_calendar.dart' show isSameDay;
+// import 'package:table_calendar/table_calendar.dart';
+// import 'package:table_calendar/table_calendar.dart' show isSameDay;
+import '../widgets/vertical_sticky_calendar.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -14,7 +15,7 @@ class _TaskDismissibleOverlay extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback? onMarkDone;
-  const _TaskDismissibleOverlay({Key? key, required this.task, required this.idx, required this.onDelete, required this.onEdit, this.onMarkDone}) : super(key: key);
+  const _TaskDismissibleOverlay({super.key, required this.task, required this.idx, required this.onDelete, required this.onEdit, this.onMarkDone});
 
   @override
   State<_TaskDismissibleOverlay> createState() => _TaskDismissibleOverlayState();
@@ -183,7 +184,7 @@ class _EventDismissibleOverlay extends StatefulWidget {
   final Map<String, dynamic> event;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
-  const _EventDismissibleOverlay({Key? key, required this.event, required this.onDelete, required this.onEdit}) : super(key: key);
+  const _EventDismissibleOverlay({super.key, required this.event, required this.onDelete, required this.onEdit});
 
   @override
   State<_EventDismissibleOverlay> createState() => _EventDismissibleOverlayState();
@@ -335,94 +336,100 @@ class EventsPage extends StatefulWidget {
 }
 
 class _EventsPageState extends State<EventsPage> {
-    void _showEditTaskDialog(int idx) {
-      final task = _tasks[idx];
-      final TextEditingController taskNameController = TextEditingController(text: task['name'] ?? '');
-      List<bool> selectedDays = List.generate(_fullWeekdays.length, (i) => (task['days'] as List<String>).contains(_fullWeekdays[i]));
-      showDialog(
-        context: context,
-        builder: (context) {
-          return StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: const Text('Edit Task'),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                        controller: taskNameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Task Name',
-                          border: OutlineInputBorder(),
-                        ),
+  String _currentMonthLabel = "";
+
+  static const List<String> _fullWeekdays = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+  ];
+
+  void _showEditTaskDialog(int idx) {
+    final task = _tasks[idx];
+    final TextEditingController taskNameController = TextEditingController(text: task['name'] ?? '');
+    List<bool> selectedDays = List.generate(_fullWeekdays.length, (i) => (task['days'] as List<String>).contains(_fullWeekdays[i]));
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Edit Task'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: taskNameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Task Name',
+                        border: OutlineInputBorder(),
                       ),
-                      const SizedBox(height: 18),
-                      const Text('Repeat on:', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Column(
-                        children: List.generate(_fullWeekdays.length, (i) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2.0),
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: selectedDays[i] ? Colors.green[400] : Colors.grey[800],
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(double.infinity, 40),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  selectedDays[i] = !selectedDays[i];
-                                });
-                              },
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(_fullWeekdays[i], style: const TextStyle(fontSize: 16)),
-                                  if (selectedDays[i]) ...[
-                                    const SizedBox(width: 8),
-                                    const Icon(Icons.check, color: Colors.white),
-                                  ],
-                                ],
-                              ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text('Repeat on:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Column(
+                      children: List.generate(_fullWeekdays.length, (i) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: selectedDays[i] ? Colors.green[400] : Colors.grey[800],
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(double.infinity, 40),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
-                          );
-                        }),
-                      ),
-                    ],
-                  ),
+                            onPressed: () {
+                              setState(() {
+                                selectedDays[i] = !selectedDays[i];
+                              });
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(_fullWeekdays[i], style: const TextStyle(fontSize: 16)),
+                                if (selectedDays[i]) ...[
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.check, color: Colors.white),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      final updatedTask = {
-                        ...task,
-                        'name': taskNameController.text,
-                        'days': List.generate(_fullWeekdays.length, (i) => selectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
-                      };
-                      setState(() {
-                        _tasks[idx] = updatedTask;
-                        if (_tasksBox != null && _tasksBox!.isOpen) {
-                          _tasksBox!.putAt(idx, updatedTask);
-                        }
-                      });
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('Save'),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      );
-    }
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final updatedTask = {
+                      ...task,
+                      'name': taskNameController.text,
+                      'days': List.generate(_fullWeekdays.length, (i) => selectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
+                    };
+                    setState(() {
+                      _tasks[idx] = updatedTask;
+                      if (_tasksBox != null && _tasksBox!.isOpen) {
+                        _tasksBox!.putAt(idx, updatedTask);
+                      }
+                    });
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
   // Persistent task list using Hive
   List<Map<String, dynamic>> _tasks = [];
   Box? _tasksBox;
@@ -437,7 +444,7 @@ class _EventsPageState extends State<EventsPage> {
       .select()
       .eq('user_id', userId)
       .order('date', ascending: true);
-    if (response != null && response is List) {
+    if (response is List) {
       for (final ev in response) {
         if (ev['id'] != null) {
           _box.put(ev['id'], ev);
@@ -451,7 +458,7 @@ class _EventsPageState extends State<EventsPage> {
     if (_tasksBox == null) return;
     final loaded = _tasksBox!.values
         .whereType<Map>()
-        .map((m) => Map<String, dynamic>.from(m as Map))
+        .map((m) => Map<String, dynamic>.from(m))
         .toList();
     setState(() {
       _tasks = loaded;
@@ -476,12 +483,9 @@ class _EventsPageState extends State<EventsPage> {
       }
     });
   }
-            static const List<String> _fullWeekdays = [
-              'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
-            ];
-          void _showAddTaskDialog() {
-            final TextEditingController taskNameController = TextEditingController();
-            List<bool> selectedDays = List.generate(7, (_) => false);
+  void _showAddTaskDialog() {
+    final TextEditingController taskNameController = TextEditingController();
+    List<bool> selectedDays = List.generate(7, (_) => false);
     showDialog(
       context: context,
       builder: (context) {
@@ -563,7 +567,7 @@ class _EventsPageState extends State<EventsPage> {
         );
       },
     );
-          }
+  }
         bool _isEventCompleted(Map event) {
           if (event['all_day'] == true) {
             final eventDate = DateTime.tryParse(event['date'] ?? '') ?? DateTime.now();
@@ -948,6 +952,14 @@ class _EventsPageState extends State<EventsPage> {
   @override
   void initState() {
     super.initState();
+    // Set initial month label
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      setState(() {
+        _currentMonthLabel = _formatMonthLabel(_focusedDay ?? DateTime.now());
+      });
+    });
+    _currentMonthLabel = _formatMonthLabel(_focusedDay ?? DateTime.now());
+
     if (Hive.isBoxOpen('tasks')) {
       _tasksBox = Hive.box('tasks');
       _loadTasksFromHive();
@@ -995,214 +1007,160 @@ class _EventsPageState extends State<EventsPage> {
     });
   }
 
+  void _onCalendarScroll() {
+    // Fallback: just update the label based on the last selected or focused day
+    final focusDate = _selectedDay ?? _focusedDay ?? DateTime.now();
+    final newLabel = _formatMonthLabel(focusDate);
+    if (newLabel != _currentMonthLabel) {
+      setState(() {
+        _currentMonthLabel = newLabel;
+      });
+    }
+  }
+
+  String _formatMonthLabel(DateTime date) {
+    return "${_monthName(date.month)} ${date.year}";
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[month - 1];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Events Calendar')),
       body: Column(
         children: [
-          // Week/Month view toggle buttons
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: !_showMonthView ? Colors.black : Colors.grey[800],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: !_showMonthView
-                          ? const BorderSide(color: Color(0xFF39FF14), width: 2.5)
-                          : BorderSide.none,
-                    ),
-                    shadowColor: !_showMonthView ? Color(0xFF39FF14) : null,
-                    elevation: !_showMonthView ? 8 : 2,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _showMonthView = false;
-                    });
-                  },
-                  child: Text(
-                    'Week',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      shadows: !_showMonthView
-                          ? [
-                              Shadow(
-                                color: Color(0xFF39FF14),
-                                blurRadius: 12,
-                              ),
-                            ]
-                          : [],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _showMonthView ? Colors.black : Colors.grey[800],
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: _showMonthView
-                          ? const BorderSide(color: Color(0xFF39FF14), width: 2.5)
-                          : BorderSide.none,
-                    ),
-                    shadowColor: _showMonthView ? Color(0xFF39FF14) : null,
-                    elevation: _showMonthView ? 8 : 2,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _showMonthView = true;
-                    });
-                  },
-                  child: Text(
-                    'Month',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      shadows: _showMonthView
-                          ? [
-                              Shadow(
-                                color: Color(0xFF39FF14),
-                                blurRadius: 12,
-                              ),
-                            ]
-                          : [],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Show TableCalendar only in month view
-          if (_showMonthView)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Color(0xFF39FF14), width: 2.5),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0xFF39FF14).withOpacity(0.18),
-                      blurRadius: 10,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
-                  child: TableCalendar(
-                    firstDay: DateTime.utc(2000, 1, 1),
-                    lastDay: DateTime.utc(2100, 12, 31),
-                    focusedDay: _focusedDay,
-                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                    onDaySelected: (selectedDay, focusedDay) {
-                      setState(() {
-                        _selectedDay = selectedDay;
-                        _focusedDay = focusedDay;
-                      });
-                    },
-                    calendarFormat: CalendarFormat.month,
-                    onFormatChanged: (_) {}, // Disable swipe format change
-                    headerVisible: true,
-                    headerStyle: const HeaderStyle(
-                      formatButtonVisible: false,
-                      titleCentered: true,
-                    ),
-                    calendarStyle: CalendarStyle(
-                      todayDecoration: BoxDecoration(
-                        color: Colors.green[400],
-                        shape: BoxShape.circle,
-                      ),
-                      selectedDecoration: BoxDecoration(
-                        color: Colors.blue[400],
-                        shape: BoxShape.circle,
-                      ),
-                      weekendTextStyle: const TextStyle(color: Colors.redAccent),
-                      defaultTextStyle: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
+          if (!_showMonthView)
+            Flexible(
+              fit: FlexFit.loose,
+              child: VerticalStickyCalendar(
+                firstDay: DateTime(DateTime.now().year, 1, 1),
+                lastDay: DateTime(DateTime.now().year, 12, 31),
+                selectedDay: _selectedDay.year == DateTime.now().year ? _selectedDay : DateTime.now(),
+                onDaySelected: (date) {
+                  setState(() {
+                    _selectedDay = date;
+                    _focusedDay = date;
+                    _showMonthView = true; // Switch to week view when a day is pressed
+                    _selectedWeekday = date.weekday % 7;
+                    _selectedTab = 0; // Always start on Events tab in week view
+                  });
+                },
+                selectedColor: Colors.blue[400],
+                todayColor: Colors.green[400],
+                textColor: Colors.white,
+                weekendColor: Color(0xFF7A7A7A),
               ),
             ),
-          // Show weekday and tab buttons only in week view
-          if (!_showMonthView) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4), // Increased horizontal padding
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(_weekdays.length, (i) {
-                  final isSelected = _selectedWeekday == i;
-                  // Calculate the date for this weekday in the current week
-                  final today = DateTime.now();
-                  final startOfWeek = today.subtract(Duration(days: today.weekday % 7));
-                  final dayDate = startOfWeek.add(Duration(days: i));
-                  return Expanded(
+          if (_showMonthView) ...[
+            Container(
+              color: Color(0xFF232323),
+              child: Column(
+                children: [
+                  // Back button at the top left
+                  Align(
+                    alignment: Alignment.centerLeft,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.only(left: 8, top: 8, bottom: 4),
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isSelected ? Colors.black : Colors.grey[800],
+                          backgroundColor: Colors.grey[900],
                           foregroundColor: Colors.white,
-                          minimumSize: const Size(18, 48),
-                          maximumSize: const Size(22, 56),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: isSelected
-                                ? const BorderSide(color: Color(0xFF39FF14), width: 2.5)
-                                : BorderSide.none,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
-                          shadowColor: isSelected ? Color(0xFF39FF14) : null,
-                          elevation: isSelected ? 8 : 2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                         ),
                         onPressed: () {
                           setState(() {
-                            _selectedWeekday = i;
-                            final diff = i - _selectedDay.weekday % 7;
-                            _selectedDay = _selectedDay.add(Duration(days: diff));
-                            _focusedDay = _selectedDay;
+                            _showMonthView = false;
+                            // Reset selected day highlight when returning to month view
+                            _selectedDay = DateTime.now();
+                          });
+                          // Force update of month label immediately
+                          Future.delayed(Duration.zero, () {
+                            if (mounted) {
+                              setState(() {});
+                            }
                           });
                         },
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _weekdays[i],
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                shadows: isSelected
-                                    ? [
-                                        Shadow(
-                                          color: Color(0xFF39FF14),
-                                          blurRadius: 12,
-                                        ),
-                                      ]
-                                    : [],
-                              ),
-                            ),
-                            SizedBox(height: 0),
-                            Text(
-                              dayDate.day.toString(),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: isSelected ? Color(0xFF39FF14) : Colors.white70,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                        child: const Text('Back'),
                       ),
                     ),
-                  );
-                }),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(_weekdays.length, (i) {
+                        // ...existing code...
+                        final startOfWeek = _selectedDay.subtract(Duration(days: _selectedDay.weekday % 7));
+                        final dayDate = startOfWeek.add(Duration(days: i));
+                        final isSelected = _selectedDay.day == dayDate.day && _selectedDay.month == dayDate.month && _selectedDay.year == dayDate.year;
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: ElevatedButton(
+                              // ...existing code...
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isSelected ? Colors.black : Colors.grey[800],
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(18, 48),
+                                maximumSize: const Size(22, 56),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: isSelected
+                                      ? const BorderSide(color: Color(0xFF39FF14), width: 2.5)
+                                      : BorderSide.none,
+                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+                                shadowColor: isSelected ? Color(0xFF39FF14) : null,
+                                elevation: isSelected ? 8 : 2,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _selectedDay = dayDate;
+                                  _focusedDay = dayDate;
+                                  _selectedWeekday = i;
+                                });
+                              },
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _weekdays[i],
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSelected ? Color(0xFF39FF14) : Colors.white,
+                                    ),
+                                  ),
+                                  Text(
+                                    dayDate.day.toString(),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: isSelected ? Color(0xFF39FF14) : Colors.white70,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  // Divider below weekday buttons
+                  const Divider(
+                    thickness: 2,
+                    height: 0,
+                    color: Color(0xFF232323),
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -1308,134 +1266,36 @@ class _EventsPageState extends State<EventsPage> {
               ),
             ),
           ],
-          // Main content (Events or Tasks)
-          Expanded(
-            child: _selectedTab == 0
-              ? ValueListenableBuilder(
-                  valueListenable: _box.listenable(),
-                  builder: (context, Box box, _) {
-                    final events = _eventsForDay(_selectedDay);
-                    for (final ev in events) {
-                      final event = Map<String, dynamic>.from(ev);
-                      if (_isEventCompleted(event) && event['completed'] != true) {
-                        event['completed'] = true;
-                        _box.put(event['id'], event);
-                        Supabase.instance.client
-                          .from('user_events')
-                          .update({'completed': true})
-                          .eq('id', event['id']);
+          // Main content (Events or Tasks) only show in week view
+          if (_showMonthView) ...[
+            Expanded(
+              child: _selectedTab == 0
+                ? ValueListenableBuilder(
+                    valueListenable: _box.listenable(),
+                    builder: (context, Box box, _) {
+                      final events = _eventsForDay(_selectedDay);
+                      for (final ev in events) {
+                        final event = Map<String, dynamic>.from(ev);
+                        if (_isEventCompleted(event) && event['completed'] != true) {
+                          event['completed'] = true;
+                          _box.put(event['id'], event);
+                          Supabase.instance.client
+                            .from('user_events')
+                            .update({'completed': true})
+                            .eq('id', event['id']);
+                        }
                       }
-                    }
-                    final upcoming = events.where((ev) {
-                      final event = Map<String, dynamic>.from(ev);
-                      return event['completed'] != true;
-                    }).toList();
-                    final completed = events.where((ev) {
-                      final event = Map<String, dynamic>.from(ev);
-                      return event['completed'] == true;
-                    }).toList();
-                    return ListView(
-                      children: [
-                        // Upcoming Events section with contrast box
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey[900],
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.18),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                              border: Border.all(
-                                color: Color(0xFF39FF14), // Neon green
-                                width: 2.5,
-                              ),
-                            ),
-                            child: Padding(
-                              padding: EdgeInsets.only(bottom: 12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: Colors.black,
-                                      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(top: 8, bottom: 6),
-                                      child: Center(
-                                        child: Text('Upcoming Events', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    height: 3,
-                                    width: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: Color(0xFF39FF14), // Neon green
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  if (upcoming.isNotEmpty) ...[
-                                    ...upcoming.map((ev) => _EventDismissibleOverlay(
-                                      event: Map<String, dynamic>.from(ev),
-                                      onEdit: () {
-                                        // TODO: Implement edit event dialog
-                                      },
-                                      onDelete: () async {
-                                        setState(() {
-                                          _box.delete(ev['id']);
-  });
-  try {
-    print('Attempting to delete event with id: ${ev['id']}');
-    final response = await Supabase.instance.client
-      .from('user_events')
-      .delete()
-      .eq('id', ev['id']);
-    print('Supabase delete response: $response');
-    final check = await Supabase.instance.client
-      .from('user_events')
-      .select()
-      .eq('id', ev['id']);
-    print('Event after delete: $check');
-    // Supabase returns null for successful delete, so only show error if response contains error
-    if (response is Map && response['error'] != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete event from Supabase.')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Event deleted from Supabase.')),
-      );
-    }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Supabase delete error: $e')),
-    );
-  }
-},
-                                    )),
-                                  ]
-                                  else ...[
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 24.0),
-                                      child: Center(
-                                        child: Text('No Upcoming Events', style: TextStyle(color: Colors.white54)),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (completed.isNotEmpty) ...[
+                      final upcoming = events.where((ev) {
+                        final event = Map<String, dynamic>.from(ev);
+                        return event['completed'] != true;
+                      }).toList();
+                      final completed = events.where((ev) {
+                        final event = Map<String, dynamic>.from(ev);
+                        return event['completed'] == true;
+                      }).toList();
+                      return ListView(
+                        children: [
+                          // Upcoming Events section with contrast box
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             child: Container(
@@ -1468,7 +1328,7 @@ class _EventsPageState extends State<EventsPage> {
                                       child: Padding(
                                         padding: const EdgeInsets.only(top: 8, bottom: 6),
                                         child: Center(
-                                          child: Text('Completed Events', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                          child: Text('Upcoming Events', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                                         ),
                                       ),
                                     ),
@@ -1481,233 +1341,332 @@ class _EventsPageState extends State<EventsPage> {
                                       ),
                                     ),
                                     const SizedBox(height: 10),
-                                    ...completed.map((ev) => _EventDismissibleOverlay(
-                                      event: Map<String, dynamic>.from(ev),
-                                      onEdit: () {
-                                        // TODO: Implement edit event dialog
-                                      },
-                                      onDelete: () {
-                                        setState(() {
-                                          _box.delete(ev['id']);
+                                    if (upcoming.isNotEmpty) ...[
+                                      ...upcoming.map((ev) => _EventDismissibleOverlay(
+                                        event: Map<String, dynamic>.from(ev),
+                                        onEdit: () {
+                                          // TODO: Implement edit event dialog
+                                        },
+                                        onDelete: () async {
+                                          setState(() {
+                                            _box.delete(ev['id']);
                                         });
-                                        Supabase.instance.client
-                                          .from('user_events')
-                                          .delete()
-                                          .eq('id', ev['id']);
+                                        try {
+                                          print('Attempting to delete event with id: \\${ev['id']}');
+                                          final response = await Supabase.instance.client
+                                            .from('user_events')
+                                            .delete()
+                                            .eq('id', ev['id']);
+                                          print('Supabase delete response: \\${response}');
+                                          final check = await Supabase.instance.client
+                                            .from('user_events')
+                                            .select()
+                                            .eq('id', ev['id']);
+                                          print('Event after delete: \\${check}');
+                                          if (response is Map && response['error'] != null) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Failed to delete event from Supabase.')),
+                                            );
+                                          } else {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Event deleted from Supabase.')),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Supabase delete error: \\${e}')),
+                                          );
+                                        }
                                       },
-                                    )),
-                                    if (completed.isEmpty)
+                                      )),
+                                    ]
+                                    else ...[
                                       Padding(
                                         padding: const EdgeInsets.symmetric(vertical: 24.0),
                                         child: Center(
-                                          child: Text('No completed tasks.', style: TextStyle(color: Colors.white54)),
+                                          child: Text('No Upcoming Events', style: TextStyle(color: Colors.white54)),
                                         ),
                                       ),
+                                    ],
                                   ],
                                 ),
                               ),
                             ),
                           ),
+                          if (completed.isNotEmpty) ...[
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[900],
+                                  borderRadius: BorderRadius.circular(18),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.18),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                  border: Border.all(
+                                    color: Color(0xFF39FF14), // Neon green
+                                    width: 2.5,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.only(bottom: 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black,
+                                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(top: 8, bottom: 6),
+                                          child: Center(
+                                            child: Text('Completed Events', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                          ),
+                                        ),
+                                      ),
+                                      Container(
+                                        height: 3,
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFF39FF14), // Neon green
+                                          borderRadius: BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ...completed.map((ev) => _EventDismissibleOverlay(
+                                        event: Map<String, dynamic>.from(ev),
+                                        onEdit: () {
+                                          // TODO: Implement edit event dialog
+                                        },
+                                        onDelete: () {
+                                          setState(() {
+                                            _box.delete(ev['id']);
+                                          });
+                                          Supabase.instance.client
+                                            .from('user_events')
+                                            .delete()
+                                            .eq('id', ev['id']);
+                                        },
+                                      )),
+                                      if (completed.isEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 24.0),
+                                          child: Center(
+                                            child: Text('No completed tasks.', style: TextStyle(color: Colors.white54)),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
-                    );
-                  },
-                )
-              : ListView(
-                  children: [
-                    // To-Do List Section
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[900],
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.18),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                          border: Border.all(
-                            color: Color(0xFF39FF14), // Neon green
-                            width: 2.5,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.black,
-                                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 8, bottom: 6),
-                                  child: Center(
-                                    child: Text('To-Do List', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                  ),
-                                ),
+                      );
+                    },
+                  )
+                : ListView(
+                    children: [
+                      // To-Do List Section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[900],
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.18),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
                               ),
-                              Container(
-                                height: 3,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFF39FF14), // Neon green
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              ..._tasks.asMap().entries.where((entry) {
-                                final task = entry.value;
-                                final List<String> days = List<String>.from(task['days'] ?? []);
-                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
-                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
-                                // Show in To-Do if:
-                                // - Not completed for today
-                                // - AND (either not repeating, or today is a repeat day)
-                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
-                                return isRepeatToday && !completedDates.contains(todayStr);
-                              }).map((entry) {
-                                final idx = entry.key;
-                                final task = entry.value;
-                                return _TaskDismissibleOverlay(
-                                  key: ValueKey('task-$idx'),
-                                  task: task,
-                                  idx: idx,
-                                  onDelete: () {
-                                    setState(() {
-                                      _tasks.removeAt(idx);
-                                      if (_tasksBox != null && _tasksBox!.isOpen) {
-                                        _tasksBox!.deleteAt(idx);
-                                      }
-                                    });
-                                  },
-                                  onEdit: () {
-                                    _showEditTaskDialog(idx);
-                                  },
-                                  onMarkDone: () {
-                                    _markTaskAsCompleted(idx);
-                                  },
-                                );
-                              }),
-                              if (_tasks.asMap().entries.where((entry) {
-                                final task = entry.value;
-                                final List<String> days = List<String>.from(task['days'] ?? []);
-                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
-                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
-                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
-                                return isRepeatToday && !completedDates.contains(todayStr);
-                              }).isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 24.0),
-                                  child: Center(
-                                    child: Text('No tasks added.', style: TextStyle(color: Colors.white54)),
-                                  ),
-                                ),
                             ],
+                            border: Border.all(
+                              color: Color(0xFF39FF14), // Neon green
+                              width: 2.5,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black,
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 8, bottom: 6),
+                                    child: Center(
+                                      child: Text('To-Do List', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  height: 3,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFF39FF14), // Neon green
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                ..._tasks.asMap().entries.where((entry) {
+                                  final task = entry.value;
+                                  final List<String> days = List<String>.from(task['days'] ?? []);
+                                  final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                  final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                  // Show in To-Do if:
+                                  // - Not completed for today
+                                  // - AND (either not repeating, or today is a repeat day)
+                                  final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                  return isRepeatToday && !completedDates.contains(todayStr);
+                                }).map((entry) {
+                                  final idx = entry.key;
+                                  final task = entry.value;
+                                  return _TaskDismissibleOverlay(
+                                    key: ValueKey('task-$idx'),
+                                    task: task,
+                                    idx: idx,
+                                    onDelete: () {
+                                      setState(() {
+                                        _tasks.removeAt(idx);
+                                        if (_tasksBox != null && _tasksBox!.isOpen) {
+                                          _tasksBox!.deleteAt(idx);
+                                        }
+                                      });
+                                    },
+                                    onEdit: () {
+                                      _showEditTaskDialog(idx);
+                                    },
+                                    onMarkDone: () {
+                                      _markTaskAsCompleted(idx);
+                                    },
+                                  );
+                                }),
+                                if (_tasks.asMap().entries.where((entry) {
+                                  final task = entry.value;
+                                  final List<String> days = List<String>.from(task['days'] ?? []);
+                                  final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                  final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                  final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                  return isRepeatToday && !completedDates.contains(todayStr);
+                                }).isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 24.0),
+                                    child: Center(
+                                      child: Text('No tasks added.', style: TextStyle(color: Colors.white54)),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    // Completed Tasks Section (always show when Tasks tab is active)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[900],
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.18),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                          border: Border.all(
-                            color: Color(0xFF39FF14), // Neon green
-                            width: 2.5,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.black,
-                                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 8, bottom: 6),
-                                  child: Center(
-                                    child: Text('Completed Tasks', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                  ),
-                                ),
+                      // Completed Tasks Section (always show when Tasks tab is active)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[900],
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.18),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
                               ),
-                              Container(
-                                height: 3,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFF39FF14), // Neon green
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              ..._tasks.asMap().entries.where((entry) {
-                                final task = entry.value;
-                                final List<String> days = List<String>.from(task['days'] ?? []);
-                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
-                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
-                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
-                                return isRepeatToday && completedDates.contains(todayStr);
-                              }).map((entry) {
-                                final idx = entry.key;
-                                final task = entry.value;
-                                return _TaskDismissibleOverlay(
-                                  key: ValueKey('task-completed-$idx'),
-                                  task: task,
-                                  idx: idx,
-                                  onDelete: () {
-                                    setState(() {
-                                      _tasks.removeAt(idx);
-                                      if (_tasksBox != null && _tasksBox!.isOpen) {
-                                        _tasksBox!.deleteAt(idx);
-                                      }
-                                    });
-                                  },
-                                  onEdit: () {
-                                    // No edit for completed
-                                  },
-                                );
-                              }),
-                              if (_tasks.asMap().entries.where((entry) {
-                                final task = entry.value;
-                                final List<String> days = List<String>.from(task['days'] ?? []);
-                                final List completedDates = List<String>.from(task['completedDates'] ?? []);
-                                final todayStr = _selectedDay.toIso8601String().substring(0, 10);
-                                final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
-                                return isRepeatToday && completedDates.contains(todayStr);
-                              }).isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 24.0),
-                                  child: Center(
-                                    child: Text('No completed tasks.', style: TextStyle(color: Colors.white54)),
-                                  ),
-                                ),
                             ],
+                            border: Border.all(
+                              color: Color(0xFF39FF14), // Neon green
+                              width: 2.5,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black,
+                                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 8, bottom: 6),
+                                    child: Center(
+                                      child: Text('Completed Tasks', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  height: 3,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFF39FF14), // Neon green
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                ..._tasks.asMap().entries.where((entry) {
+                                  final task = entry.value;
+                                  final List<String> days = List<String>.from(task['days'] ?? []);
+                                  final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                  final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                  final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                  return isRepeatToday && completedDates.contains(todayStr);
+                                }).map((entry) {
+                                  final idx = entry.key;
+                                  final task = entry.value;
+                                  return _TaskDismissibleOverlay(
+                                    key: ValueKey('task-completed-$idx'),
+                                    task: task,
+                                    idx: idx,
+                                    onDelete: () {
+                                      setState(() {
+                                        _tasks.removeAt(idx);
+                                        if (_tasksBox != null && _tasksBox!.isOpen) {
+                                          _tasksBox!.deleteAt(idx);
+                                        }
+                                      });
+                                    },
+                                    onEdit: () {
+                                      // No edit for completed
+                                    },
+                                  );
+                                }),
+                                if (_tasks.asMap().entries.where((entry) {
+                                  final task = entry.value;
+                                  final List<String> days = List<String>.from(task['days'] ?? []);
+                                  final List completedDates = List<String>.from(task['completedDates'] ?? []);
+                                  final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+                                  final isRepeatToday = days.isEmpty || days.contains(_fullWeekdays[_selectedDay.weekday % 7]);
+                                  return isRepeatToday && completedDates.contains(todayStr);
+                                }).isEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 24.0),
+                                    child: Center(
+                                      child: Text('No completed tasks.', style: TextStyle(color: Colors.white54)),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-          ),
+                    ],
+                  ),
+            ),
+          ],
         ],
       ),
       floatingActionButton: FloatingActionButton(
