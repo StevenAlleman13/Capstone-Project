@@ -93,7 +93,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign in')),
+      appBar: AppBar(title: const Text('Lock In')),
       body: Center(
         child: Card(
           margin: const EdgeInsets.all(24),
