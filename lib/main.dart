@@ -9,10 +9,9 @@ import 'screens/login_page.dart';
 import 'screens/dashboard_page.dart' as dash;
 import 'screens/health_page.dart' as health;
 import 'screens/fitness_page.dart' as fit;
-import 'screens/events_page.dart' show EventsPage;
+import 'screens/events_page.dart' show EventsPage, EventsPageState;
 import 'screens/settings_page.dart' as settings;
 
-import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
@@ -137,6 +136,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   var selectedIndex = 0;
+  final GlobalKey<EventsPageState> eventsPageKey = GlobalKey<EventsPageState>();
 
   @override
   Widget build(BuildContext context) {
@@ -147,23 +147,30 @@ class _MyHomePageState extends State<MyHomePage> {
       case 0:
         page = const dash.DashboardPage();
       case 1:
-        page = const health.HealthPage(); // or HealthPageDb if you made the DB wrapper
+        page =
+            const health.HealthPage(); // or HealthPageDb if you made the DB wrapper
       case 2:
         page = const fit.FitnessPage();
       case 3:
-        page = EventsPage();
+        page = EventsPage(
+          key: eventsPageKey,
+          onViewModeChanged: () {
+            setState(() {}); // Rebuild to update button bar
+          },
+        );
       case 4:
         page = const settings.SettingsPage();
       default:
         throw UnimplementedError('no widget for $selectedIndex');
     }
 
-
     final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Settings'];
     // If selectedIndex == 3 (Calendar), show blank title
     final pageTitle = (selectedIndex == 3)
-      ? ''
-      : (selectedIndex >= 0 && selectedIndex < pageTitles.length ? pageTitles[selectedIndex] : '');
+        ? ''
+        : (selectedIndex >= 0 && selectedIndex < pageTitles.length
+              ? pageTitles[selectedIndex]
+              : '');
 
     var mainArea = ColoredBox(
       color: colorScheme.surfaceContainerHighest,
@@ -180,7 +187,10 @@ class _MyHomePageState extends State<MyHomePage> {
               backgroundColor: Colors.black,
               elevation: 0,
               centerTitle: false,
-              title: Text(pageTitle, style: Theme.of(context).textTheme.titleLarge),
+              title: Text(
+                pageTitle,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
             ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -189,39 +199,180 @@ class _MyHomePageState extends State<MyHomePage> {
               children: [
                 Expanded(child: mainArea),
                 SafeArea(
-                  child: BottomNavigationBar(
-                    backgroundColor: Colors.grey[800],
-                    type: BottomNavigationBarType.fixed,
-                    selectedItemColor: _neonGreen,
-                    unselectedItemColor: Colors.grey[500],
-                    items: [
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.dashboard),
-                        label: 'Dashboard',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.health_and_safety),
-                        label: 'Health',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.fitness_center),
-                        label: 'Fitness',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.event),
-                        label: 'Calendar',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.settings),
-                        label: 'Settings',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (selectedIndex == 3)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[900],
+                            border: Border(
+                              top: BorderSide(
+                                color: _neonGreen.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 16,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Today button - simple text
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton(
+                                    onPressed: () {
+                                      eventsPageKey.currentState?.jumpToToday();
+                                    },
+                                    child: Text(
+                                      'Today',
+                                      style: TextStyle(
+                                        color: _neonGreen,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Events/Tasks toggle button - centered (hidden in month view)
+                              if (selectedIndex == 3) 
+                                Builder(
+                                  builder: (context) {
+                                    final currentTab = eventsPageKey.currentState?.selectedTab ?? 0;
+                                    final isMonthView = eventsPageKey.currentState?.showMonthView ?? false;
+                                    
+                                    if (isMonthView) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    
+                                    return GestureDetector(
+                                      onTap: () {
+                                        eventsPageKey.currentState?.toggleTab();
+                                        setState(() {});
+                                      },
+                                      child: Container(
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[900],
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: _neonGreen.withOpacity(0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: currentTab == 0
+                                                  ? _neonGreen
+                                                  : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                              'Events',
+                                              style: TextStyle(
+                                                color: currentTab == 0
+                                                    ? Colors.black
+                                                    : Colors.grey[400],
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                                shadows: [],
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: currentTab == 1
+                                                  ? _neonGreen
+                                                  : Colors.transparent,
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                              'Tasks',
+                                              style: TextStyle(
+                                                color: currentTab == 1
+                                                    ? Colors.black
+                                                    : Colors.grey[400],
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                                shadows: [],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              // Add button - just plus icon
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: IconButton(
+                                    onPressed: () {
+                                      eventsPageKey.currentState?.addEventOrTask();
+                                    },
+                                    icon: Icon(
+                                      Icons.add_circle,
+                                      color: _neonGreen,
+                                      size: 32,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      BottomNavigationBar(
+                        backgroundColor: Colors.grey[800],
+                        type: BottomNavigationBarType.fixed,
+                        selectedItemColor: _neonGreen,
+                        unselectedItemColor: Colors.grey[500],
+                        items: [
+                          BottomNavigationBarItem(
+                            icon: Icon(Icons.dashboard),
+                            label: 'Dashboard',
+                          ),
+                          BottomNavigationBarItem(
+                            icon: Icon(Icons.health_and_safety),
+                            label: 'Health',
+                          ),
+                          BottomNavigationBarItem(
+                            icon: Icon(Icons.fitness_center),
+                            label: 'Fitness',
+                          ),
+                          BottomNavigationBarItem(
+                            icon: Icon(Icons.event),
+                            label: 'Calendar',
+                          ),
+                          BottomNavigationBarItem(
+                            icon: Icon(Icons.settings),
+                            label: 'Settings',
+                          ),
+                        ],
+                        currentIndex: selectedIndex,
+                        onTap: (value) {
+                          setState(() {
+                            selectedIndex = value;
+                          });
+                        },
                       ),
                     ],
-                    currentIndex: selectedIndex,
-                    onTap: (value) {
-                      setState(() {
-                        selectedIndex = value;
-                      });
-                    },
                   ),
                 ),
               ],
@@ -369,8 +520,3 @@ class FavoritesPage extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

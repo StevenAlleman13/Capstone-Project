@@ -165,30 +165,6 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Tip'),
-                            content: const Text(
-                              'Use a real email + password you want to test.\n\n'
-                              'If Supabase email confirmations are enabled, '
-                              'you must confirm the email before you can sign in.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('OK'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      child: const Text('Help / troubleshooting'),
-                    ),
                   ],
                 ),
               ),
