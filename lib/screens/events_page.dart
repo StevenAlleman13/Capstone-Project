@@ -14,13 +14,11 @@ class _TaskDismissibleOverlay extends StatefulWidget {
   final int idx;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
-  final VoidCallback? onMarkDone;
   const _TaskDismissibleOverlay({
     required this.task,
     required this.idx,
     required this.onDelete,
     required this.onEdit,
-    this.onMarkDone,
   });
 
   @override
@@ -96,34 +94,6 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay> {
                     ),
                   ),
                 ),
-                if (!_showActions && widget.task['completed'] != true)
-                  Container(
-                    margin: const EdgeInsets.only(
-                      top: 6,
-                      bottom: 6,
-                      right: 24,
-                      left: 2,
-                    ),
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Color(0xFF39FF14), width: 3.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0xFF39FF14).withOpacity(0.3),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.check, color: Color(0xFF39FF14)),
-                      tooltip: 'Mark as done',
-                      onPressed: widget.onMarkDone,
-                    ),
-                  ),
               ],
             ),
           ),
@@ -620,7 +590,6 @@ class EventsPageState extends State<EventsPage> {
   final Box _box = Hive.box('events');
   DateTime _focusedDay = DateTime.now();
   DateTime _selectedDay = DateTime.now();
-  int _selectedWeekday = DateTime.now().weekday % 7;
   bool _showMonthView = false;
   bool _isCalendarInWeekView = true; // Tracks VerticalStickyCalendar's internal view state
   final _calendarKey = GlobalKey<VerticalStickyCalendarState>();
@@ -805,10 +774,9 @@ class EventsPageState extends State<EventsPage> {
     // Set initial month label
     WidgetsBinding.instance.addPostFrameCallback((_) {
       setState(() {
-        _currentMonthLabel = _formatMonthLabel(_focusedDay ?? DateTime.now());
+        _currentMonthLabel = _formatMonthLabel(_focusedDay);
       });
     });
-    _currentMonthLabel = _formatMonthLabel(_focusedDay ?? DateTime.now());
 
     if (Hive.isBoxOpen('tasks')) {
       _tasksBox = Hive.box('tasks');
@@ -855,17 +823,6 @@ class EventsPageState extends State<EventsPage> {
     Future.delayed(Duration.zero, () {
       _checkAndMoveCompletedEvents();
     });
-  }
-
-  void _onCalendarScroll() {
-    // Fallback: just update the label based on the last selected or focused day
-    final focusDate = _selectedDay ?? _focusedDay ?? DateTime.now();
-    final newLabel = _formatMonthLabel(focusDate);
-    if (newLabel != _currentMonthLabel) {
-      setState(() {
-        _currentMonthLabel = newLabel;
-      });
-    }
   }
 
   String _formatMonthLabel(DateTime date) {
@@ -1082,7 +1039,6 @@ class EventsPageState extends State<EventsPage> {
                                 setState(() {
                                   _selectedDay = dayDate;
                                   _focusedDay = dayDate;
-                                  _selectedWeekday = i;
                                   // Return to week view and start on events tab
                                   _showMonthView = false;
                                   _selectedTab = 0;
@@ -1189,9 +1145,6 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   String? _expandedTimePicker;
   // Task fields
   final _notesCtl = TextEditingController();
-  DateTime? _taskDate;
-  TimeOfDay? _taskTime;
-  bool _taskTimeEnabled = false;
   String _repeatOption = 'Never';
   List<bool> _selectedDays = List.generate(7, (_) => false);
 
@@ -1205,7 +1158,6 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
     _tab = widget.initialTab;
     _startDate = widget.selectedDay;
     _endDate = widget.selectedDay;
-    _taskDate = widget.selectedDay;
   }
 
   @override
@@ -1603,130 +1555,6 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   }
 
   // ─── Task-specific rows ───────────────────────────────────────────────────
-
-  Widget _taskDateRow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.calendar_today, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Date', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
-              Text(
-                _taskDate != null ? _formatDate(_taskDate!) : 'None',
-                style: TextStyle(color: Colors.green[400], fontSize: 13, shadows: []),
-              ),
-            ],
-          ),
-          const Spacer(),
-          _pillButton('Change', () async {
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: _taskDate ?? widget.selectedDay,
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2030),
-              builder: (ctx, child) => Theme(
-                data: ThemeData.dark().copyWith(
-                  colorScheme: const ColorScheme.dark(primary: Colors.green, surface: Color(0xFF2C2C2E)),
-                ),
-                child: child!,
-              ),
-            );
-            if (picked != null) setState(() => _taskDate = picked);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _taskTimeRow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.access_time, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Time', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
-              if (_taskTimeEnabled && _taskTime != null)
-                Text(
-                  widget.formatTime(_taskTime),
-                  style: TextStyle(color: Colors.green[400], fontSize: 13, shadows: []),
-                ),
-            ],
-          ),
-          const Spacer(),
-          Switch(
-            value: _taskTimeEnabled,
-            onChanged: (v) {
-              setState(() {
-                _taskTimeEnabled = v;
-                if (v && _taskTime == null) _taskTime = const TimeOfDay(hour: 13, minute: 0);
-              });
-            },
-            activeColor: Colors.green,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _repeatRow() {
-    final options = ['Never', 'Daily', 'Weekdays', 'Weekly', 'Custom'];
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: Colors.grey[600], borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.repeat, color: Colors.white, size: 18),
-          ),
-          const SizedBox(width: 12),
-          const Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
-          const Spacer(),
-          GestureDetector(
-            onTap: () {
-              final idx = options.indexOf(_repeatOption);
-              setState(() {
-                _repeatOption = options[(idx + 1) % options.length];
-                if (_repeatOption == 'Daily') {
-                  _selectedDays = List.generate(7, (_) => true);
-                } else if (_repeatOption == 'Weekdays') {
-                  _selectedDays = [false, true, true, true, true, true, false];
-                } else if (_repeatOption == 'Weekly') {
-                  _selectedDays = List.generate(7, (_) => false);
-                  _selectedDays[(_taskDate ?? widget.selectedDay).weekday % 7] = true;
-                } else if (_repeatOption == 'Never') {
-                  _selectedDays = List.generate(7, (_) => false);
-                }
-              });
-            },
-            child: Row(
-              children: [
-                Text(_repeatOption, style: TextStyle(color: Colors.grey[400], fontSize: 15, shadows: [])),
-                Icon(Icons.chevron_right, color: Colors.grey[500], size: 20),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _customRepeatDays() {
     final dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     return Padding(

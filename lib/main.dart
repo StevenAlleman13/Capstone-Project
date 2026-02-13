@@ -174,10 +174,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     var mainArea = ColoredBox(
       color: colorScheme.surfaceContainerHighest,
-      child: AnimatedSwitcher(
-        duration: Duration(milliseconds: 200),
-        child: page,
-      ),
+      child: page,
     );
 
     return Scaffold(
@@ -338,12 +335,22 @@ class _MyHomePageState extends State<MyHomePage> {
                             ],
                           ),
                         ),
-                      BottomNavigationBar(
-                        backgroundColor: Colors.grey[800],
-                        type: BottomNavigationBarType.fixed,
-                        selectedItemColor: _neonGreen,
-                        unselectedItemColor: Colors.grey[500],
-                        items: [
+                      Theme(
+                        data: ThemeData(
+                          splashColor: Colors.transparent,
+                          highlightColor: Colors.transparent,
+                          hoverColor: Colors.transparent,
+                          splashFactory: NoSplash.splashFactory,
+                        ),
+                        child: BottomNavigationBar(
+                          backgroundColor: Colors.grey[800],
+                          type: BottomNavigationBarType.fixed,
+                          selectedItemColor: _neonGreen,
+                          unselectedItemColor: Colors.grey[500],
+                          enableFeedback: false,
+                          showSelectedLabels: true,
+                          showUnselectedLabels: true,
+                          items: [
                           BottomNavigationBarItem(
                             icon: Icon(Icons.dashboard),
                             label: 'Dashboard',
@@ -371,6 +378,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             selectedIndex = value;
                           });
                         },
+                      ),
                       ),
                     ],
                   ),

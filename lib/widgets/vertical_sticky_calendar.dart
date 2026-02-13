@@ -1209,7 +1209,8 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay> {
                 ],
               ),
             ),
-          // Only delete button for completed tasks
+          // Once a task is completed, only allows for the delete button to show
+          // as the event no longer needs to be edited
           if (_showActions && widget.isCompleted)
             Positioned(
               right: 0,
