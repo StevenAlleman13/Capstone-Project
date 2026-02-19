@@ -371,108 +371,88 @@ class EventsPageState extends State<EventsPage> {
 
   void _showEditTaskDialog(int idx) {
     final task = _tasks[idx];
-    final TextEditingController taskNameController = TextEditingController(
-      text: task['name'] ?? '',
-    );
-    List<bool> selectedDays = List.generate(
-      _fullWeekdays.length,
-      (i) => (task['days'] as List<String>).contains(_fullWeekdays[i]),
-    );
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Edit Task'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: taskNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Task Name',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'Repeat on:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Column(
-                      children: List.generate(_fullWeekdays.length, (i) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2.0),
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: selectedDays[i]
-                                  ? Colors.green[400]
-                                  : Colors.grey[800],
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(double.infinity, 40),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                selectedDays[i] = !selectedDays[i];
-                              });
-                            },
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  _fullWeekdays[i],
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                                if (selectedDays[i]) ...[
-                                  const SizedBox(width: 8),
-                                  const Icon(Icons.check, color: Colors.white),
-                                ],
-                              ],
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final updatedTask = {
-                      ...task,
-                      'name': taskNameController.text,
-                      'days': List.generate(
-                        _fullWeekdays.length,
-                        (i) => selectedDays[i] ? _fullWeekdays[i] : null,
-                      ).whereType<String>().toList(),
-                    };
-                    setState(() {
-                      _tasks[idx] = updatedTask;
-                      if (_tasksBox != null && _tasksBox!.isOpen) {
-                        _tasksBox!.putAt(idx, updatedTask);
-                      }
-                    });
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _EditTaskSheet(
+        task: task,
+        onTaskUpdated: (updatedTask) async {
+          setState(() {
+            _tasks[idx] = updatedTask;
+            if (_tasksBox != null && _tasksBox!.isOpen) {
+              _tasksBox!.putAt(idx, updatedTask);
+            }
+          });
+          
+          // Sync to Supabase
+          final taskId = updatedTask['id'];
+          if (taskId != null) {
+            try {
+              await Supabase.instance.client
+                  .from('user_tasks')
+                  .update({
+                    'name': updatedTask['name'],
+                    'days': updatedTask['days'],
+                    'end_date': updatedTask['end_date'],
+                  })
+                  .eq('id', taskId);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to update task in Supabase.'),
+                  ),
+                );
+              }
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  void _showEditEventDialog(Map event) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _EditEventSheet(
+        event: Map<String, dynamic>.from(event),
+        formatTime: formatTime,
+        onEventUpdated: (updatedEvent) async {
+          _box.put(updatedEvent['id'], updatedEvent);
+          
+          // Sync to Supabase
+          final eventId = updatedEvent['id'];
+          if (eventId != null) {
+            try {
+              await Supabase.instance.client
+                  .from('user_events')
+                  .update({
+                    'title': updatedEvent['title'],
+                    'description': updatedEvent['description'],
+                    'date': updatedEvent['date'],
+                    'start_time': updatedEvent['start_time'],
+                    'end_time': updatedEvent['end_time'],
+                    'all_day': updatedEvent['all_day'],
+                  })
+                  .eq('id', eventId);
+              if (mounted) {
+                setState(() {});
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Failed to update event in Supabase.'),
+                  ),
+                );
+              }
+            }
+          }
+        },
+      ),
     );
   }
 
@@ -480,7 +460,57 @@ class EventsPageState extends State<EventsPage> {
   List<Map<String, dynamic>> _tasks = [];
   Box? _tasksBox;
 
-  // Duplicate initState removed. Only one initState should exist in this class.
+  // Show a bottom-aligned date picker that fills the bottom of the screen
+  Future<DateTime?> _showBottomDatePicker({
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) async {
+    final result = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.65,
+          decoration: const BoxDecoration(
+            color: Color(0xFF121212),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[700],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Calendar
+              Expanded(
+                child: _CustomCalendar(
+                  selectedDate: initialDate,
+                  firstDate: firstDate,
+                  lastDate: lastDate,
+                  onDateChanged: (date) {
+                    Navigator.pop(context, date);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    
+    return result;
+  }
 
   Future<void> _fetchEventsFromSupabase() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -498,6 +528,36 @@ class EventsPageState extends State<EventsPage> {
     setState(() {});
   }
 
+  Future<void> _fetchTasksFromSupabase() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    try {
+      final response = await Supabase.instance.client
+          .from('user_tasks')
+          .select()
+          .eq('user_id', userId);
+      
+      // Clear existing tasks box and reload from Supabase
+      if (_tasksBox != null && _tasksBox!.isOpen) {
+        await _tasksBox!.clear();
+        for (final taskData in response) {
+          final task = {
+            'id': taskData['id'],
+            'name': taskData['name'],
+            'days': List<String>.from(taskData['days'] ?? []),
+            'end_date': taskData['end_date'], // null means indefinite
+            'completedDates': List<String>.from(taskData['completed_dates'] ?? []),
+            'user_id': taskData['user_id'],
+          };
+          await _tasksBox!.add(task);
+        }
+      }
+      _loadTasksFromHive();
+    } catch (e) {
+      print('Error fetching tasks from Supabase: $e');
+    }
+  }
+
   void _loadTasksFromHive() {
     if (_tasksBox == null) return;
     final loaded = _tasksBox!.values
@@ -509,25 +569,39 @@ class EventsPageState extends State<EventsPage> {
     });
   }
 
-  void _markTaskAsCompleted(int idx) {
-    setState(() {
-      if (idx >= 0 && idx < _tasks.length) {
-        final todayStr = _selectedDay.toIso8601String().substring(0, 10);
-        if (_tasks[idx]['completedDates'] == null) {
-          _tasks[idx]['completedDates'] = <String>[];
-        }
-        final List completedDates = List<String>.from(
-          _tasks[idx]['completedDates'] ?? [],
-        );
-        if (!completedDates.contains(todayStr)) {
-          completedDates.add(todayStr);
-        }
-        _tasks[idx]['completedDates'] = completedDates;
+  void _markTaskAsCompleted(int idx) async {
+    if (idx >= 0 && idx < _tasks.length) {
+      final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+      if (_tasks[idx]['completedDates'] == null) {
+        _tasks[idx]['completedDates'] = <String>[];
+      }
+      final List completedDates = List<String>.from(
+        _tasks[idx]['completedDates'] ?? [],
+      );
+      if (!completedDates.contains(todayStr)) {
+        completedDates.add(todayStr);
+      }
+      _tasks[idx]['completedDates'] = completedDates;
+      
+      setState(() {
         if (_tasksBox != null && _tasksBox!.isOpen) {
           _tasksBox!.putAt(idx, _tasks[idx]);
         }
+      });
+      
+      // Sync to Supabase
+      final taskId = _tasks[idx]['id'];
+      if (taskId != null) {
+        try {
+          await Supabase.instance.client
+              .from('user_tasks')
+              .update({'completed_dates': completedDates})
+              .eq('id', taskId);
+        } catch (e) {
+          print('Error updating task completion in Supabase: $e');
+        }
       }
-    });
+    }
   }
 
   bool _isEventCompleted(Map event) {
@@ -624,12 +698,21 @@ class EventsPageState extends State<EventsPage> {
       final List completedDates = List<String>.from(task['completedDates'] ?? []);
       final dayStr = day.toIso8601String().substring(0, 10);
       
+      // Only show tasks from today onwards
+      final today = DateTime.now();
+      final todayStart = DateTime(today.year, today.month, today.day);
+      final isNotBeforeToday = !day.isBefore(todayStart);
+      
+      // Check end date if it exists
+      final endDateStr = task['end_date'];
+      final isBeforeEndDate = endDateStr == null || !day.isAfter(DateTime.parse(endDateStr));
+      
       // Check if task should appear on this day
       final isRepeatDay = days.isEmpty || days.contains(fullWeekdays[day.weekday % 7]);
       // Don't show completed tasks
       final isNotCompleted = !completedDates.contains(dayStr);
       
-      return isRepeatDay && isNotCompleted;
+      return isRepeatDay && isNotCompleted && isNotBeforeToday && isBeforeEndDate;
     }).toList();
   }
 
@@ -649,11 +732,20 @@ class EventsPageState extends State<EventsPage> {
       final List completedDates = List<String>.from(task['completedDates'] ?? []);
       final dayStr = day.toIso8601String().substring(0, 10);
       
+      // Only show tasks from today onwards
+      final today = DateTime.now();
+      final todayStart = DateTime(today.year, today.month, today.day);
+      final isNotBeforeToday = !day.isBefore(todayStart);
+      
+      // Check end date if it exists
+      final endDateStr = task['end_date'];
+      final isBeforeEndDate = endDateStr == null || !day.isAfter(DateTime.parse(endDateStr));
+      
       // Check if task should appear on this day and is completed
       final isRepeatDay = days.isEmpty || days.contains(fullWeekdays[day.weekday % 7]);
       final isCompleted = completedDates.contains(dayStr);
       
-      return isRepeatDay && isCompleted;
+      return isRepeatDay && isCompleted && isNotBeforeToday && isBeforeEndDate;
     }).toList();
   }
 
@@ -725,13 +817,41 @@ class EventsPageState extends State<EventsPage> {
           }
           setState(() {});
         },
-        onTaskAdded: (task) {
-          final newTask = Map<String, dynamic>.from(task);
-          newTask['completedDates'] = <String>[];
+        onTaskAdded: (task) async {
+          final id = Uuid().v4();
+          final userId = Supabase.instance.client.auth.currentUser?.id;
+          final newTask = {
+            'id': id,
+            'name': task['name'],
+            'days': task['days'] ?? [],
+            'end_date': task['end_date'], // null means indefinite
+            'completedDates': <String>[],
+            'user_id': userId,
+          };
           setState(() {
             _tasks.add(newTask);
           });
           _tasksBox?.add(newTask);
+          
+          // Sync to Supabase
+          try {
+            await Supabase.instance.client.from('user_tasks').insert([
+              {
+                'id': id,
+                'name': task['name'],
+                'days': task['days'] ?? [],
+                'end_date': task['end_date'], // null means indefinite
+                'completed_dates': [],
+                'user_id': userId,
+              },
+            ]);
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Failed to upload task to Supabase.')),
+              );
+            }
+          }
         },
         formatTime: formatTime,
       ),
@@ -781,11 +901,13 @@ class EventsPageState extends State<EventsPage> {
     if (Hive.isBoxOpen('tasks')) {
       _tasksBox = Hive.box('tasks');
       _loadTasksFromHive();
+      _fetchTasksFromSupabase(); // Fetch tasks from Supabase
     } else {
       Hive.openBox('tasks').then((box) {
         setState(() {
           _tasksBox = box;
           _loadTasksFromHive();
+          _fetchTasksFromSupabase(); // Fetch tasks from Supabase
         });
       });
     }
@@ -793,8 +915,8 @@ class EventsPageState extends State<EventsPage> {
     // Supabase realtime subscription for user_events
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId != null) {
-      final channel = Supabase.instance.client.channel('public:user_events');
-      channel.onPostgresChanges(
+      final eventsChannel = Supabase.instance.client.channel('public:user_events');
+      eventsChannel.onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'user_events',
@@ -802,7 +924,7 @@ class EventsPageState extends State<EventsPage> {
           _fetchEventsFromSupabase();
         },
       );
-      channel.onPostgresChanges(
+      eventsChannel.onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
         table: 'user_events',
@@ -810,7 +932,7 @@ class EventsPageState extends State<EventsPage> {
           _fetchEventsFromSupabase();
         },
       );
-      channel.onPostgresChanges(
+      eventsChannel.onPostgresChanges(
         event: PostgresChangeEvent.delete,
         schema: 'public',
         table: 'user_events',
@@ -818,7 +940,35 @@ class EventsPageState extends State<EventsPage> {
           _fetchEventsFromSupabase();
         },
       );
-      channel.subscribe();
+      eventsChannel.subscribe();
+      
+      // Supabase realtime subscription for user_tasks
+      final tasksChannel = Supabase.instance.client.channel('public:user_tasks');
+      tasksChannel.onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'user_tasks',
+        callback: (payload) {
+          _fetchTasksFromSupabase();
+        },
+      );
+      tasksChannel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'user_tasks',
+        callback: (payload) {
+          _fetchTasksFromSupabase();
+        },
+      );
+      tasksChannel.onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: 'user_tasks',
+        callback: (payload) {
+          _fetchTasksFromSupabase();
+        },
+      );
+      tasksChannel.subscribe();
     }
     Future.delayed(Duration.zero, () {
       _checkAndMoveCompletedEvents();
@@ -891,7 +1041,7 @@ class EventsPageState extends State<EventsPage> {
                 completedTasksForDay: _selectedTab == 1 ? _completedTasksForDay : null,
                 isShowingEvents: _selectedTab == 0,
                 onEventEdit: (event) {
-                  // TODO: Implement edit event dialog
+                  _showEditEventDialog(event);
                 },
                 onEventDelete: (event) async {
                   setState(() {
@@ -923,15 +1073,61 @@ class EventsPageState extends State<EventsPage> {
                   final realIndex = _tasks.indexOf(task);
                   if (realIndex != -1) _showEditTaskDialog(realIndex);
                 },
-                onTaskDelete: (task, index) {
+                onTaskDelete: (task, index) async {
                   final realIndex = _tasks.indexOf(task);
                   if (realIndex != -1) {
+                    // Show confirmation dialog
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text('Delete Task'),
+                          content: Text('Are you sure you want to delete "${task['name']}"?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                    
+                    // Only proceed if user confirmed
+                    if (confirmed != true) return;
+                    
+                    final taskId = task['id'];
                     setState(() {
                       _tasks.removeAt(realIndex);
                       if (_tasksBox != null && _tasksBox!.isOpen) {
                         _tasksBox!.deleteAt(realIndex);
                       }
                     });
+                    
+                    // Delete from Supabase
+                    if (taskId != null) {
+                      try {
+                        await Supabase.instance.client
+                            .from('user_tasks')
+                            .delete()
+                            .eq('id', taskId);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Task deleted')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Delete error: $e')),
+                          );
+                        }
+                      }
+                    }
                   }
                 },
                 onTaskComplete: (task, index) {
@@ -1110,6 +1306,196 @@ class EventsPageState extends State<EventsPage> {
   }
 }
 
+// ─── Custom Calendar Widget ──────────────────────────────────────────────────
+
+class _CustomCalendar extends StatefulWidget {
+  final DateTime selectedDate;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final ValueChanged<DateTime> onDateChanged;
+
+  const _CustomCalendar({
+    required this.selectedDate,
+    required this.firstDate,
+    required this.lastDate,
+    required this.onDateChanged,
+  });
+
+  @override
+  State<_CustomCalendar> createState() => _CustomCalendarState();
+}
+
+class _CustomCalendarState extends State<_CustomCalendar> {
+  late DateTime _displayedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayedMonth = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
+  }
+
+  void _previousMonth() {
+    setState(() {
+      _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month - 1, 1);
+    });
+  }
+
+  void _nextMonth() {
+    setState(() {
+      _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month + 1, 1);
+    });
+  }
+
+  List<DateTime?> _getDaysInMonth() {
+    final firstDayOfMonth = _displayedMonth;
+    final lastDayOfMonth = DateTime(_displayedMonth.year, _displayedMonth.month + 1, 0);
+    
+    // Get the weekday of the first day (0 = Sunday, 6 = Saturday)
+    final firstWeekday = firstDayOfMonth.weekday % 7;
+    
+    // Create list with null padding for days before the month starts
+    List<DateTime?> days = List.filled(firstWeekday, null, growable: true);
+    
+    // Add all days in the month
+    for (int day = 1; day <= lastDayOfMonth.day; day++) {
+      days.add(DateTime(_displayedMonth.year, _displayedMonth.month, day));
+    }
+    
+    return days;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final days = _getDaysInMonth();
+    const dayAbbreviations = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    
+    return Column(
+      children: [
+        // Month/Year header with navigation
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, color: Colors.white),
+                onPressed: _previousMonth,
+              ),
+              Text(
+                '${_getMonthName(_displayedMonth.month)} ${_displayedMonth.year}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  shadows: [],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right, color: Colors.white),
+                onPressed: _nextMonth,
+              ),
+            ],
+          ),
+        ),
+        // Day headers
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: dayAbbreviations.map((day) {
+              return Expanded(
+                child: Center(
+                  child: Text(
+                    day,
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      shadows: [],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Calendar grid
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisSpacing: 16, // Increased vertical spacing
+                crossAxisSpacing: 4,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: days.length,
+              itemBuilder: (context, index) {
+                final date = days[index];
+                if (date == null) {
+                  return const SizedBox.shrink();
+                }
+                
+                final isSelected = date.year == widget.selectedDate.year &&
+                    date.month == widget.selectedDate.month &&
+                    date.day == widget.selectedDate.day;
+                
+                final isToday = date.year == DateTime.now().year &&
+                    date.month == DateTime.now().month &&
+                    date.day == DateTime.now().day;
+                
+                final isOutOfRange = date.isBefore(widget.firstDate) || 
+                    date.isAfter(widget.lastDate);
+                
+                return InkWell(
+                  onTap: isOutOfRange ? null : () => widget.onDateChanged(date),
+                  splashColor: Colors.white.withOpacity(0.1),
+                  highlightColor: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(50),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isSelected 
+                          ? Colors.white.withOpacity(0.2)
+                          : isToday
+                              ? Colors.white.withOpacity(0.1)
+                              : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${date.day}',
+                        style: TextStyle(
+                          color: isOutOfRange
+                              ? Colors.grey[700]
+                              : isSelected
+                                  ? Colors.white
+                                  : Colors.white,
+                          fontSize: 18,
+                          fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                          shadows: [],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getMonthName(int month) {
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return monthNames[month - 1];
+  }
+}
+
 // ─── Unified Add Event / Task Bottom Sheet ───────────────────────────────────
 
 class _AddEventTaskSheet extends StatefulWidget {
@@ -1147,6 +1533,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   final _notesCtl = TextEditingController();
   String _repeatOption = 'Never';
   List<bool> _selectedDays = List.generate(7, (_) => false);
+  DateTime? _taskEndDate; // Null means indefinite
 
   static const List<String> _fullWeekdays = [
     'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
@@ -1269,6 +1656,58 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
     );
   }
 
+  // Show a bottom-aligned date picker that fills the bottom of the screen
+  Future<DateTime?> _showBottomDatePicker({
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) async {
+    final result = await showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.65,
+          decoration: const BoxDecoration(
+            color: Color(0xFF121212),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[700],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Calendar
+              Expanded(
+                child: _CustomCalendar(
+                  selectedDate: initialDate,
+                  firstDate: firstDate,
+                  lastDate: lastDate,
+                  onDateChanged: (date) {
+                    Navigator.pop(context, date);
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    
+    return result;
+  }
+
   // ─── Event form ───────────────────────────────────────────────────────────
   Widget _buildEventForm() {
     return Padding(
@@ -1326,17 +1765,10 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
           _pillButton(
             _formatDate(date),
             () async {
-              final picked = await showDatePicker(
-                context: context,
+              final picked = await _showBottomDatePicker(
                 initialDate: date,
                 firstDate: DateTime(2020),
                 lastDate: DateTime(2030),
-                builder: (ctx, child) => Theme(
-                  data: ThemeData.dark().copyWith(
-                    colorScheme: const ColorScheme.dark(primary: Color(0xFF39FF14), surface: Color(0xFF121212)),
-                  ),
-                  child: child!,
-                ),
               );
               if (picked != null) onDatePicked(picked);
             },
@@ -1479,6 +1911,11 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
             _textField(_titleCtl, 'Title'),
           ]),
           const SizedBox(height: 16),
+          // End Date (optional)
+          _card(children: [
+            _taskOptionalEndDateRow(),
+          ]),
+          const SizedBox(height: 16),
           // 
           _card(children: [
             const Padding(
@@ -1532,7 +1969,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: const Color(0xFF39FF14),
+            activeThumbColor: const Color(0xFF39FF14),
           ),
         ],
       ),
@@ -1555,6 +1992,72 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   }
 
   // ─── Task-specific rows ───────────────────────────────────────────────────
+  Widget _taskDateRow(String label, DateTime date, ValueChanged<DateTime> onDatePicked) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          const Spacer(),
+          _pillButton(
+            _formatDate(date),
+            () async {
+              final picked = await _showBottomDatePicker(
+                initialDate: date,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) onDatePicked(picked);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _taskOptionalEndDateRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Text('End Date', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          const Spacer(),
+          if (_taskEndDate != null)
+            GestureDetector(
+              onTap: () {
+                setState(() => _taskEndDate = null);
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  'Clear',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    decoration: TextDecoration.underline,
+                    shadows: [],
+                  ),
+                ),
+              ),
+            ),
+          _pillButton(
+            _taskEndDate == null ? 'None' : _formatDate(_taskEndDate!),
+            () async {
+              final picked = await _showBottomDatePicker(
+                initialDate: _taskEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) {
+                setState(() => _taskEndDate = picked);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _customRepeatDays() {
     final dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     return Padding(
@@ -1591,7 +2094,6 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   }
 
   List<String> _resolveRepeatDays() {
-    if (_repeatOption == 'Never') return [];
     return List.generate(7, (i) => _selectedDays[i] ? _fullWeekdays[i] : null)
         .whereType<String>()
         .toList();
@@ -1613,6 +2115,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       widget.onTaskAdded({
         'name': _titleCtl.text.trim(),
         'days': days,
+        'end_date': _taskEndDate?.toIso8601String(), // null means indefinite
         'completed': false,
         'completedDates': <String>[],
       });
@@ -1627,4 +2130,762 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
     return '$h:$m $ampm';
   }
 }
+
+// ─── Edit Task Bottom Sheet ──────────────────────────────────────────────────
+
+class _EditTaskSheet extends StatefulWidget {
+  final Map<String, dynamic> task;
+  final Function(Map<String, dynamic>) onTaskUpdated;
+
+  const _EditTaskSheet({
+    required this.task,
+    required this.onTaskUpdated,
+  });
+
+  @override
+  State<_EditTaskSheet> createState() => _EditTaskSheetState();
+}
+
+class _EditTaskSheetState extends State<_EditTaskSheet> {
+  late TextEditingController _titleCtl;
+  late List<bool> _selectedDays;
+  DateTime? _taskEndDate;
+
+  static const List<String> _fullWeekdays = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtl = TextEditingController(text: widget.task['name'] ?? '');
+    _selectedDays = List.generate(
+      7,
+      (i) => (widget.task['days'] as List<String>).contains(_fullWeekdays[i]),
+    );
+    _taskEndDate = widget.task['end_date'] != null 
+        ? DateTime.parse(widget.task['end_date']) 
+        : null;
+  }
+
+  @override
+  void dispose() {
+    _titleCtl.dispose();
+    super.dispose();
+  }
+
+  Future<DateTime?> _showBottomDatePicker({
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) async {
+    return showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        DateTime selected = initialDate;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              decoration: const BoxDecoration(
+                color: Color(0xFF121212),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[700],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: _CustomCalendar(
+                      selectedDate: selected,
+                      firstDate: firstDate,
+                      lastDate: lastDate,
+                      onDateChanged: (date) {
+                        setModalState(() => selected = date);
+                        Navigator.of(context).pop(selected);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSave = _titleCtl.text.trim().isNotEmpty;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 200),
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          border: Border(
+            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Header row: Cancel / "Edit Task" / Save ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                      ),
+                      const Spacer(),
+                      const Text('Edit Task', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: canSave
+                            ? () {
+                                final updatedTask = {
+                                  ...widget.task,
+                                  'name': _titleCtl.text.trim(),
+                                  'days': List.generate(
+                                    7,
+                                    (i) => _selectedDays[i] ? _fullWeekdays[i] : null,
+                                  ).whereType<String>().toList(),
+                                  'end_date': _taskEndDate?.toIso8601String(),
+                                };
+                                widget.onTaskUpdated(updatedTask);
+                                Navigator.pop(context);
+                              }
+                            : null,
+                        child: Text(
+                          'Save',
+                          style: TextStyle(
+                            color: canSave ? const Color(0xFF39FF14) : Colors.grey[700],
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            shadows: [],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Form body ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      _card(children: [
+                        _textField(_titleCtl, 'Title'),
+                      ]),
+                      const SizedBox(height: 16),
+                      _card(children: [
+                        _taskOptionalEndDateRow(),
+                      ]),
+                      const SizedBox(height: 16),
+                      _card(children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          child: Center(
+                            child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+                          ),
+                        ),
+                        const Divider(height: 1, color: Colors.white12),
+                        _customRepeatDays(),
+                      ]),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _card({required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF121212),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+
+  Widget _textField(TextEditingController ctl, String hint) {
+    return TextField(
+      controller: ctl,
+      style: const TextStyle(color: Colors.white, fontSize: 16, shadows: []),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey[500], shadows: []),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      onChanged: (_) => setState(() {}),
+    );
+  }
+
+  Widget _pillButton(String text, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+        ),
+        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+      ),
+    );
+  }
+
+  Widget _taskOptionalEndDateRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Text('End Date', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          const Spacer(),
+          if (_taskEndDate != null)
+            GestureDetector(
+              onTap: () {
+                setState(() => _taskEndDate = null);
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  'Clear',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    decoration: TextDecoration.underline,
+                    shadows: [],
+                  ),
+                ),
+              ),
+            ),
+          _pillButton(
+            _taskEndDate == null ? 'None' : _formatDate(_taskEndDate!),
+            () async {
+              final picked = await _showBottomDatePicker(
+                initialDate: _taskEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) {
+                setState(() => _taskEndDate = picked);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _customRepeatDays() {
+    final dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(7, (i) {
+          final sel = _selectedDays[i];
+          return GestureDetector(
+            onTap: () => setState(() => _selectedDays[i] = !_selectedDays[i]),
+            child: Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+              ),
+              alignment: Alignment.center,
+              child: Text(dayLabels[i], style: TextStyle(
+                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: [],
+              )),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+  }
+}
+
+// ─── Edit Event Bottom Sheet ─────────────────────────────────────────────────
+
+class _EditEventSheet extends StatefulWidget {
+  final Map<String, dynamic> event;
+  final Function(Map<String, dynamic>) onEventUpdated;
+  final String Function(TimeOfDay?) formatTime;
+
+  const _EditEventSheet({
+    required this.event,
+    required this.onEventUpdated,
+    required this.formatTime,
+  });
+
+  @override
+  State<_EditEventSheet> createState() => _EditEventSheetState();
+}
+
+class _EditEventSheetState extends State<_EditEventSheet> {
+  late TextEditingController _titleCtl;
+  late TextEditingController _locationCtl;
+  late bool _allDay;
+  late DateTime _startDate;
+  late DateTime _endDate;
+  late TimeOfDay _startTime;
+  late TimeOfDay _endTime;
+  String? _expandedTimePicker;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtl = TextEditingController(text: widget.event['title'] ?? '');
+    _locationCtl = TextEditingController(text: widget.event['description'] ?? '');
+    _allDay = widget.event['all_day'] ?? false;
+    _startDate = widget.event['date'] != null 
+        ? DateTime.parse(widget.event['date']) 
+        : DateTime.now();
+    _endDate = _startDate;
+    
+    // Parse start time
+    if (widget.event['start_time'] != null) {
+      final startParts = (widget.event['start_time'] as String).split(':');
+      if (startParts.length >= 2) {
+        _startTime = TimeOfDay(
+          hour: int.tryParse(startParts[0]) ?? 13,
+          minute: int.tryParse(startParts[1]) ?? 0,
+        );
+      } else {
+        _startTime = const TimeOfDay(hour: 13, minute: 0);
+      }
+    } else {
+      _startTime = const TimeOfDay(hour: 13, minute: 0);
+    }
+    
+    // Parse end time
+    if (widget.event['end_time'] != null) {
+      final endParts = (widget.event['end_time'] as String).split(':');
+      if (endParts.length >= 2) {
+        _endTime = TimeOfDay(
+          hour: int.tryParse(endParts[0]) ?? 14,
+          minute: int.tryParse(endParts[1]) ?? 0,
+        );
+      } else {
+        _endTime = const TimeOfDay(hour: 14, minute: 0);
+      }
+    } else {
+      _endTime = const TimeOfDay(hour: 14, minute: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleCtl.dispose();
+    _locationCtl.dispose();
+    super.dispose();
+  }
+
+  Future<DateTime?> _showBottomDatePicker({
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) async {
+    return showModalBottomSheet<DateTime>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        DateTime selected = initialDate;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              decoration: const BoxDecoration(
+                color: Color(0xFF121212),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[700],
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: _CustomCalendar(
+                      selectedDate: selected,
+                      firstDate: firstDate,
+                      lastDate: lastDate,
+                      onDateChanged: (date) {
+                        setModalState(() => selected = date);
+                        Navigator.of(context).pop(selected);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSave = _titleCtl.text.trim().isNotEmpty;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 200),
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          border: Border(
+            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Header row: Cancel / "Edit Event" / Save ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                      ),
+                      const Spacer(),
+                      const Text('Edit Event', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: canSave
+                            ? () {
+                                final updatedEvent = {
+                                  ...widget.event,
+                                  'title': _titleCtl.text.trim(),
+                                  'description': _locationCtl.text.trim(),
+                                  'date': _startDate.toIso8601String(),
+                                  'all_day': _allDay,
+                                  'start_time': _allDay ? '00:00' : _timeToString(_startTime),
+                                  'end_time': _allDay ? '23:59' : _timeToString(_endTime),
+                                };
+                                widget.onEventUpdated(updatedEvent);
+                                Navigator.pop(context);
+                              }
+                            : null,
+                        child: Text(
+                          'Save',
+                          style: TextStyle(
+                            color: canSave ? const Color(0xFF39FF14) : Colors.grey[700],
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            shadows: [],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Form body ──
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      // Title + Location section
+                      _card(children: [
+                        _textField(_titleCtl, 'Title'),
+                        const Divider(height: 1, color: Colors.white12),
+                        _textField(_locationCtl, 'Location'),
+                      ]),
+                      const SizedBox(height: 16),
+                      // Date / time section
+                      _card(children: [
+                        _switchRow('All-day', _allDay, (v) => setState(() {
+                          _allDay = v;
+                          _expandedTimePicker = null;
+                        })),
+                        const Divider(height: 1, color: Colors.white12),
+                        _eventDateTimeRow('Starts', _startDate, _allDay ? null : _startTime, 'start', (d) {
+                          setState(() {
+                            _startDate = d;
+                            if (_endDate.isBefore(_startDate)) _endDate = _startDate;
+                          });
+                        }),
+                        if (!_allDay && _expandedTimePicker == 'start')
+                          _inlineTimePicker(_startTime, (t) => setState(() => _startTime = t)),
+                        const Divider(height: 1, color: Colors.white12),
+                        _eventDateTimeRow('Ends', _endDate, _allDay ? null : _endTime, 'end', (d) {
+                          setState(() => _endDate = d);
+                        }),
+                        if (!_allDay && _expandedTimePicker == 'end')
+                          _inlineTimePicker(_endTime, (t) => setState(() => _endTime = t)),
+                      ]),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _card({required List<Widget> children}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF121212),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: children),
+    );
+  }
+
+  Widget _textField(TextEditingController ctl, String hint) {
+    return TextField(
+      controller: ctl,
+      style: const TextStyle(color: Colors.white, fontSize: 16, shadows: []),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey[500], shadows: []),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      onChanged: (_) => setState(() {}),
+    );
+  }
+
+  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          const Spacer(),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: const Color(0xFF39FF14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pillButton(String text, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey[900],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+        ),
+        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+      ),
+    );
+  }
+
+  Widget _eventDateTimeRow(
+    String label,
+    DateTime date,
+    TimeOfDay? time,
+    String pickerKey,
+    ValueChanged<DateTime> onDatePicked,
+  ) {
+    final isExpanded = _expandedTimePicker == pickerKey;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          const Spacer(),
+          _pillButton(
+            _formatDate(date),
+            () async {
+              final picked = await _showBottomDatePicker(
+                initialDate: date,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2030),
+              );
+              if (picked != null) onDatePicked(picked);
+            },
+          ),
+          if (time != null) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _expandedTimePicker = isExpanded ? null : pickerKey;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isExpanded ? const Color(0xFF39FF14).withOpacity(0.15) : Colors.grey[900],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF39FF14).withOpacity(isExpanded ? 0.4 : 0.2)),
+                ),
+                child: Text(
+                  widget.formatTime(time),
+                  style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: []),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _inlineTimePicker(TimeOfDay current, ValueChanged<TimeOfDay> onChanged) {
+    final isPm = current.period == DayPeriod.pm;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: const Color(0xFF1E1E1E),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Hour picker
+              SizedBox(
+                width: 80,
+                child: ListWheelScrollView.useDelegate(
+                  itemExtent: 40,
+                  diameterRatio: 1.5,
+                  physics: const FixedExtentScrollPhysics(),
+                  controller: FixedExtentScrollController(
+                    initialItem: current.hourOfPeriod == 0 ? 11 : current.hourOfPeriod - 1,
+                  ),
+                  onSelectedItemChanged: (i) {
+                    int h12 = i + 1;
+                    int h24 = h12 % 12;
+                    if (isPm) h24 += 12;
+                    onChanged(TimeOfDay(hour: h24, minute: current.minute));
+                  },
+                  childDelegate: ListWheelChildBuilderDelegate(
+                    builder: (context, index) {
+                      final val = (index % 12) + 1;
+                      return Center(
+                        child: Text('$val', style: const TextStyle(color: Colors.white, fontSize: 24, shadows: [])),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const Text(':', style: TextStyle(color: Colors.white, fontSize: 28, shadows: [])),
+              // Minute picker
+              SizedBox(
+                width: 80,
+                child: ListWheelScrollView.useDelegate(
+                  itemExtent: 40,
+                  diameterRatio: 1.5,
+                  physics: const FixedExtentScrollPhysics(),
+                  controller: FixedExtentScrollController(initialItem: current.minute),
+                  onSelectedItemChanged: (i) {
+                    onChanged(TimeOfDay(hour: current.hour, minute: i));
+                  },
+                  childDelegate: ListWheelChildBuilderDelegate(
+                    builder: (context, index) {
+                      final val = index % 60;
+                      return Center(
+                        child: Text(val.toString().padLeft(2, '0'),
+                            style: const TextStyle(color: Colors.white, fontSize: 24, shadows: [])),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // AM/PM toggle
+              SizedBox(
+                width: 80,
+                child: ToggleButtons(
+                  direction: Axis.vertical,
+                  isSelected: [!isPm, isPm],
+                  onPressed: (v) {
+                    final isAm = v == 0;
+                    int h12 = current.hourOfPeriod == 0 ? 12 : current.hourOfPeriod;
+                    int h24 = h12 % 12;
+                    if (!isAm) h24 += 12;
+                    onChanged(TimeOfDay(hour: h24, minute: current.minute));
+                  },
+                  children: const [
+                    Center(child: Text('AM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
+                    Center(child: Text('PM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime d) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+  }
+
+  String _timeToString(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final ampm = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $ampm';
+  }
+}
+
 

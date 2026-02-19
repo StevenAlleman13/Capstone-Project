@@ -18,7 +18,7 @@ class VerticalStickyCalendar extends StatefulWidget {
   final void Function(Map)? onEventEdit;
   final void Function(Map)? onEventDelete;
   final void Function(Map<String, dynamic>, int)? onTaskEdit;
-  final void Function(Map<String, dynamic>, int)? onTaskDelete;
+  final Future<void> Function(Map<String, dynamic>, int)? onTaskDelete;
   final void Function(Map<String, dynamic>, int)? onTaskComplete;
   final void Function(bool isWeekView)? onViewModeChanged;
 
@@ -766,8 +766,8 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
                             onEdit: () {
                               widget.onTaskEdit?.call(task, index);
                             },
-                            onDelete: () {
-                              widget.onTaskDelete?.call(task, index);
+                            onDelete: () async {
+                              await widget.onTaskDelete?.call(task, index);
                             },
                             onComplete: () {
                               widget.onTaskComplete?.call(task, index);
@@ -800,8 +800,8 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
                             onEdit: () {
                               // No edit for completed tasks
                             },
-                            onDelete: () {
-                              widget.onTaskDelete?.call(task, index);
+                            onDelete: () async {
+                              await widget.onTaskDelete?.call(task, index);
                             },
                             onComplete: () {
                               // Already completed
