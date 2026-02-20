@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
+const double _cornerRadius = 18.0;
 
 class FitnessPage extends StatefulWidget {
   const FitnessPage({super.key});
@@ -56,8 +57,9 @@ class _FitnessPageState extends State<FitnessPage> {
   Future<void> _loadGraphSettingsFromSupabase() async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (no user session found).');
+      }
       return;
     }
 
@@ -90,8 +92,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase settings load error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not load graph settings.');
+      }
     }
   }
 
@@ -101,8 +104,9 @@ class _FitnessPageState extends State<FitnessPage> {
   ) async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (cannot save settings).');
+      }
       return;
     }
 
@@ -116,8 +120,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase settings save error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not save graph settings.');
+      }
     }
   }
 
@@ -207,8 +212,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase save error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not save weight to Supabase.');
+      }
     }
   }
 
@@ -262,8 +268,9 @@ class _FitnessPageState extends State<FitnessPage> {
   Future<void> _clearGraphData() async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (cannot clear).');
+      }
       return;
     }
 
@@ -283,8 +290,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase clear error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not clear weights from Supabase.');
+      }
     }
   }
 
@@ -339,6 +347,11 @@ class _FitnessPageState extends State<FitnessPage> {
                     ),
                     SizedBox(width: 12),
                     ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_cornerRadius),
+                        ),
+                      ),
                       onPressed: _loading ? null : _saveTodayWeight,
                       child: Text('Save'),
                     ),
@@ -346,7 +359,6 @@ class _FitnessPageState extends State<FitnessPage> {
                 ),
                 SizedBox(height: 12),
 
-                // Min/Max controls ABOVE the graph
                 Row(
                   children: [
                     Expanded(
@@ -372,6 +384,11 @@ class _FitnessPageState extends State<FitnessPage> {
                     ),
                     SizedBox(width: 12),
                     ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(_cornerRadius),
+                        ),
+                      ),
                       onPressed: _loading ? null : _applyGraphLimits,
                       child: Text('Set'),
                     ),
@@ -380,11 +397,11 @@ class _FitnessPageState extends State<FitnessPage> {
 
                 SizedBox(height: 12),
 
-                // Graph (taller)
                 SizedBox(
                   height: 280,
                   child: Container(
                     decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(_cornerRadius),
                       border: Border.all(color: _neonGreen, width: 1.5),
                     ),
                     child: _loading
@@ -417,7 +434,7 @@ class _FitnessPageState extends State<FitnessPage> {
                           side: BorderSide(color: _neonGreen, width: 1.5),
                           foregroundColor: _neonGreen,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.zero,
+                            borderRadius: BorderRadius.circular(_cornerRadius),
                           ),
                         ),
                         child: Text('Clear Graph Data'),
@@ -443,11 +460,11 @@ class _FitnessPageState extends State<FitnessPage> {
       labelStyle: TextStyle(color: _neonGreen),
       enabledBorder: OutlineInputBorder(
         borderSide: BorderSide(color: _neonGreen),
-        borderRadius: BorderRadius.zero,
+        borderRadius: BorderRadius.circular(_cornerRadius),
       ),
       focusedBorder: OutlineInputBorder(
         borderSide: BorderSide(color: _neonGreen, width: 2),
-        borderRadius: BorderRadius.zero,
+        borderRadius: BorderRadius.circular(_cornerRadius),
       ),
     );
   }
@@ -461,6 +478,7 @@ class _FitnessPageState extends State<FitnessPage> {
       width: double.infinity,
       padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: _neonGreen, width: 2),
         color: Colors.black,
       ),
@@ -522,10 +540,9 @@ class _WeightGraphPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
-    // Space for left-side labels
     const leftPad = 48.0;
     const topPad = 10.0;
-    const bottomPad = 18.0;
+    const bottomPad = 36.0;
     const rightPad = 10.0;
 
     final plotRect = Rect.fromLTWH(
@@ -548,6 +565,8 @@ class _WeightGraphPainter extends CustomPainter {
 
     _drawAxisLabels(canvas, plotRect, minVal, maxVal);
     _drawGridLines(canvas, plotRect);
+
+    _drawXAxisLabels(canvas, plotRect, points);
 
     if (points.isEmpty) {
       _drawNoData(canvas, plotRect);
@@ -623,7 +642,6 @@ class _WeightGraphPainter extends CustomPainter {
   ) {
     final labelStyle = TextStyle(color: _neonGreen, fontSize: 11);
 
-    // 5 measurements: max (top), 3 between, min (bottom)
     for (int i = 0; i < 5; i++) {
       final t = i / 4.0;
       final y = plotRect.top + plotRect.height * t;
@@ -654,6 +672,54 @@ class _WeightGraphPainter extends CustomPainter {
         Offset(plotRect.right, y),
         gridPaint,
       );
+    }
+  }
+
+  void _drawXAxisLabels(Canvas canvas, Rect plotRect, List<_WeightPoint> pts) {
+    if (pts.isEmpty) return;
+
+    final labelStyle = TextStyle(color: _neonGreen, fontSize: 10);
+
+    final labelCount = min(5, pts.length);
+    final lastIdx = pts.length - 1;
+
+    final indices = <int>{};
+    if (labelCount == 1) {
+      indices.add(0);
+    } else {
+      for (int i = 0; i < labelCount; i++) {
+        final t = i / (labelCount - 1);
+        final idx = (t * lastIdx).round();
+        indices.add(idx);
+      }
+    }
+
+    for (final idx in indices.toList()..sort()) {
+      final p = pts[idx];
+
+      String label = p.dateKey;
+      final parts = p.dateKey.split('-');
+      if (parts.length == 3) {
+        final m = int.tryParse(parts[1]);
+        final d = int.tryParse(parts[2]);
+        if (m != null && d != null) {
+          label = '$m/$d';
+        }
+      }
+
+      final x = (lastIdx == 0)
+          ? plotRect.left
+          : plotRect.left + (plotRect.width * (idx / lastIdx.toDouble()));
+
+      final tp = TextPainter(
+        text: TextSpan(text: label, style: labelStyle),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+      )..layout();
+
+      final dx = max(0.0, x - tp.width / 2);
+      final dy = plotRect.bottom + 6;
+      tp.paint(canvas, Offset(dx, dy));
     }
   }
 
