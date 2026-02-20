@@ -56,8 +56,9 @@ class _FitnessPageState extends State<FitnessPage> {
   Future<void> _loadGraphSettingsFromSupabase() async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (no user session found).');
+      }
       return;
     }
 
@@ -90,8 +91,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase settings load error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not load graph settings.');
+      }
     }
   }
 
@@ -101,8 +103,9 @@ class _FitnessPageState extends State<FitnessPage> {
   ) async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (cannot save settings).');
+      }
       return;
     }
 
@@ -116,8 +119,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase settings save error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not save graph settings.');
+      }
     }
   }
 
@@ -207,8 +211,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase save error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not save weight to Supabase.');
+      }
     }
   }
 
@@ -262,8 +267,9 @@ class _FitnessPageState extends State<FitnessPage> {
   Future<void> _clearGraphData() async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (cannot clear).');
+      }
       return;
     }
 
@@ -283,8 +289,9 @@ class _FitnessPageState extends State<FitnessPage> {
     } catch (e) {
       // ignore: avoid_print
       print('Supabase clear error: $e');
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not clear weights from Supabase.');
+      }
     }
   }
 
