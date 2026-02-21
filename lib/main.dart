@@ -1,5 +1,7 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 
+import 'dart:async';
+
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -90,14 +92,75 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        // Login-first flow:
-        initialRoute: '/login',
+        home: const AuthGate(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const MyHomePage(),
         },
       ),
     );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  StreamSubscription<AuthState>? _authSub;
+  bool? _hasSession;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapAuthState();
+  }
+
+  Future<void> _bootstrapAuthState() async {
+    final auth = Supabase.instance.client.auth;
+
+    _authSub = auth.onAuthStateChange.listen((event) {
+      if (!mounted) return;
+      setState(() {
+        _hasSession = event.session != null;
+      });
+    });
+
+    var session = auth.currentSession;
+    if (session == null) {
+      final deadline = DateTime.now().add(const Duration(seconds: 2));
+      while (session == null && DateTime.now().isBefore(deadline)) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        session = auth.currentSession;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _hasSession = session != null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasSession == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_hasSession == true) {
+      return const MyHomePage();
+    }
+
+    return const LoginPage();
   }
 }
 
