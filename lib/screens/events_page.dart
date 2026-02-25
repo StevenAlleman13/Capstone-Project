@@ -552,7 +552,7 @@ class EventsPageState extends State<EventsPage> {
           await _tasksBox!.add(task);
         }
       }
-      _loadTasksFromHive();
+      if (mounted) _loadTasksFromHive();
     } catch (e) {
       print('Error fetching tasks from Supabase: $e');
     }
@@ -564,6 +564,7 @@ class EventsPageState extends State<EventsPage> {
         .whereType<Map>()
         .map((m) => Map<String, dynamic>.from(m))
         .toList();
+    if (!mounted) return;
     setState(() {
       _tasks = loaded;
     });
