@@ -25,6 +25,7 @@ Future<void> main() async {
   await Hive.deleteBoxFromDisk('events');
   await Hive.openBox('events');
   await Hive.openBox('tasks');
+  await Hive.openBox('selected_apps');
 
   await Supabase.initialize(
     url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
