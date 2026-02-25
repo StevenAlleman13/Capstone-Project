@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'app_picker_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -19,6 +20,21 @@ class SettingsPage extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         children: [
           const _SectionFrame(title: 'ADVANCED'),
+          const SizedBox(height: 14),
+          _SectionFrame(
+            title: 'SCREEN TIME',
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.apps),
+                label: const Text('Select Apps'),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AppPickerPage()),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           const _SectionFrame(title: 'LIGHT / DARK MODE'),
           const SizedBox(height: 14),
