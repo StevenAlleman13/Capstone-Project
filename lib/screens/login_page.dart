@@ -37,17 +37,11 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/home');
     } on AuthException catch (e) {
-      setState(() {
-        _error = e.message; // nice Supabase error messages
-      });
+      setState(() => _error = e.message);
     } catch (e) {
-      setState(() {
-        _error = 'Unexpected error: $e';
-      });
+      setState(() => _error = 'Unexpected error: $e');
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -65,7 +59,6 @@ class _LoginPageState extends State<LoginPage> {
         password: _password,
       );
 
-      // If email confirmations are ON, session may be null until they confirm.
       final session = res.session;
       if (!mounted) return;
 
@@ -73,127 +66,176 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.of(context).pushReplacementNamed('/home');
       } else {
         setState(() {
-          _error =
-              'Account created. Check your email to confirm before signing in.';
+          _error = 'Account created. Check your email to confirm before signing in.';
         });
       }
     } on AuthException catch (e) {
-      setState(() {
-        _error = e.message;
-      });
+      setState(() => _error = e.message);
     } catch (e) {
-      setState(() {
-        _error = 'Unexpected error: $e';
-      });
+      setState(() => _error = 'Unexpected error: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Sign in')),
-      body: Center(
-        child: Card(
-          margin: const EdgeInsets.all(24),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: 420,
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      keyboardType: TextInputType.emailAddress,
-                      onChanged: (v) => _email = v,
-                      validator: (v) => (v != null && v.contains('@'))
-                          ? null
-                          : 'Enter a valid email',
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscure ? Icons.visibility : Icons.visibility_off,
-                          ),
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                        ),
-                      ),
-                      obscureText: _obscure,
-                      onChanged: (v) => _password = v,
-                      validator: (v) =>
-                          (v ?? '').length >= 6 ? null : 'Min 6 chars',
-                    ),
-                    const SizedBox(height: 20),
-                    if (_error != null)
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                    const SizedBox(height: 8),
+  // Google OAuth with Supabase
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
-                    // Sign in
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _loading ? null : _submit,
-                        child: _loading
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+    try {
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        // Optional: if you have deep links configured, you can add redirectTo
+        // redirectTo: 'io.supabase.flutter://login-callback/',
+      );
+
+      // OAuth flow will redirect; on success your auth state listener should route.
+      // If you don't have a listener, you can check currentSession after returning.
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Unexpected error: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 18),
+
+          // LOCKIN Title
+          Center(
+            child: Text(
+              'LOCK IN',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    color: _neonGreen,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 3.0,
+                  ),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Gameboy Logo
+          Center(
+            child: Image.asset(
+              'assets/images/gameboy_lock.png',
+              width: 150, // adjust size here
+              fit: BoxFit.contain,
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+            Center(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: 420,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextFormField(
+                            decoration: const InputDecoration(labelText: 'Email'),
+                            keyboardType: TextInputType.emailAddress,
+                            onChanged: (v) => _email = v,
+                            validator: (v) => (v != null && v.contains('@'))
+                                ? null
+                                : 'Enter a valid email',
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscure ? Icons.visibility : Icons.visibility_off,
                                 ),
-                              )
-                            : const Text('Sign in'),
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Sign up
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _loading ? null : _signUp,
-                        child: const Text(
-                          'Create account',
-                          style: TextStyle(color: _neonGreen),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('Tip'),
-                            content: const Text(
-                              'Use a real email + password you want to test.\n\n'
-                              'If Supabase email confirmations are enabled, '
-                              'you must confirm the email before you can sign in.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('OK'),
+                                onPressed: () => setState(() => _obscure = !_obscure),
                               ),
-                            ],
+                            ),
+                            obscureText: _obscure,
+                            onChanged: (v) => _password = v,
+                            validator: (v) =>
+                                (v ?? '').length >= 6 ? null : 'Min 6 chars',
                           ),
-                        );
-                      },
-                      child: const Text('Help / troubleshooting'),
+                          const SizedBox(height: 18),
+                          if (_error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(color: Colors.red),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+
+                          // 1) Sign in
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _loading ? null : _submit,
+                              child: _loading
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Text('Sign in'),
+                            ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // 2) Sign in with Google
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _loading ? null : _signInWithGoogle,
+                              icon: const Icon(Icons.g_mobiledata, size: 26),
+                              label: const Text('Sign in with Google'),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: _neonGreen.withOpacity(0.65)),
+                                foregroundColor: _neonGreen,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // 3) Create account (under Google)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _loading ? null : _signUp,
+                              child: const Text(
+                                'Create account',
+                                style: TextStyle(color: _neonGreen),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
