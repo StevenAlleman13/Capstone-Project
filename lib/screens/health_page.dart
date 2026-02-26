@@ -4,10 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 
 class HealthPage extends StatefulWidget {
-  const HealthPage({
-    super.key,
-    this.onRecipeTap,
-  });
+  const HealthPage({super.key, this.onRecipeTap});
 
   final void Function(RecipeCardUi recipe)? onRecipeTap;
 
@@ -18,8 +15,10 @@ class HealthPage extends StatefulWidget {
 class _HealthPageState extends State<HealthPage> {
   final _supabase = Supabase.instance.client;
 
-  // Spoonacular API
-  static const String _spoonacularApiKey = 'd9928e2e194e429bb0f8ff330651ad89';
+  static const List<String> _apiKeys = [
+    'd9928e2e194e429bb0f8ff330651ad89',
+    '160eeec24f1f43d5b642881f1be44243',
+  ];
 
   List<IngredientRow> _ingredients = const [];
   bool _loadingIngredients = true;
@@ -33,6 +32,9 @@ class _HealthPageState extends State<HealthPage> {
   Set<int> _favoriteRecipeIds = <int>{};
   bool _loadingFavorites = false;
 
+  List<String> _cachedTrivia = const [];
+  String? _lastRecipeIngredientKey;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +44,22 @@ class _HealthPageState extends State<HealthPage> {
   Future<void> _bootstrap() async {
     await _loadFavorites();
     await _loadIngredients();
+  }
+
+  Future<http.Response?> _spoonGet(Uri uri) async {
+    for (final key in _apiKeys) {
+      final keyedUri = uri.replace(
+        queryParameters: {...uri.queryParameters, 'apiKey': key},
+      );
+      try {
+        final resp = await http.get(keyedUri);
+        if (resp.statusCode == 200) return resp;
+        if (resp.statusCode == 402) continue;
+      } catch (_) {
+        continue;
+      }
+    }
+    return null;
   }
 
   /* -------------------------- INGREDIENTS -------------------------- */
@@ -85,20 +103,21 @@ class _HealthPageState extends State<HealthPage> {
       });
 
       if (changed) {
-        await Future.wait([
-          _loadRecipes(),
-          _loadHealthFacts(),
-        ]);
+        _buildAndSetHealthFacts(list);
+        final newKey = list.map((e) => e.name).join(',');
+        if (newKey != _lastRecipeIngredientKey) {
+          await _loadRecipes();
+        }
       } else {
-        if (_healthFacts.isEmpty) await _loadHealthFacts();
+        if (_healthFacts.isEmpty) _buildAndSetHealthFacts(list);
         if (_recipeCards.isEmpty) await _loadRecipes();
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingIngredients = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading ingredients: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading ingredients: $e')));
     }
   }
 
@@ -114,9 +133,9 @@ class _HealthPageState extends State<HealthPage> {
     final user = _supabase.auth.currentUser;
     if (user == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in first.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please log in first.')));
       return;
     }
 
@@ -170,7 +189,6 @@ class _HealthPageState extends State<HealthPage> {
     });
 
     await _loadIngredients();
-
     await _syncIngredientNutritionByName(name);
     await _loadIngredients();
   }
@@ -199,23 +217,36 @@ class _HealthPageState extends State<HealthPage> {
       final info = await _spoonIngredientInformation(found.id);
       if (info == null) return;
 
-      await _supabase.from('ingredients').update({
-        'spoonacular_id': info.id,
-        'image_url': info.imageUrl,
-        'calories': info.calories,
-        'carbs_g': info.carbsG,
-        'protein_g': info.proteinG,
-        'fat_g': info.fatG,
-        'fiber_g': info.fiberG,
-        'sugar_g': info.sugarG,
-        'sodium_mg': info.sodiumMg,
-        'last_nutrition_sync': DateTime.now().toIso8601String(),
-      }).eq('user_id', user.id).eq('name', name);
-    } catch (_) {
-    }
+      await _supabase
+          .from('ingredients')
+          .update({
+            'spoonacular_id': info.id,
+            'image_url': info.imageUrl,
+            'calories': info.calories,
+            'carbs_g': info.carbsG,
+            'protein_g': info.proteinG,
+            'fat_g': info.fatG,
+            'fiber_g': info.fiberG,
+            'sugar_g': info.sugarG,
+            'sodium_mg': info.sodiumMg,
+            'last_nutrition_sync': DateTime.now().toIso8601String(),
+          })
+          .eq('user_id', user.id)
+          .eq('name', name);
+    } catch (_) {}
   }
 
   /* -------------------------- HEALTH FACTS -------------------------- */
+
+  void _buildAndSetHealthFacts(List<IngredientRow> items) {
+    if (!mounted) return;
+    final facts = _buildFactsFromIngredients(items);
+    final merged = [
+      ...facts,
+      ..._cachedTrivia,
+    ].where((s) => s.trim().isNotEmpty).toList();
+    setState(() => _healthFacts = merged);
+  }
 
   Future<void> _loadHealthFacts() async {
     if (_ingredients.isEmpty) {
@@ -229,20 +260,22 @@ class _HealthPageState extends State<HealthPage> {
 
       final ingredientFacts = _buildFactsFromIngredients(_ingredients);
 
-      final trivia = await _spoonRandomTrivia(count: 2);
+      if (_cachedTrivia.isEmpty) {
+        _cachedTrivia = await _spoonRandomTrivia(count: 2);
+      }
 
       final merged = <String>[
         ...ingredientFacts,
-        ...trivia,
+        ..._cachedTrivia,
       ].where((s) => s.trim().isNotEmpty).toList();
 
       if (!mounted) return;
       setState(() => _healthFacts = merged);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading health facts: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading health facts: $e')));
     } finally {
       if (mounted) setState(() => _loadingFacts = false);
     }
@@ -263,13 +296,16 @@ class _HealthPageState extends State<HealthPage> {
       if (ing.sodiumMg != null) parts.add('${_fmt0(ing.sodiumMg)}mg sodium');
 
       if (parts.isEmpty) {
-        facts.add('Add details for ${ing.name} by refreshing ingredients (nutrition not synced yet).');
+        facts.add(
+          'Add details for ${ing.name} by refreshing ingredients (nutrition not synced yet).',
+        );
       } else {
-        facts.add('${_title(ing.name)} (typical serving): ${parts.join(' • ')}.');
+        facts.add(
+          '${_title(ing.name)} (typical serving): ${parts.join(' • ')}.',
+        );
       }
     }
 
-    // If too many, keep it scrollable but not overwhelming
     if (facts.length > 12) return facts.take(12).toList();
     return facts;
   }
@@ -292,21 +328,34 @@ class _HealthPageState extends State<HealthPage> {
       return;
     }
 
+    final newKey = _ingredients.map((e) => e.name).take(5).join(',');
+
+    if (newKey == _lastRecipeIngredientKey && _recipeCards.isNotEmpty) return;
+
     try {
       if (mounted) setState(() => _loadingRecipes = true);
 
       final joined = Uri.encodeQueryComponent(
-        _ingredients.map((e) => e.name).take(10).join(','),
+        _ingredients.map((e) => e.name).take(5).join(','),
       );
 
       final uri = Uri.parse(
         'https://api.spoonacular.com/recipes/findByIngredients'
-        '?ingredients=$joined&number=12&ranking=1&ignorePantry=true&apiKey=$_spoonacularApiKey',
+        '?ingredients=$joined&number=5&ranking=1&ignorePantry=true',
       );
 
-      final resp = await http.get(uri);
-      if (resp.statusCode != 200) {
-        throw Exception('Spoonacular ${resp.statusCode}: ${resp.body}');
+      final resp = await _spoonGet(uri);
+      if (resp == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not load recipes — API limit reached on all keys.',
+              ),
+            ),
+          );
+        }
+        return;
       }
 
       final list = jsonDecode(resp.body) as List<dynamic>;
@@ -336,12 +385,15 @@ class _HealthPageState extends State<HealthPage> {
       }).toList();
 
       if (!mounted) return;
-      setState(() => _recipeCards = cards);
+      setState(() {
+        _recipeCards = cards;
+        _lastRecipeIngredientKey = newKey;
+      });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading recipes: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading recipes: $e')));
     } finally {
       if (mounted) setState(() => _loadingRecipes = false);
     }
@@ -403,16 +455,18 @@ class _HealthPageState extends State<HealthPage> {
       if (!mounted) return;
       setState(() {
         _recipeCards = _recipeCards
-            .map((r) => r.recipeId == id
-                ? r.copyWith(isFavorite: _favoriteRecipeIds.contains(id))
-                : r)
+            .map(
+              (r) => r.recipeId == id
+                  ? r.copyWith(isFavorite: _favoriteRecipeIds.contains(id))
+                  : r,
+            )
             .toList();
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Favorite error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Favorite error: $e')));
     }
   }
 
@@ -468,9 +522,9 @@ class _HealthPageState extends State<HealthPage> {
       if (!mounted) return;
 
       if (results.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No recipes found.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No recipes found.')));
         return;
       }
 
@@ -486,12 +540,18 @@ class _HealthPageState extends State<HealthPage> {
             itemBuilder: (context, i) {
               final r = results[i];
               return ListTile(
-                title: Text(r.title, style: const TextStyle(color: Colors.white)),
+                title: Text(
+                  r.title,
+                  style: const TextStyle(color: Colors.white),
+                ),
                 subtitle: Text(
                   'Tap to favorite',
                   style: TextStyle(color: Colors.white.withOpacity(0.7)),
                 ),
-                trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                trailing: const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white54,
+                ),
                 onTap: () => Navigator.pop(context, r),
               );
             },
@@ -503,9 +563,9 @@ class _HealthPageState extends State<HealthPage> {
       await _toggleFavorite(picked);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Add recipe error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Add recipe error: $e')));
     }
   }
 
@@ -530,7 +590,7 @@ class _HealthPageState extends State<HealthPage> {
                   tooltip: 'Refresh ingredient details',
                   onPressed: () async {
                     for (final ing in _ingredients) {
-                      if (ing.calories == null && ing.spoonacularId == null) {
+                      if (ing.calories == null) {
                         await _syncIngredientNutritionByName(ing.name);
                       }
                     }
@@ -547,11 +607,11 @@ class _HealthPageState extends State<HealthPage> {
             child: _loadingIngredients
                 ? const _EmptyHint(text: 'Loading ingredients...')
                 : ingredients.isEmpty
-                    ? const _EmptyHint(text: 'Tap + to add ingredients.')
-                    : _IngredientCards(
-                        items: ingredients,
-                        onRemove: (name) => _removeIngredient(name),
-                      ),
+                ? const _EmptyHint(text: 'Tap + to add ingredients.')
+                : _IngredientCards(
+                    items: ingredients,
+                    onRemove: (name) => _removeIngredient(name),
+                  ),
           ),
           const SizedBox(height: 14),
 
@@ -563,22 +623,24 @@ class _HealthPageState extends State<HealthPage> {
               onPressed: _loadHealthFacts,
             ),
             child: ingredients.isEmpty
-                ? const _EmptyHint(text: 'Add ingredients to generate health facts.')
+                ? const _EmptyHint(
+                    text: 'Add ingredients to generate health facts.',
+                  )
                 : _loadingFacts
-                    ? const _EmptyHint(text: 'Loading facts...')
-                    : _healthFacts.isEmpty
-                        ? const _EmptyHint(text: 'No facts yet. Tap refresh.')
-                        : SizedBox(
-                            height: 120,
-                            child: PageView.builder(
-                              physics: const BouncingScrollPhysics(),
-                              itemCount: _healthFacts.length,
-                              itemBuilder: (context, i) => Padding(
-                                padding: const EdgeInsets.only(right: 10),
-                                child: _NeonBullet(text: _healthFacts[i]),
-                              ),
-                            ),
-                          ),
+                ? const _EmptyHint(text: 'Loading facts...')
+                : _healthFacts.isEmpty
+                ? const _EmptyHint(text: 'No facts yet. Tap refresh.')
+                : SizedBox(
+                    height: 120,
+                    child: PageView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _healthFacts.length,
+                      itemBuilder: (context, i) => Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: _NeonBullet(text: _healthFacts[i]),
+                      ),
+                    ),
+                  ),
           ),
           const SizedBox(height: 14),
 
@@ -595,30 +657,33 @@ class _HealthPageState extends State<HealthPage> {
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 20),
                   tooltip: 'Refresh recipes',
-                  onPressed: _loadRecipes,
+                  onPressed: () {
+                    _lastRecipeIngredientKey = null;
+                    _loadRecipes();
+                  },
                 ),
               ],
             ),
             child: ingredients.isEmpty
                 ? const _EmptyHint(text: 'Add ingredients to get recipes.')
                 : _loadingRecipes || _loadingFavorites
-                    ? const _EmptyHint(text: 'Loading recipes...')
-                    : _recipeCards.isEmpty
-                        ? const _EmptyHint(text: 'No recipes found.')
-                        : SizedBox(
-                            height: 240,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              itemCount: _recipeCards.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 12),
-                              itemBuilder: (context, i) => _RecipeCard(
-                                recipe: _recipeCards[i],
-                                onTap: widget.onRecipeTap,
-                                onFavorite: _toggleFavorite,
-                              ),
-                            ),
-                          ),
+                ? const _EmptyHint(text: 'Loading recipes...')
+                : _recipeCards.isEmpty
+                ? const _EmptyHint(text: 'No recipes found.')
+                : SizedBox(
+                    height: 240,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _recipeCards.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (context, i) => _RecipeCard(
+                        recipe: _recipeCards[i],
+                        onTap: widget.onRecipeTap,
+                        onFavorite: _toggleFavorite,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -627,14 +692,16 @@ class _HealthPageState extends State<HealthPage> {
 
   /* -------------------------- SPOONACULAR HELPERS -------------------------- */
 
-  Future<_SpoonIngredientSearchResult?> _spoonSearchIngredient(String query) async {
+  Future<_SpoonIngredientSearchResult?> _spoonSearchIngredient(
+    String query,
+  ) async {
     final uri = Uri.parse(
       'https://api.spoonacular.com/food/ingredients/search'
-      '?query=${Uri.encodeQueryComponent(query)}&number=1&apiKey=$_spoonacularApiKey',
+      '?query=${Uri.encodeQueryComponent(query)}&number=1',
     );
 
-    final resp = await http.get(uri);
-    if (resp.statusCode != 200) return null;
+    final resp = await _spoonGet(uri);
+    if (resp == null) return null;
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final results = (data['results'] as List?) ?? const [];
@@ -650,12 +717,11 @@ class _HealthPageState extends State<HealthPage> {
 
   Future<_SpoonIngredientInfo?> _spoonIngredientInformation(int id) async {
     final uri = Uri.parse(
-      'https://api.spoonacular.com/food/ingredients/$id/information'
-      '?amount=1&apiKey=$_spoonacularApiKey',
+      'https://api.spoonacular.com/food/ingredients/$id/information?amount=1&includeNutrition=true',
     );
 
-    final resp = await http.get(uri);
-    if (resp.statusCode != 200) return null;
+    final resp = await _spoonGet(uri);
+    if (resp == null) return null;
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
 
@@ -676,7 +742,9 @@ class _HealthPageState extends State<HealthPage> {
 
     return _SpoonIngredientInfo(
       id: id,
-      imageUrl: image.isEmpty ? '' : 'https://spoonacular.com/cdn/ingredients_250x250/$image',
+      imageUrl: image.isEmpty
+          ? ''
+          : 'https://spoonacular.com/cdn/ingredients_250x250/$image',
       calories: pick('Calories'),
       carbsG: pick('Carbohydrates'),
       proteinG: pick('Protein'),
@@ -691,11 +759,9 @@ class _HealthPageState extends State<HealthPage> {
     final facts = <String>[];
 
     for (int i = 0; i < count; i++) {
-      final uri = Uri.parse(
-        'https://api.spoonacular.com/food/trivia/random?apiKey=$_spoonacularApiKey',
-      );
-      final resp = await http.get(uri);
-      if (resp.statusCode != 200) continue;
+      final uri = Uri.parse('https://api.spoonacular.com/food/trivia/random');
+      final resp = await _spoonGet(uri);
+      if (resp == null) continue;
 
       final data = jsonDecode(resp.body) as Map<String, dynamic>;
       final text = (data['text'] ?? '').toString().trim();
@@ -708,11 +774,11 @@ class _HealthPageState extends State<HealthPage> {
   Future<List<RecipeCardUi>> _spoonRecipeSearch(String query) async {
     final uri = Uri.parse(
       'https://api.spoonacular.com/recipes/complexSearch'
-      '?query=${Uri.encodeQueryComponent(query)}&number=8&apiKey=$_spoonacularApiKey',
+      '?query=${Uri.encodeQueryComponent(query)}&number=5',
     );
 
-    final resp = await http.get(uri);
-    if (resp.statusCode != 200) return const [];
+    final resp = await _spoonGet(uri);
+    if (resp == null) return const [];
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
     final results = (data['results'] as List?) ?? const [];
@@ -766,7 +832,11 @@ class IngredientRow {
 
     return IngredientRow(
       name: (m['name'] ?? '').toString(),
-      spoonacularId: m['spoonacular_id'] is int ? m['spoonacular_id'] as int : (m['spoonacular_id'] is num ? (m['spoonacular_id'] as num).toInt() : null),
+      spoonacularId: m['spoonacular_id'] is int
+          ? m['spoonacular_id'] as int
+          : (m['spoonacular_id'] is num
+                ? (m['spoonacular_id'] as num).toInt()
+                : null),
       imageUrl: (m['image_url'] ?? '').toString(),
       calories: n(m['calories']),
       carbsG: n(m['carbs_g']),
@@ -796,9 +866,7 @@ class RecipeCardUi {
     this.isFavorite = false,
   });
 
-  RecipeCardUi copyWith({
-    bool? isFavorite,
-  }) {
+  RecipeCardUi copyWith({bool? isFavorite}) {
     return RecipeCardUi(
       recipeId: recipeId,
       title: title,
@@ -814,7 +882,11 @@ class _SpoonIngredientSearchResult {
   final int id;
   final String name;
   final String image;
-  const _SpoonIngredientSearchResult({required this.id, required this.name, required this.image});
+  const _SpoonIngredientSearchResult({
+    required this.id,
+    required this.name,
+    required this.image,
+  });
 }
 
 class _SpoonIngredientInfo {
@@ -878,9 +950,11 @@ class _IngredientCard extends StatelessWidget {
 
     String macroLine() {
       final parts = <String>[];
-      if (ing.calories != null) parts.add('${ing.calories!.toStringAsFixed(0)} cal');
+      if (ing.calories != null)
+        parts.add('${ing.calories!.toStringAsFixed(0)} cal');
       if (ing.carbsG != null) parts.add('${ing.carbsG!.toStringAsFixed(1)}c');
-      if (ing.proteinG != null) parts.add('${ing.proteinG!.toStringAsFixed(1)}p');
+      if (ing.proteinG != null)
+        parts.add('${ing.proteinG!.toStringAsFixed(1)}p');
       if (ing.fatG != null) parts.add('${ing.fatG!.toStringAsFixed(1)}f');
       return parts.isEmpty ? 'Nutrition not synced yet' : parts.join(' • ');
     }
@@ -903,11 +977,8 @@ class _IngredientCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 44,
-                  height: 44,
-                  color: Colors.black,
-                ),
+                errorBuilder: (_, __, ___) =>
+                    Container(width: 44, height: 44, color: Colors.black),
               ),
             )
           else
@@ -927,16 +998,16 @@ class _IngredientCard extends StatelessWidget {
               children: [
                 Text(
                   ing.name,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   macroLine(),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: neon.withOpacity(0.85),
-                      ),
+                    color: neon.withOpacity(0.85),
+                  ),
                 ),
               ],
             ),
@@ -984,7 +1055,9 @@ class _NeonBullet extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: neon.withOpacity(0.85), width: 1),
-              boxShadow: [BoxShadow(color: neon.withOpacity(0.18), blurRadius: 10)],
+              boxShadow: [
+                BoxShadow(color: neon.withOpacity(0.18), blurRadius: 10),
+              ],
             ),
           ),
           const SizedBox(width: 10),
@@ -1002,11 +1075,7 @@ class _RecipeCard extends StatelessWidget {
   final void Function(RecipeCardUi recipe)? onTap;
   final void Function(RecipeCardUi recipe)? onFavorite;
 
-  const _RecipeCard({
-    required this.recipe,
-    this.onTap,
-    this.onFavorite,
-  });
+  const _RecipeCard({required this.recipe, this.onTap, this.onFavorite});
 
   @override
   Widget build(BuildContext context) {
@@ -1023,7 +1092,9 @@ class _RecipeCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: neon.withOpacity(0.7), width: 1.2),
-            boxShadow: [BoxShadow(color: neon.withOpacity(0.12), blurRadius: 14)],
+            boxShadow: [
+              BoxShadow(color: neon.withOpacity(0.12), blurRadius: 14),
+            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -1037,12 +1108,12 @@ class _RecipeCard extends StatelessWidget {
                       child: Image.network(
                         recipe.imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: Colors.black),
+                        errorBuilder: (_, __, ___) =>
+                            Container(color: Colors.black),
                       ),
                     )
                   else
                     Container(height: 110, color: Colors.black),
-
                   Positioned(
                     top: 6,
                     right: 6,
@@ -1051,11 +1122,15 @@ class _RecipeCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(999),
-                        onTap: onFavorite == null ? null : () => onFavorite!(recipe),
+                        onTap: onFavorite == null
+                            ? null
+                            : () => onFavorite!(recipe),
                         child: Padding(
                           padding: const EdgeInsets.all(8),
                           child: Icon(
-                            recipe.isFavorite ? Icons.favorite : Icons.favorite_border,
+                            recipe.isFavorite
+                                ? Icons.favorite
+                                : Icons.favorite_border,
                             size: 18,
                             color: neon,
                           ),
@@ -1075,27 +1150,35 @@ class _RecipeCard extends StatelessWidget {
               ),
               if (recipe.subtitle.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(left: 10, right: 10, bottom: 8),
+                  padding: const EdgeInsets.only(
+                    left: 10,
+                    right: 10,
+                    bottom: 8,
+                  ),
                   child: Text(
                     recipe.subtitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: neon.withOpacity(0.85),
-                        ),
+                      color: neon.withOpacity(0.85),
+                    ),
                   ),
                 ),
               if (recipe.missingIngredients.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(left: 10, right: 10, bottom: 10),
+                  padding: const EdgeInsets.only(
+                    left: 10,
+                    right: 10,
+                    bottom: 10,
+                  ),
                   child: Text(
                     'Need: ${recipe.missingIngredients.take(4).join(', ')}'
                     '${recipe.missingIngredients.length > 4 ? '…' : ''}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.white.withOpacity(0.80),
-                        ),
+                      color: Colors.white.withOpacity(0.80),
+                    ),
                   ),
                 ),
             ],
@@ -1113,7 +1196,11 @@ class _SectionFrame extends StatelessWidget {
   final Widget child;
   final Widget? rightAction;
 
-  const _SectionFrame({required this.title, required this.child, this.rightAction});
+  const _SectionFrame({
+    required this.title,
+    required this.child,
+    this.rightAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1135,10 +1222,10 @@ class _SectionFrame extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      letterSpacing: 1.2,
-                      fontWeight: FontWeight.w700,
-                      color: neon,
-                    ),
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w700,
+                  color: neon,
+                ),
               ),
               const Spacer(),
               if (rightAction != null) rightAction!,
@@ -1162,9 +1249,9 @@ class _EmptyHint extends StatelessWidget {
       opacity: 0.85,
       child: Text(
         text,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Colors.white.withOpacity(0.85),
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.85)),
       ),
     );
   }
