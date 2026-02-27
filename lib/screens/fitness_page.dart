@@ -34,6 +34,21 @@ class _FitnessPageState extends State<FitnessPage> {
   bool _macrosExpanded = false;
   bool _trainerExpanded = false;
 
+  static const String _geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
+  static const String _geminiModel = 'gemini-3-flash-preview';
+
+  final List<_TrainerMsg> _trainerMsgs = <_TrainerMsg>[
+    _TrainerMsg(
+      role: _TrainerRole.model,
+      text:
+          "Hi, I'm your personal fitness trainer! I can answer any questions you have about fitness and nutrition. I can also make diet and workout regimens to follow based on your goals.",
+    ),
+  ];
+
+  final TextEditingController _trainerCtrl = TextEditingController();
+  final ScrollController _trainerScroll = ScrollController();
+  bool _trainerSending = false;
+
   double? _goalCalories;
   double? _goalCarbs;
   double? _goalFat;
@@ -71,6 +86,8 @@ class _FitnessPageState extends State<FitnessPage> {
     _minController.dispose();
     _maxController.dispose();
     _goalController.dispose();
+    _trainerCtrl.dispose();
+    _trainerScroll.dispose();
     super.dispose();
   }
 
@@ -520,7 +537,7 @@ class _FitnessPageState extends State<FitnessPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Enter your daily targets below.\nNot sure? Try: 2000 cal • 250g carbs • 65g fat • 50g protein',
+                'Enter your daily targets below.',
                 style: TextStyle(
                   color: _neonGreen.withOpacity(0.7),
                   fontSize: 12,
@@ -948,7 +965,7 @@ class _FitnessPageState extends State<FitnessPage> {
         if (!goalsSet) ...[
           SizedBox(height: 8),
           Text(
-            'Set your goals above — showing defaults for now.',
+            'Set your goals above, showing defaults for now.',
             style: TextStyle(color: _neonGreen.withOpacity(0.5), fontSize: 11),
             textAlign: TextAlign.center,
           ),
@@ -1211,10 +1228,211 @@ class _FitnessPageState extends State<FitnessPage> {
               expanded: _trainerExpanded,
               onToggle: () =>
                   setState(() => _trainerExpanded = !_trainerExpanded),
-              child: SizedBox(height: 120),
+              child: SizedBox(height: 420, child: _buildTrainerChat()),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _sendTrainer() async {
+    final text = _trainerCtrl.text.trim();
+    if (text.isEmpty || _trainerSending) return;
+
+    setState(() {
+      _trainerSending = true;
+      _trainerMsgs.add(_TrainerMsg(role: _TrainerRole.user, text: text));
+      _trainerCtrl.clear();
+    });
+    _scrollTrainerToBottom();
+
+    try {
+      final reply = await _geminiTrainerReply();
+      if (!mounted) return;
+      setState(() {
+        _trainerMsgs.add(_TrainerMsg(role: _TrainerRole.model, text: reply));
+      });
+      _scrollTrainerToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _trainerMsgs.add(
+          _TrainerMsg(role: _TrainerRole.model, text: 'Trainer error: $e'),
+        );
+      });
+      _scrollTrainerToBottom();
+    } finally {
+      if (mounted) setState(() => _trainerSending = false);
+    }
+  }
+
+  void _scrollTrainerToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_trainerScroll.hasClients) return;
+      _trainerScroll.animateTo(
+        _trainerScroll.position.maxScrollExtent + 200,
+        duration: Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<String> _geminiTrainerReply() async {
+    if (_geminiApiKey.isEmpty) {
+      return 'Missing GEMINI_API_KEY. Run: flutter run --dart-define=GEMINI_API_KEY=YOUR_KEY';
+    }
+
+    final uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/${_geminiModel}:generateContent',
+    );
+
+    final history = _trainerMsgs.length <= 20
+        ? _trainerMsgs
+        : _trainerMsgs.sublist(_trainerMsgs.length - 20);
+
+    final body = {
+      'system_instruction': {
+        'parts': [
+          {
+            'text':
+                'You are a helpful fitness and nutrition coach. Give structured, practical workout and diet guidance (splits, sets/reps, cardio, macros, meal ideas). Avoid medical diagnosis or treatment. If the user mentions serious symptoms or medical conditions, advise seeing a qualified professional. Keep answers concise, use bullet points, and ask 1–2 follow-up questions when needed.',
+          },
+        ],
+      },
+      'contents': history
+          .map(
+            (m) => {
+              'role': m.role == _TrainerRole.user ? 'user' : 'model',
+              'parts': [
+                {'text': m.text},
+              ],
+            },
+          )
+          .toList(),
+    };
+
+    final resp = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': _geminiApiKey,
+      },
+      body: jsonEncode(body),
+    );
+
+    if (resp.statusCode != 200) {
+      throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
+    }
+
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final candidates = (data['candidates'] as List?) ?? const [];
+    if (candidates.isEmpty) return 'No response from trainer.';
+    final content = candidates.first['content'] as Map<String, dynamic>?;
+    final parts = (content?['parts'] as List?) ?? const [];
+    final text = parts.isNotEmpty ? (parts.first['text'] ?? '').toString() : '';
+    return text.isEmpty ? 'No text returned from trainer.' : text;
+  }
+
+  Widget _buildTrainerChat() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(_cornerRadius),
+        border: Border.all(color: _neonGreen, width: 2),
+        color: Colors.black,
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _trainerScroll,
+              itemCount: _trainerMsgs.length,
+              itemBuilder: (context, i) {
+                final m = _trainerMsgs[i];
+                final isUser = m.role == _TrainerRole.user;
+
+                return Align(
+                  alignment: isUser
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isUser ? Colors.grey.shade900 : Colors.black,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: _neonGreen.withOpacity(0.8),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _neonGreen.withOpacity(0.12),
+                            blurRadius: 10,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        m.text,
+                        style: const TextStyle(color: _neonGreen, height: 1.25),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _trainerCtrl,
+                  minLines: 1,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendTrainer(),
+                  style: const TextStyle(color: _neonGreen),
+                  decoration: InputDecoration(
+                    hintText: 'Ask about workouts, diet plans, macros…',
+                    hintStyle: TextStyle(color: _neonGreen.withOpacity(0.55)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(
+                        color: _neonGreen,
+                        width: 1.5,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: const BorderSide(color: _neonGreen, width: 2),
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _trainerSending ? null : _sendTrainer,
+                icon: _trainerSending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send, color: _neonGreen),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1641,7 +1859,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                     )
                   else
                     Text(
-                      'Tap to log — nutrition fetched from Spoonacular',
+                      'Tap to log, nutrition fetched from Spoonacular',
                       style: TextStyle(
                         color: _neonGreen.withOpacity(0.65),
                         fontSize: 11,
@@ -2055,4 +2273,12 @@ class _WeightGraphPainter extends CustomPainter {
         oldDelegate.maxY != maxY ||
         oldDelegate.goalWeight != goalWeight;
   }
+}
+
+enum _TrainerRole { user, model }
+
+class _TrainerMsg {
+  final _TrainerRole role;
+  final String text;
+  _TrainerMsg({required this.role, required this.text});
 }
