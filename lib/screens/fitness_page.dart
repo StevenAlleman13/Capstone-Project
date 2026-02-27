@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 18.0;
+const String _macroApiKey = '160eeec24f1f43d5b642881f1be44243';
 
 class FitnessPage extends StatefulWidget {
   const FitnessPage({super.key});
@@ -31,6 +34,20 @@ class _FitnessPageState extends State<FitnessPage> {
   bool _macrosExpanded = false;
   bool _trainerExpanded = false;
 
+  double? _goalCalories;
+  double? _goalCarbs;
+  double? _goalFat;
+  double? _goalProtein;
+  bool _macroGoalsLoading = true;
+
+  double _todayCalories = 0;
+  double _todayCarbs = 0;
+  double _todayFat = 0;
+  double _todayProtein = 0;
+
+  List<_MacroLogEntry> _todayLogs = [];
+  bool _logsLoading = true;
+
   SupabaseClient get _client => Supabase.instance.client;
 
   @override
@@ -40,8 +57,12 @@ class _FitnessPageState extends State<FitnessPage> {
   }
 
   Future<void> _bootstrap() async {
-    await _loadGraphSettingsFromSupabase();
-    await _loadWeightsFromSupabase();
+    await Future.wait([
+      _loadGraphSettingsFromSupabase(),
+      _loadWeightsFromSupabase(),
+      _loadMacroGoals(),
+      _loadTodayLogs(),
+    ]);
   }
 
   @override
@@ -393,13 +414,626 @@ class _FitnessPageState extends State<FitnessPage> {
     return pts.map((p) => p.weight).reduce(max);
   }
 
+  Future<void> _loadMacroGoals() async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _macroGoalsLoading = false);
+      return;
+    }
+
+    try {
+      final row = await _client
+          .from('macro_goals')
+          .select('calorie_goal, carbs_goal, fat_goal, protein_goal')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      if (row != null) {
+        setState(() {
+          _goalCalories = (row['calorie_goal'] is num)
+              ? (row['calorie_goal'] as num).toDouble()
+              : null;
+          _goalCarbs = (row['carbs_goal'] is num)
+              ? (row['carbs_goal'] as num).toDouble()
+              : null;
+          _goalFat = (row['fat_goal'] is num)
+              ? (row['fat_goal'] as num).toDouble()
+              : null;
+          _goalProtein = (row['protein_goal'] is num)
+              ? (row['protein_goal'] as num).toDouble()
+              : null;
+          _macroGoalsLoading = false;
+        });
+      } else {
+        setState(() => _macroGoalsLoading = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _macroGoalsLoading = false);
+    }
+  }
+
+  Future<void> _saveMacroGoals(
+    double cal,
+    double carbs,
+    double fat,
+    double protein,
+  ) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _client.from('macro_goals').upsert({
+        'user_id': user.id,
+        'calorie_goal': cal,
+        'carbs_goal': carbs,
+        'fat_goal': fat,
+        'protein_goal': protein,
+      }, onConflict: 'user_id');
+
+      if (mounted)
+        setState(() {
+          _goalCalories = cal;
+          _goalCarbs = carbs;
+          _goalFat = fat;
+          _goalProtein = protein;
+        });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not save macro goals.',
+              style: TextStyle(color: _neonGreen),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showSetMacroGoalsDialog() {
+    final calCtrl = TextEditingController(
+      text: _goalCalories?.toStringAsFixed(0) ?? '',
+    );
+    final carbsCtrl = TextEditingController(
+      text: _goalCarbs?.toStringAsFixed(0) ?? '',
+    );
+    final fatCtrl = TextEditingController(
+      text: _goalFat?.toStringAsFixed(0) ?? '',
+    );
+    final proteinCtrl = TextEditingController(
+      text: _goalProtein?.toStringAsFixed(0) ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: _neonGreen, width: 1.5),
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
+        title: Text('Set Macro Goals', style: TextStyle(color: _neonGreen)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Enter your daily targets below.\nNot sure? Try: 2000 cal • 250g carbs • 65g fat • 50g protein',
+                style: TextStyle(
+                  color: _neonGreen.withOpacity(0.7),
+                  fontSize: 12,
+                ),
+              ),
+              SizedBox(height: 16),
+              TextField(
+                controller: calCtrl,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: _neonGreen),
+                decoration: _inputDecoration('Calories (e.g. 2000)'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: carbsCtrl,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                style: TextStyle(color: _neonGreen),
+                decoration: _inputDecoration('Carbs in grams (e.g. 250)'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: fatCtrl,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                style: TextStyle(color: _neonGreen),
+                decoration: _inputDecoration('Fat in grams (e.g. 65)'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: proteinCtrl,
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                style: TextStyle(color: _neonGreen),
+                decoration: _inputDecoration('Protein in grams (e.g. 50)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+          ),
+          TextButton(
+            onPressed: () {
+              final cal = double.tryParse(calCtrl.text.trim());
+              final carbs = double.tryParse(carbsCtrl.text.trim());
+              final fat = double.tryParse(fatCtrl.text.trim());
+              final protein = double.tryParse(proteinCtrl.text.trim());
+              if (cal == null ||
+                  carbs == null ||
+                  fat == null ||
+                  protein == null)
+                return;
+              Navigator.pop(ctx);
+              _saveMacroGoals(cal, carbs, fat, protein);
+            },
+            child: Text(
+              'Save',
+              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadTodayLogs() async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _logsLoading = false);
+      return;
+    }
+
+    try {
+      if (mounted) setState(() => _logsLoading = true);
+
+      final rows = await _client
+          .from('daily_macro_logs')
+          .select()
+          .eq('user_id', user.id)
+          .eq('log_date', _todayKey())
+          .order('created_at', ascending: true);
+
+      final logs = (rows as List)
+          .map((r) => _MacroLogEntry.fromMap(r))
+          .toList();
+
+      double cal = 0, carbs = 0, fat = 0, protein = 0;
+      for (final l in logs) {
+        cal += l.calories;
+        carbs += l.carbs;
+        fat += l.fat;
+        protein += l.protein;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _todayLogs = logs;
+        _todayCalories = cal;
+        _todayCarbs = carbs;
+        _todayFat = fat;
+        _todayProtein = protein;
+        _logsLoading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _logsLoading = false);
+    }
+  }
+
+  Future<void> _removeLog(_MacroLogEntry entry) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _client.from('daily_macro_logs').delete().eq('id', entry.id);
+      await _loadTodayLogs();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not remove entry.',
+              style: TextStyle(color: _neonGreen),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showEatDialog() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    List<_EatOption> options = [];
+
+    try {
+      final ingRows = await _client
+          .from('ingredients')
+          .select('name, calories, carbs_g, protein_g, fat_g')
+          .eq('user_id', user.id);
+
+      for (final r in (ingRows as List)) {
+        final cal = r['calories'];
+        final carbs = r['carbs_g'];
+        final fat = r['fat_g'];
+        final protein = r['protein_g'];
+        final hasNutrition =
+            cal != null && carbs != null && fat != null && protein != null;
+        options.add(
+          _EatOption(
+            name: r['name'].toString(),
+            type: 'ingredient',
+            calories: hasNutrition ? (cal as num).toDouble() : null,
+            carbs: hasNutrition ? (carbs as num).toDouble() : null,
+            fat: hasNutrition ? (fat as num).toDouble() : null,
+            protein: hasNutrition ? (protein as num).toDouble() : null,
+          ),
+        );
+      }
+
+      final recipeRows = await _client
+          .from('favorite_recipes')
+          .select('recipe_id, title')
+          .eq('user_id', user.id);
+
+      for (final r in (recipeRows as List)) {
+        options.add(
+          _EatOption(
+            name: r['title'].toString(),
+            type: 'recipe',
+            spoonacularId: (r['recipe_id'] as num).toInt(),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not load options.',
+              style: TextStyle(color: _neonGreen),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(_cornerRadius),
+        ),
+        side: BorderSide(color: _neonGreen, width: 1.5),
+      ),
+      builder: (ctx) => _EatBottomSheet(
+        options: options,
+        onEat: (option, servings) => _logEaten(option, servings),
+      ),
+    );
+  }
+
+  Future<void> _logEaten(_EatOption option, double servings) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    double? cal, carbs, fat, protein;
+
+    if (option.type == 'ingredient') {
+      if (option.calories == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.black,
+              content: Text(
+                '${option.name} has no nutrition data. Please sync it on the Health tab first.',
+                style: TextStyle(color: _neonGreen),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      cal = option.calories! * servings;
+      carbs = option.carbs! * servings;
+      fat = option.fat! * servings;
+      protein = option.protein! * servings;
+    } else {
+      final nutrition = await _fetchRecipeNutrition(option.spoonacularId!);
+      if (nutrition == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not fetch recipe nutrition.',
+                style: TextStyle(color: _neonGreen),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      final perServing = nutrition['servings'] as double? ?? 1.0;
+      cal = (nutrition['calories'] as double) / perServing * servings;
+      carbs = (nutrition['carbs'] as double) / perServing * servings;
+      fat = (nutrition['fat'] as double) / perServing * servings;
+      protein = (nutrition['protein'] as double) / perServing * servings;
+    }
+
+    try {
+      await _client.from('daily_macro_logs').insert({
+        'user_id': user.id,
+        'log_date': _todayKey(),
+        'item_name': option.name,
+        'item_type': option.type,
+        'calories': cal,
+        'carbs': carbs,
+        'fat': fat,
+        'protein': protein,
+        'servings': servings,
+      });
+
+      await _loadTodayLogs();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not log food.',
+              style: TextStyle(color: _neonGreen),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<Map<String, double>?> _fetchRecipeNutrition(int recipeId) async {
+    try {
+      final uri = Uri.parse(
+        'https://api.spoonacular.com/recipes/$recipeId/nutritionWidget.json?apiKey=$_macroApiKey',
+      );
+      final resp = await http.get(uri);
+      if (resp.statusCode != 200) return null;
+
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+
+      double parseNutrient(String name) {
+        final nutrients = (data['nutrients'] as List?) ?? [];
+        for (final n in nutrients) {
+          if ((n['name'] ?? '').toString().toLowerCase() ==
+              name.toLowerCase()) {
+            final amt = n['amount'];
+            if (amt is num) return amt.toDouble();
+            if (amt is String) return double.tryParse(amt) ?? 0;
+          }
+        }
+        return 0;
+      }
+
+      final servings = data['servings'];
+      final servingsVal = (servings is num) ? servings.toDouble() : 1.0;
+
+      return {
+        'calories': parseNutrient('Calories'),
+        'carbs': parseNutrient('Carbohydrates'),
+        'fat': parseNutrient('Fat'),
+        'protein': parseNutrient('Protein'),
+        'servings': servingsVal,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  void _showRemoveLogDialog() {
+    if (_todayLogs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Nothing logged today.',
+            style: TextStyle(color: _neonGreen),
+          ),
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black,
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(_cornerRadius),
+        ),
+        side: BorderSide(color: _neonGreen, width: 1.5),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        maxChildSize: 0.85,
+        builder: (_, scrollCtrl) => Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Remove Logged Item',
+                style: TextStyle(
+                  color: _neonGreen,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                controller: scrollCtrl,
+                padding: EdgeInsets.all(12),
+                itemCount: _todayLogs.length,
+                separatorBuilder: (_, __) =>
+                    Divider(color: _neonGreen.withOpacity(0.2)),
+                itemBuilder: (context, i) {
+                  final log = _todayLogs[i];
+                  return ListTile(
+                    title: Text(
+                      log.itemName,
+                      style: TextStyle(color: _neonGreen),
+                    ),
+                    subtitle: Text(
+                      '${log.calories.toStringAsFixed(1)} cal • ${log.servings.toStringAsFixed(1)} serving(s)',
+                      style: TextStyle(
+                        color: _neonGreen.withOpacity(0.7),
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete_outline, color: Colors.redAccent),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _removeLog(log);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMacrosContent() {
+    final goalsSet =
+        _goalCalories != null &&
+        _goalCarbs != null &&
+        _goalFat != null &&
+        _goalProtein != null;
+
+    final displayCalGoal = _goalCalories ?? 2000;
+    final displayCarbsGoal = _goalCarbs ?? 250;
+    final displayFatGoal = _goalFat ?? 65;
+    final displayProteinGoal = _goalProtein ?? 50;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton(
+          onPressed: _showSetMacroGoalsDialog,
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            foregroundColor: _neonGreen,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
+          ),
+          child: Text(goalsSet ? 'Update Macro Goals' : 'Set Goal Macros'),
+        ),
+        if (!goalsSet) ...[
+          SizedBox(height: 8),
+          Text(
+            'Set your goals above — showing defaults for now.',
+            style: TextStyle(color: _neonGreen.withOpacity(0.5), fontSize: 11),
+            textAlign: TextAlign.center,
+          ),
+        ],
+        SizedBox(height: 16),
+        if (_logsLoading)
+          Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else ...[
+          _MacroBar(
+            label: 'Calories',
+            value: _todayCalories,
+            goal: displayCalGoal,
+            unit: '',
+          ),
+          SizedBox(height: 14),
+          _MacroBar(
+            label: 'Carbs',
+            value: _todayCarbs,
+            goal: displayCarbsGoal,
+            unit: 'g',
+          ),
+          SizedBox(height: 14),
+          _MacroBar(
+            label: 'Fat',
+            value: _todayFat,
+            goal: displayFatGoal,
+            unit: 'g',
+          ),
+          SizedBox(height: 14),
+          _MacroBar(
+            label: 'Protein',
+            value: _todayProtein,
+            goal: displayProteinGoal,
+            unit: 'g',
+          ),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _showEatDialog,
+                  icon: Icon(Icons.add, size: 18),
+                  label: Text('Eat'),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: _neonGreen, width: 1.5),
+                    foregroundColor: _neonGreen,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_cornerRadius),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _showRemoveLogDialog,
+                  icon: Icon(Icons.remove_circle_outline, size: 18),
+                  label: Text('Remove'),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.redAccent, width: 1.5),
+                    foregroundColor: Colors.redAccent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(_cornerRadius),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final points = _sortedPoints();
-
     final autoMin = _autoMin(points);
     final autoMax = _autoMax(points);
-
     final minY = _graphMin ?? autoMin;
     final maxY = _graphMax ?? autoMax;
 
@@ -560,7 +1194,15 @@ class _FitnessPageState extends State<FitnessPage> {
               expanded: _macrosExpanded,
               onToggle: () =>
                   setState(() => _macrosExpanded = !_macrosExpanded),
-              child: SizedBox(height: 120),
+              child: _macroGoalsLoading
+                  ? Center(
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : _buildMacrosContent(),
             ),
             SizedBox(height: 16),
             _collapsibleCard(
@@ -683,6 +1325,458 @@ class _FitnessPageState extends State<FitnessPage> {
     final s = v.toStringAsFixed(1);
     if (s.endsWith('.0')) return s.substring(0, s.length - 2);
     return s;
+  }
+}
+
+class _MacroLogEntry {
+  final String id;
+  final String itemName;
+  final String itemType;
+  final double calories;
+  final double carbs;
+  final double fat;
+  final double protein;
+  final double servings;
+
+  _MacroLogEntry({
+    required this.id,
+    required this.itemName,
+    required this.itemType,
+    required this.calories,
+    required this.carbs,
+    required this.fat,
+    required this.protein,
+    required this.servings,
+  });
+
+  factory _MacroLogEntry.fromMap(Map<String, dynamic> m) {
+    double n(dynamic v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+    return _MacroLogEntry(
+      id: m['id'].toString(),
+      itemName: m['item_name'].toString(),
+      itemType: m['item_type'].toString(),
+      calories: n(m['calories']),
+      carbs: n(m['carbs']),
+      fat: n(m['fat']),
+      protein: n(m['protein']),
+      servings: n(m['servings']),
+    );
+  }
+}
+
+class _EatOption {
+  final String name;
+  final String type;
+  final double? calories;
+  final double? carbs;
+  final double? fat;
+  final double? protein;
+  final int? spoonacularId;
+
+  _EatOption({
+    required this.name,
+    required this.type,
+    this.calories,
+    this.carbs,
+    this.fat,
+    this.protein,
+    this.spoonacularId,
+  });
+}
+
+class _EatBottomSheet extends StatefulWidget {
+  final List<_EatOption> options;
+  final Future<void> Function(_EatOption option, double servings) onEat;
+
+  const _EatBottomSheet({required this.options, required this.onEat});
+
+  @override
+  State<_EatBottomSheet> createState() => _EatBottomSheetState();
+}
+
+class _EatBottomSheetState extends State<_EatBottomSheet> {
+  _EatOption? _selected;
+  final _servingsCtrl = TextEditingController(text: '1');
+  String _unit = 'serving';
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _servingsCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ingredients = widget.options
+        .where((o) => o.type == 'ingredient')
+        .toList();
+    final recipes = widget.options.where((o) => o.type == 'recipe').toList();
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      builder: (_, scrollCtrl) => Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              'What did you eat?',
+              style: TextStyle(
+                color: _neonGreen,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              controller: scrollCtrl,
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                if (ingredients.isNotEmpty) ...[
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'INGREDIENTS',
+                      style: TextStyle(
+                        color: _neonGreen.withOpacity(0.6),
+                        fontSize: 11,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  for (final opt in ingredients) _optionTile(opt),
+                ],
+                if (recipes.isNotEmpty) ...[
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'FAVORITED RECIPES',
+                      style: TextStyle(
+                        color: _neonGreen.withOpacity(0.6),
+                        fontSize: 11,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  for (final opt in recipes) _optionTile(opt),
+                ],
+                if (ingredients.isEmpty && recipes.isEmpty)
+                  Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'No ingredients or favorited recipes found.\nAdd ingredients on the Health tab or favorite some recipes.',
+                      style: TextStyle(color: _neonGreen.withOpacity(0.7)),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (_selected != null)
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: _neonGreen.withOpacity(0.3)),
+                ),
+                color: Colors.black,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _selected!.name,
+                    style: TextStyle(
+                      color: _neonGreen,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _servingsCtrl,
+                          keyboardType: TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          style: TextStyle(color: _neonGreen),
+                          decoration: InputDecoration(
+                            labelText: 'Amount',
+                            labelStyle: TextStyle(color: _neonGreen),
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(color: _neonGreen),
+                              borderRadius: BorderRadius.circular(
+                                _cornerRadius,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: _neonGreen,
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                _cornerRadius,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      DropdownButton<String>(
+                        value: _unit,
+                        dropdownColor: Colors.black,
+                        style: TextStyle(color: _neonGreen),
+                        underline: Container(height: 1, color: _neonGreen),
+                        items: ['serving', 'grams', 'cups']
+                            .map(
+                              (u) => DropdownMenuItem(value: u, child: Text(u)),
+                            )
+                            .toList(),
+                        onChanged: (v) =>
+                            setState(() => _unit = v ?? 'serving'),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _neonGreen,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(_cornerRadius),
+                      ),
+                    ),
+                    onPressed: _loading
+                        ? null
+                        : () async {
+                            final servings =
+                                double.tryParse(_servingsCtrl.text.trim()) ??
+                                1.0;
+                            setState(() => _loading = true);
+                            await widget.onEat(_selected!, servings);
+                            if (mounted) Navigator.pop(context);
+                          },
+                    child: _loading
+                        ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                        : Text(
+                            'Log It',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _optionTile(_EatOption opt) {
+    final isSelected = _selected == opt;
+    final noNutrition = opt.type == 'ingredient' && opt.calories == null;
+
+    return GestureDetector(
+      onTap: noNutrition ? null : () => setState(() => _selected = opt),
+      child: Container(
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? _neonGreen
+                : _neonGreen.withOpacity(noNutrition ? 0.2 : 0.45),
+            width: isSelected ? 2 : 1,
+          ),
+          color: isSelected ? _neonGreen.withOpacity(0.08) : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              opt.type == 'ingredient' ? Icons.restaurant : Icons.menu_book,
+              color: noNutrition ? _neonGreen.withOpacity(0.3) : _neonGreen,
+              size: 18,
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    opt.name,
+                    style: TextStyle(
+                      color: noNutrition
+                          ? _neonGreen.withOpacity(0.35)
+                          : _neonGreen,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (noNutrition)
+                    Text(
+                      'Nutrition not synced, go to Health tab',
+                      style: TextStyle(
+                        color: Colors.redAccent.withOpacity(0.8),
+                        fontSize: 11,
+                      ),
+                    )
+                  else if (opt.type == 'ingredient')
+                    Text(
+                      '${opt.calories!.toStringAsFixed(0)} cal, ${opt.carbs!.toStringAsFixed(1)}g carbs, ${opt.protein!.toStringAsFixed(1)}g protein',
+                      style: TextStyle(
+                        color: _neonGreen.withOpacity(0.65),
+                        fontSize: 11,
+                      ),
+                    )
+                  else
+                    Text(
+                      'Tap to log — nutrition fetched from Spoonacular',
+                      style: TextStyle(
+                        color: _neonGreen.withOpacity(0.65),
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: _neonGreen, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MacroBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final double goal;
+  final String unit;
+
+  const _MacroBar({
+    required this.label,
+    required this.value,
+    required this.goal,
+    required this.unit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final overGoal = value > goal;
+    final displayMax = overGoal ? value * 1.1 : goal;
+    final fillFraction = (displayMax > 0
+        ? (value / displayMax).clamp(0.0, 1.0)
+        : 0.0);
+    final goalFraction = (displayMax > 0
+        ? (goal / displayMax).clamp(0.0, 1.0)
+        : 1.0);
+
+    final valueLabel = unit.isEmpty
+        ? value.toStringAsFixed(1)
+        : '${value.toStringAsFixed(1)}$unit';
+    final goalLabel = unit.isEmpty
+        ? goal.toStringAsFixed(0)
+        : '${goal.toStringAsFixed(0)}$unit';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: _neonGreen,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        ),
+        SizedBox(height: 6),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final totalWidth = constraints.maxWidth;
+            final fillWidth = totalWidth * fillFraction;
+            final goalX = totalWidth * goalFraction;
+
+            return SizedBox(
+              height: 36,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    height: 20,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: _neonGreen, width: 1.5),
+                      color: Colors.black,
+                    ),
+                  ),
+                  if (fillWidth > 0)
+                    Container(
+                      height: 20,
+                      width: fillWidth.clamp(0.0, totalWidth),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: overGoal
+                            ? _neonGreen.withOpacity(0.5)
+                            : _neonGreen,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _neonGreen.withOpacity(0.4),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                  Positioned(
+                    left: (goalX - 1).clamp(0.0, totalWidth - 2),
+                    top: -2,
+                    child: Container(
+                      width: 2,
+                      height: 24,
+                      color: overGoal
+                          ? Colors.amber.withOpacity(0.6)
+                          : Colors.amber,
+                    ),
+                  ),
+                  Positioned(
+                    left: (fillWidth - 1).clamp(0.0, totalWidth - 2),
+                    top: 22,
+                    child: Text(
+                      valueLabel,
+                      style: TextStyle(
+                        color: _neonGreen,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: (goalX - 1).clamp(0.0, totalWidth - 40),
+                    top: 22,
+                    child: Text(
+                      goalLabel,
+                      style: TextStyle(color: Colors.amber, fontSize: 10),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
   }
 }
 
@@ -866,9 +1960,10 @@ class _WeightGraphPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
 
-      final dx = plotRect.left - tp.width - 10;
-      final dy = y - tp.height / 2;
-      tp.paint(canvas, Offset(dx, dy));
+      tp.paint(
+        canvas,
+        Offset(plotRect.left - tp.width - 10, y - tp.height / 2),
+      );
     }
   }
 
@@ -893,24 +1988,21 @@ class _WeightGraphPainter extends CustomPainter {
     if (pts.isEmpty) return;
 
     final labelStyle = TextStyle(color: _neonGreen, fontSize: 10);
-
     final labelCount = min(5, pts.length);
     final lastIdx = pts.length - 1;
-
     final indices = <int>{};
+
     if (labelCount == 1) {
       indices.add(0);
     } else {
       for (int i = 0; i < labelCount; i++) {
         final t = i / (labelCount - 1);
-        final idx = (t * lastIdx).round();
-        indices.add(idx);
+        indices.add((t * lastIdx).round());
       }
     }
 
     for (final idx in indices.toList()..sort()) {
       final p = pts[idx];
-
       String label = p.dateKey;
       final parts = p.dateKey.split('-');
       if (parts.length == 3) {
@@ -929,9 +2021,7 @@ class _WeightGraphPainter extends CustomPainter {
         textAlign: TextAlign.center,
       )..layout();
 
-      final dx = max(0.0, x - tp.width / 2);
-      final dy = plotRect.bottom + 6;
-      tp.paint(canvas, Offset(dx, dy));
+      tp.paint(canvas, Offset(max(0.0, x - tp.width / 2), plotRect.bottom + 6));
     }
   }
 
@@ -946,7 +2036,6 @@ class _WeightGraphPainter extends CustomPainter {
     final x = (lastIdx == 0)
         ? plotRect.left
         : plotRect.left + (plotRect.width * (idx / lastIdx.toDouble()));
-
     final clamped = p.weight.clamp(minVal, maxVal);
     final yNorm = (clamped - minVal) / (maxVal - minVal);
     final y = plotRect.bottom - (plotRect.height * yNorm);

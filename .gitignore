@@ -38,6 +38,9 @@ windows/flutter/generated_plugins.cmake
 /build/
 /coverage/
 
+windows/flutter/generated_plugin_registrant.cc
+windows/flutter/generated_plugins.cmake
+
 # Symbolication related
 app.*.symbols
 
