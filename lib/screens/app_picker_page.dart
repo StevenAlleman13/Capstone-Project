@@ -80,7 +80,7 @@ class _AppPickerPageState extends State<AppPickerPage> {
             shadows: [],
           ),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white), 
         actions: [
           IconButton(
             icon: const Icon(Icons.check, color: Colors.white),

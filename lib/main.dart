@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -13,7 +14,6 @@ import 'screens/health_page.dart' as health;
 import 'screens/fitness_page.dart' as fit;
 import 'screens/events_page.dart' show EventsPage, EventsPageState;
 import 'screens/settings_page.dart' as settings;
-
 import 'package:hive_flutter/hive_flutter.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
@@ -201,6 +201,29 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   var selectedIndex = 0;
   final GlobalKey<EventsPageState> eventsPageKey = GlobalKey<EventsPageState>();
+
+  static final _monitorChannel = MethodChannel('lockin/monitor');
+  static const _limitMinutes = {'easy': 240, 'normal': 120, 'hardcore': 60};
+
+  @override
+  void initState() {
+    super.initState();
+    _startMonitorService();
+  }
+
+  Future<void> _startMonitorService() async {
+    final box = Hive.box('selected_apps');
+    final packages = List<String>.from(box.get('packages', defaultValue: <String>[]));
+    final difficulty = box.get('difficulty', defaultValue: 'normal') as String;
+    final limitMins = _limitMinutes[difficulty] ?? 120;
+
+    try {
+      await _monitorChannel.invokeMethod('startMonitorService', {
+        'packages': packages,
+        'limitMinutes': limitMins,
+      });
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {

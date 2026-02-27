@@ -645,7 +645,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
                 ? const Center(
                     child: Text(
                       'No events',
-                      style: TextStyle(color: Colors.white54, fontSize: 16),
+                      style: TextStyle(color: Colors.white54, fontSize: 16, shadows: []),
                     ),
                   )
                 : ListView(
@@ -716,7 +716,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
         child: const Center(
           child: Text(
             'No tasks function provided',
-            style: TextStyle(color: Colors.white54),
+            style: TextStyle(color: Colors.white54, shadows: []),
           ),
         ),
       );
@@ -736,7 +736,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
                 ? const Center(
                     child: Text(
                       'No tasks',
-                      style: TextStyle(color: Colors.white54, fontSize: 16),
+                      style: TextStyle(color: Colors.white54, fontSize: 16, shadows: []),
                     ),
                   )
                 : ListView(
