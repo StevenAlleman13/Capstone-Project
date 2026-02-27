@@ -24,7 +24,7 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
+class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
   // ── profile ──────────────────────────────────────────────────────────────
   String _username = '';
   int _coins = 0;
@@ -46,6 +46,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _fetchScreenTime();
     _refreshTimer =
@@ -57,9 +58,19 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _liveTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _fetchScreenTime();
+      });
+    }
   }
 
   Future<void> _load() async {
@@ -227,18 +238,20 @@ class _DashboardPageState extends State<DashboardPage> {
     final neon = Theme.of(context).colorScheme.secondary;
     final difficulty = Hive.box('selected_apps')
         .get('difficulty', defaultValue: 'normal') as String;
-    const limitMinutes = {'easy': 240, 'normal': 120, 'hardcore': 60};
+    const limitMinutes = {'easy': 240, 'normal': 120, 'hardcore': 60, 'test': 0};
     const diffLabels = {
       'easy': 'Easy',
       'normal': 'Normal',
-      'hardcore': 'Hardcore'
+      'hardcore': 'Hardcore',
+      'test': 'Test',
     };
     final limitMins = limitMinutes[difficulty] ?? 120;
     final limit = Duration(minutes: limitMins);
     final remaining =
         _usedToday >= limit ? Duration.zero : limit - _usedToday;
-    final screenProgress =
-        (1.0 - _usedToday.inSeconds / limit.inSeconds).clamp(0.0, 1.0);
+    final screenProgress = limit.inSeconds == 0
+        ? 0.0
+        : (1.0 - _usedToday.inSeconds / limit.inSeconds).clamp(0.0, 1.0);
     final screenBarColor = screenProgress < 0.2 ? Colors.red : neon;
     final diffLabel = diffLabels[difficulty] ?? 'Normal';
 
