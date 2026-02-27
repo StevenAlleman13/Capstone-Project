@@ -34,9 +34,7 @@ class _FitnessPageState extends State<FitnessPage> {
   bool _macrosExpanded = false;
   bool _trainerExpanded = false;
 
-  static const String _geminiApiKey = String.fromEnvironment(
-    'AIzaSyCLCwU_xcZYmbKG2o30kDVVywJxFM_5MNo',
-  );
+  static const String _geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _geminiModel = 'gemini-3-flash-preview';
 
   final List<_TrainerMsg> _trainerMsgs = <_TrainerMsg>[
