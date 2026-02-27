@@ -210,9 +210,8 @@ class _ScreenTimeSectionFrameState extends State<_ScreenTimeSectionFrame>
               style: TextStyle(color: Colors.white, fontSize: 13, shadows: []),
             ),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.settings, size: 16),
-              label: const Text('Grant Permission'),
+            OutlinedButton(
+              child: const Text('Enable'),
               onPressed: _openUsageSettings,
               style: OutlinedButton.styleFrom(
                 foregroundColor: neon,
