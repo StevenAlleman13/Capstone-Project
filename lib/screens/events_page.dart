@@ -1591,7 +1591,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                       TextButton(
                         onPressed: _onAdd,
                         child: Text('Add', style: TextStyle(
-                          color: _titleCtl.text.trim().isEmpty ? Colors.grey[700] : const Color(0xFF39FF14),
+                          color: (_titleCtl.text.trim().isEmpty || (_tab == 0 && !_isTimeValid)) ? Colors.grey[700] : const Color(0xFF39FF14),
                           fontSize: 16, fontWeight: FontWeight.w600, shadows: [],
                         )),
                       ),
@@ -2100,8 +2100,18 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
         .toList();
   }
 
+  bool get _isTimeValid {
+    if (_allDay || _tab != 0) return true;
+    if (_startDate.isBefore(_endDate)) return true;
+    if (_endDate.isBefore(_startDate)) return false;
+    final startMins = _startTime.hour * 60 + _startTime.minute;
+    final endMins = _endTime.hour * 60 + _endTime.minute;
+    return endMins > startMins;
+  }
+
   void _onAdd() {
     if (_titleCtl.text.trim().isEmpty) return;
+    if (_tab == 0 && !_isTimeValid) return;
     if (_tab == 0) {
       widget.onEventAdded({
         'title': _titleCtl.text.trim(),
@@ -2570,9 +2580,18 @@ class _EditEventSheetState extends State<_EditEventSheet> {
     );
   }
 
+  bool get _isTimeValid {
+    if (_allDay) return true;
+    if (_startDate.isBefore(_endDate)) return true;
+    if (_endDate.isBefore(_startDate)) return false;
+    final startMins = _startTime.hour * 60 + _startTime.minute;
+    final endMins = _endTime.hour * 60 + _endTime.minute;
+    return endMins > startMins;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canSave = _titleCtl.text.trim().isNotEmpty;
+    final canSave = _titleCtl.text.trim().isNotEmpty && _isTimeValid;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return AnimatedPadding(

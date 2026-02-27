@@ -858,7 +858,7 @@ class _ScreenTimeWidget extends StatelessWidget {
               Expanded(
                 child: Text(
                   'REMAINING SCREEN TIME',
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
               Container(
