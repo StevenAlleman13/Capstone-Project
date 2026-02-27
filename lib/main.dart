@@ -264,8 +264,7 @@ class _MyHomePageState extends State<MyHomePage> {
       child: page,
     );
 
-    return Scaffold(
-      appBar: (selectedIndex == 3)
+    return Scaffold(      appBar: (selectedIndex == 0 || selectedIndex == 3)
           ? null
           : AppBar(
               backgroundColor: Colors.black,
