@@ -753,6 +753,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 0.5,
+                              shadows: [],
                             ),
                           ),
                         ),
@@ -837,10 +838,12 @@ class _EventDismissibleOverlay extends StatefulWidget {
 class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
   double _swipeAmount = 0.0;
   bool _showActions = false;
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
       onHorizontalDragUpdate: (details) {
         setState(() {
           _swipeAmount += details.delta.dx;
@@ -898,14 +901,27 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.event['title'] ?? 'Unnamed Event',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          shadows: [],
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.event['title'] ?? 'Unnamed Event',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                shadows: [],
+                              ),
+                            ),
+                          ),
+                          if (widget.event['description'] != null &&
+                              widget.event['description'].toString().isNotEmpty)
+                            Icon(
+                              _expanded ? Icons.expand_less : Icons.expand_more,
+                              color: Colors.white54,
+                              size: 18,
+                            ),
+                        ],
                       ),
                       if (widget.event['all_day'] != true && widget.event['end_time'] != null)
                         Text(
@@ -916,6 +932,25 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
                             shadows: [],
                           ),
                         ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        child: _expanded &&
+                                widget.event['description'] != null &&
+                                widget.event['description'].toString().isNotEmpty
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text(
+                                  widget.event['description'],
+                                  style: const TextStyle(
+                                    color: Colors.white60,
+                                    fontSize: 13,
+                                    shadows: [],
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
                     ],
                   ),
                 ),
