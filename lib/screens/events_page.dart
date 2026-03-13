@@ -916,6 +916,8 @@ class EventsPageState extends State<EventsPage> {
       });
     });
 
+    _fetchEventsFromSupabase();
+
     if (Hive.isBoxOpen('tasks')) {
       _tasksBox = Hive.box('tasks');
       _loadTasksFromHive();
