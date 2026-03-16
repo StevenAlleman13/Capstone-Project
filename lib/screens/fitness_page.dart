@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,7 +35,7 @@ class _FitnessPageState extends State<FitnessPage> {
   bool _macrosExpanded = false;
   bool _trainerExpanded = false;
 
-  static const String _geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
+  static final String _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
   static const String _geminiModel = 'gemini-3-flash-preview';
 
   final List<_TrainerMsg> _trainerMsgs = <_TrainerMsg>[
@@ -99,8 +100,9 @@ class _FitnessPageState extends State<FitnessPage> {
   Future<void> _loadGraphSettingsFromSupabase() async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (no user session found).');
+      }
       return;
     }
 
@@ -137,8 +139,9 @@ class _FitnessPageState extends State<FitnessPage> {
         if (goalVal != null) _goalController.text = _format(goalVal);
       });
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not load graph settings.');
+      }
     }
   }
 
@@ -148,8 +151,9 @@ class _FitnessPageState extends State<FitnessPage> {
   ) async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (cannot save settings).');
+      }
       return;
     }
 
@@ -162,8 +166,9 @@ class _FitnessPageState extends State<FitnessPage> {
       }, onConflict: 'user_id');
       if (mounted) setState(() => _statusText = null);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not save graph settings.');
+      }
     }
   }
 
@@ -188,11 +193,12 @@ class _FitnessPageState extends State<FitnessPage> {
 
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _statusText ??= 'Not signed in (no user session found).';
         });
+      }
       return;
     }
 
@@ -222,11 +228,12 @@ class _FitnessPageState extends State<FitnessPage> {
         _statusText = _weightsByDay.isEmpty ? 'No weight entries yet.' : null;
       });
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _statusText = 'Could not load weights from Supabase.';
         });
+      }
     }
   }
 
@@ -263,8 +270,9 @@ class _FitnessPageState extends State<FitnessPage> {
 
       await _loadWeightsFromSupabase();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not save weight to Supabase.');
+      }
     }
   }
 
@@ -303,11 +311,12 @@ class _FitnessPageState extends State<FitnessPage> {
     if (minVal == null || maxVal == null) return;
     if (maxVal <= minVal) return;
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _graphMin = minVal;
         _graphMax = maxVal;
       });
+    }
 
     await _saveGraphSettingsToSupabase(minVal, maxVal);
   }
@@ -391,8 +400,9 @@ class _FitnessPageState extends State<FitnessPage> {
   Future<void> _clearGraphData() async {
     final user = _client.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Not signed in (cannot clear).');
+      }
       return;
     }
 
@@ -402,15 +412,17 @@ class _FitnessPageState extends State<FitnessPage> {
     try {
       await _client.from('weight_entries').delete().eq('user_id', user.id);
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _weightsByDay.clear();
           _weightController.clear();
           _statusText = 'No weight entries yet.';
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() => _statusText = 'Could not clear weights from Supabase.');
+      }
     }
   }
 
@@ -488,13 +500,14 @@ class _FitnessPageState extends State<FitnessPage> {
         'protein_goal': protein,
       }, onConflict: 'user_id');
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _goalCalories = cal;
           _goalCarbs = carbs;
           _goalFat = fat;
           _goalProtein = protein;
         });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -588,8 +601,9 @@ class _FitnessPageState extends State<FitnessPage> {
               if (cal == null ||
                   carbs == null ||
                   fat == null ||
-                  protein == null)
+                  protein == null) {
                 return;
+              }
               Navigator.pop(ctx);
               _saveMacroGoals(cal, carbs, fat, protein);
             },
@@ -785,7 +799,7 @@ class _FitnessPageState extends State<FitnessPage> {
         }
         return;
       }
-      final perServing = nutrition['servings'] as double? ?? 1.0;
+      final perServing = nutrition['servings'] ?? 1.0;
       cal = (nutrition['calories'] as double) / perServing * servings;
       carbs = (nutrition['carbs'] as double) / perServing * servings;
       fat = (nutrition['fat'] as double) / perServing * servings;
@@ -1284,7 +1298,7 @@ class _FitnessPageState extends State<FitnessPage> {
     }
 
     final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/${_geminiModel}:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent',
     );
 
     final history = _trainerMsgs.length <= 20
