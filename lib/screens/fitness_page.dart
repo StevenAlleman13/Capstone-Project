@@ -1347,8 +1347,15 @@ class _FitnessPageState extends State<FitnessPage> {
           Expanded(
             child: ListView.builder(
               controller: _trainerScroll,
-              itemCount: _trainerMsgs.length,
+              itemCount: _trainerMsgs.length + (_trainerSending ? 1 : 0),
               itemBuilder: (context, i) {
+                if (_trainerSending && i == _trainerMsgs.length) {
+                  return const Align(
+                    alignment: Alignment.centerLeft,
+                    child: _TypingBubble(),
+                  );
+                }
+
                 final m = _trainerMsgs[i];
                 final isUser = m.role == _TrainerRole.user;
 
@@ -2272,6 +2279,93 @@ class _WeightGraphPainter extends CustomPainter {
         oldDelegate.minY != minY ||
         oldDelegate.maxY != maxY ||
         oldDelegate.goalWeight != goalWeight;
+  }
+}
+
+class _TypingBubble extends StatefulWidget {
+  const _TypingBubble();
+
+  @override
+  State<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends State<_TypingBubble>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _neonGreen.withOpacity(0.8), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: _neonGreen.withOpacity(0.12),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, _) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              final delay = i / 3.0;
+              final t = ((_ctrl.value - delay) % 1.0 + 1.0) % 1.0;
+              final opacity = (t < 0.5 ? t * 2 : (1.0 - t) * 2).clamp(
+                0.25,
+                1.0,
+              );
+              final offset = (t < 0.5 ? t * 2 : (1.0 - t) * 2) * -4.0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: Transform.translate(
+                  offset: Offset(0, offset),
+                  child: Opacity(
+                    opacity: opacity,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _neonGreen,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _neonGreen.withOpacity(0.6),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
+        },
+      ),
+    );
   }
 }
 
