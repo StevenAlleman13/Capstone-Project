@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/login_page.dart';
 import 'screens/dashboard_page.dart' as dash;
@@ -27,11 +28,13 @@ Future<void> main() async {
   await Hive.openBox('tasks');
   await Hive.openBox('selected_apps');
 
-  await Supabase.initialize(
-    url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmenFiYXRkenV6YXVrbXFpZmVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcyODM1NjUsImV4cCI6MjA4Mjg1OTU2NX0.2kuf8GKWCMtZeKXPLgTSrOHUjYfOb7qCpwaIyFX7Ik8',
-  );
+await dotenv.load(fileName: '.env');
+
+await Supabase.initialize(
+  url: dotenv.env['SUPABASE_URL']!,
+  anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+);
+
 
   runApp(const MyApp());
 }
