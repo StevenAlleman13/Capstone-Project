@@ -35,7 +35,7 @@ class _FitnessPageState extends State<FitnessPage> {
   bool _trainerExpanded = false;
 
   static const String _geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const String _geminiModel = 'gemini-3-flash-preview';
+  static const String _geminiModel = 'gemini-2.5-flash';
 
   final List<_TrainerMsg> _trainerMsgs = <_TrainerMsg>[
     _TrainerMsg(
@@ -1278,60 +1278,328 @@ class _FitnessPageState extends State<FitnessPage> {
     });
   }
 
+  static const List<Map<String, dynamic>> _geminiTools = [
+    {
+      'function_declarations': [
+        {
+          'name': 'log_weight_entry',
+          'description':
+              'Log todays weight for the user. Call when user states their current weight or asks to log it.',
+          'parameters': {
+            'type': 'OBJECT',
+            'properties': {
+              'weight': {
+                'type': 'NUMBER',
+                'description': 'Weight value to log.',
+              },
+            },
+            'required': ['weight'],
+          },
+        },
+        {
+          'name': 'update_goal_weight',
+          'description':
+              'Update the users goal weight. Call when user asks to change or set their target weight.',
+          'parameters': {
+            'type': 'OBJECT',
+            'properties': {
+              'goal_weight': {
+                'type': 'NUMBER',
+                'description': 'New goal weight.',
+              },
+            },
+            'required': ['goal_weight'],
+          },
+        },
+        {
+          'name': 'update_macro_goals',
+          'description':
+              'Update the users daily macro targets. Call when user asks to change macros or agrees to apply recommended targets.',
+          'parameters': {
+            'type': 'OBJECT',
+            'properties': {
+              'calorie_goal': {
+                'type': 'NUMBER',
+                'description': 'Daily calorie target.',
+              },
+              'carbs_goal': {
+                'type': 'NUMBER',
+                'description': 'Daily carbs in grams.',
+              },
+              'fat_goal': {
+                'type': 'NUMBER',
+                'description': 'Daily fat in grams.',
+              },
+              'protein_goal': {
+                'type': 'NUMBER',
+                'description': 'Daily protein in grams.',
+              },
+            },
+            'required': [
+              'calorie_goal',
+              'carbs_goal',
+              'fat_goal',
+              'protein_goal',
+            ],
+          },
+        },
+      ],
+    },
+  ];
+
+  Future<String> _buildUserContext() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return '';
+
+    try {
+      final settings = await _client
+          .from('weight_tracker_settings')
+          .select('goal_weight')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      final macros = await _client
+          .from('macro_goals')
+          .select('calorie_goal, carbs_goal, fat_goal, protein_goal')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      final weights = await _client
+          .from('weight_entries')
+          .select('entry_date, weight')
+          .eq('user_id', user.id)
+          .order('entry_date', ascending: false)
+          .limit(7);
+
+      final since = DateTime.now().subtract(const Duration(days: 6));
+      final sinceKey =
+          '${since.year.toString().padLeft(4, '0')}-${since.month.toString().padLeft(2, '0')}-${since.day.toString().padLeft(2, '0')}';
+      final logs = await _client
+          .from('daily_macro_logs')
+          .select('log_date, item_name, calories, carbs, fat, protein')
+          .eq('user_id', user.id)
+          .gte('log_date', sinceKey)
+          .order('log_date', ascending: false);
+
+      final buffer = StringBuffer();
+      buffer.writeln('--- USER DATA (today: ${_todayKey()}) ---');
+
+      final gw = settings?['goal_weight'];
+      buffer.writeln('Goal weight: ${gw ?? 'not set'}');
+
+      if (macros != null) {
+        buffer.writeln(
+          'Daily macro goals: ${macros['calorie_goal']} cal, '
+          '${macros['carbs_goal']}g carbs, ${macros['fat_goal']}g fat, ${macros['protein_goal']}g protein',
+        );
+      } else {
+        buffer.writeln('Macro goals: not set');
+      }
+
+      if ((weights as List).isNotEmpty) {
+        buffer.writeln('Recent weights (newest first):');
+        for (final w in weights) {
+          buffer.writeln('  ${w['entry_date']}: ${w['weight']} lbs');
+        }
+      } else {
+        buffer.writeln('Weight entries: none');
+      }
+
+      if ((logs as List).isNotEmpty) {
+        buffer.writeln('Food logged this week:');
+        for (final l in logs) {
+          buffer.writeln(
+            '  ${l['log_date']} - ${l['item_name']}: ${l['calories']} cal, '
+            '${l['carbs']}g carbs, ${l['fat']}g fat, ${l['protein']}g protein',
+          );
+        }
+      } else {
+        buffer.writeln('Food logs this week: none');
+      }
+
+      buffer.writeln('--- END USER DATA ---');
+      return buffer.toString();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<Map<String, dynamic>> _executeTool(
+    String name,
+    Map<String, dynamic> args,
+  ) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return {'error': 'User not signed in.'};
+
+    try {
+      switch (name) {
+        case 'log_weight_entry':
+          final weight = (args['weight'] as num).toDouble();
+          final dateKey = _todayKey();
+          await _client.from('weight_entries').upsert({
+            'user_id': user.id,
+            'entry_date': dateKey,
+            'weight': weight,
+          }, onConflict: 'user_id,entry_date');
+          if (mounted) {
+            setState(() => _weightsByDay[dateKey] = weight);
+            if (_goalWeight != null && weight <= _goalWeight!) {
+              _showGoalReachedBanner();
+            }
+          }
+          await _loadWeightsFromSupabase();
+          return {'success': true, 'logged_weight': weight, 'date': dateKey};
+
+        case 'update_goal_weight':
+          final goal = (args['goal_weight'] as num).toDouble();
+          await _client.from('weight_tracker_settings').upsert({
+            'user_id': user.id,
+            'goal_weight': goal,
+            if (_graphMin != null) 'weight_graph_min': _graphMin,
+            if (_graphMax != null) 'weight_graph_max': _graphMax,
+          }, onConflict: 'user_id');
+          if (mounted) setState(() => _goalWeight = goal);
+          return {'success': true, 'new_goal_weight': goal};
+
+        case 'update_macro_goals':
+          final cal = (args['calorie_goal'] as num).toDouble();
+          final carbs = (args['carbs_goal'] as num).toDouble();
+          final fat = (args['fat_goal'] as num).toDouble();
+          final protein = (args['protein_goal'] as num).toDouble();
+          await _client.from('macro_goals').upsert({
+            'user_id': user.id,
+            'calorie_goal': cal,
+            'carbs_goal': carbs,
+            'fat_goal': fat,
+            'protein_goal': protein,
+          }, onConflict: 'user_id');
+          if (mounted)
+            setState(() {
+              _goalCalories = cal;
+              _goalCarbs = carbs;
+              _goalFat = fat;
+              _goalProtein = protein;
+            });
+          return {
+            'success': true,
+            'calorie_goal': cal,
+            'carbs_goal': carbs,
+            'fat_goal': fat,
+            'protein_goal': protein,
+          };
+
+        default:
+          return {'error': 'Unknown tool: $name'};
+      }
+    } catch (e) {
+      return {'error': e.toString()};
+    }
+  }
+
   Future<String> _geminiTrainerReply() async {
     if (_geminiApiKey.isEmpty) {
       return 'Missing GEMINI_API_KEY. Run: flutter run --dart-define=GEMINI_API_KEY=YOUR_KEY';
     }
 
     final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/${_geminiModel}:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent',
     );
 
-    final history = _trainerMsgs.length <= 20
-        ? _trainerMsgs
-        : _trainerMsgs.sublist(_trainerMsgs.length - 20);
+    final userContext = await _buildUserContext();
 
-    final body = {
-      'system_instruction': {
-        'parts': [
-          {
-            'text':
-                'You are a helpful fitness and nutrition coach. Give structured, practical workout and diet guidance (splits, sets/reps, cardio, macros, meal ideas). Avoid medical diagnosis or treatment. If the user mentions serious symptoms or medical conditions, advise seeing a qualified professional. Keep answers concise, use bullet points, and ask 1–2 follow-up questions when needed.',
-          },
-        ],
-      },
-      'contents': history
-          .map(
-            (m) => {
-              'role': m.role == _TrainerRole.user ? 'user' : 'model',
-              'parts': [
-                {'text': m.text},
-              ],
-            },
-          )
-          .toList(),
+    final systemText =
+        'You are a personal fitness and nutrition coach with access to the users real data. '
+        'Be consice, use short sentences or bullet points to get the point across. '
+        'Do not repeat what the user said back to them. '
+        'Maximum of 3 to 5 bullet points per response unless the user explicitly asks for a full plan. '
+        'Only ask 1 clarifying question if you need more information before answering. '
+        'When you use a tool to update the database, confirm it with a short sentence. '
+        'Avoid medical diagnosis, if symptoms are serious, ask the user to see a doctor.'
+        '\n\n$userContext';
+
+    final systemPrompt = {
+      'parts': [
+        {'text': systemText},
+      ],
     };
 
-    final resp = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': _geminiApiKey,
-      },
-      body: jsonEncode(body),
-    );
+    final history = _trainerMsgs.length <= 10
+        ? _trainerMsgs
+        : _trainerMsgs.sublist(_trainerMsgs.length - 10);
 
-    if (resp.statusCode != 200) {
-      throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
+    final contents = history
+        .map(
+          (m) => {
+            'role': m.role == _TrainerRole.user ? 'user' : 'model',
+            'parts': [
+              {'text': m.text},
+            ],
+          },
+        )
+        .toList();
+
+    for (int round = 0; round < 2; round++) {
+      final body = {
+        'system_instruction': systemPrompt,
+        'contents': contents,
+        'tools': _geminiTools,
+      };
+
+      final resp = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': _geminiApiKey,
+        },
+        body: jsonEncode(body),
+      );
+
+      if (resp.statusCode != 200) {
+        throw Exception('Gemini HTTP ${resp.statusCode}: ${resp.body}');
+      }
+
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final candidates = (data['candidates'] as List?) ?? const [];
+      if (candidates.isEmpty) return 'No response from trainer.';
+
+      final candidate = candidates.first as Map<String, dynamic>;
+      final contentBlock = candidate['content'] as Map<String, dynamic>?;
+      final parts = (contentBlock?['parts'] as List?) ?? const [];
+
+      final toolCallParts = parts
+          .where((p) => (p as Map<String, dynamic>).containsKey('functionCall'))
+          .toList();
+
+      if (toolCallParts.isEmpty) {
+        final textPart = parts.firstWhere(
+          (p) => (p as Map<String, dynamic>).containsKey('text'),
+          orElse: () => null,
+        );
+        final text = textPart != null
+            ? (textPart['text'] ?? '').toString()
+            : '';
+        return text.isEmpty ? 'No text returned from trainer.' : text;
+      }
+
+      contents.add({'role': 'model', 'parts': parts});
+
+      final toolResponses = <Map<String, dynamic>>[];
+      for (final part in toolCallParts) {
+        final fc =
+            (part as Map<String, dynamic>)['functionCall']
+                as Map<String, dynamic>;
+        final toolName = fc['name'].toString();
+        final toolArgs = (fc['args'] as Map<String, dynamic>?) ?? {};
+        final result = await _executeTool(toolName, toolArgs);
+        toolResponses.add({
+          'functionResponse': {'name': toolName, 'response': result},
+        });
+      }
+
+      contents.add({'role': 'user', 'parts': toolResponses});
     }
 
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
-    final candidates = (data['candidates'] as List?) ?? const [];
-    if (candidates.isEmpty) return 'No response from trainer.';
-    final content = candidates.first['content'] as Map<String, dynamic>?;
-    final parts = (content?['parts'] as List?) ?? const [];
-    final text = parts.isNotEmpty ? (parts.first['text'] ?? '').toString() : '';
-    return text.isEmpty ? 'No text returned from trainer.' : text;
+    return 'No response from trainer.';
   }
 
   Widget _buildTrainerChat() {
