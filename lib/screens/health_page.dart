@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class HealthPage extends StatefulWidget {
   const HealthPage({super.key, this.onRecipeTap});
@@ -31,9 +32,11 @@ class _HealthPageState extends State<HealthPage> {
 
   Set<int> _favoriteRecipeIds = <int>{};
   bool _loadingFavorites = false;
-
   List<String> _cachedTrivia = const [];
   String? _lastRecipeIngredientKey;
+  bool _ingredientsExpanded = false;
+  bool _healthFactsExpanded = false;
+  bool _recipesExpanded = false;
 
   @override
   void initState() {
@@ -191,9 +194,7 @@ class _HealthPageState extends State<HealthPage> {
     await _loadIngredients();
     await _syncIngredientNutritionByName(name);
     await _loadIngredients();
-  }
-
-  Future<void> _removeIngredient(String name) async {
+  }  Future<void> _removeIngredient(String name) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
@@ -203,6 +204,22 @@ class _HealthPageState extends State<HealthPage> {
         .eq('user_id', user.id)
         .eq('name', name);
 
+    await _loadIngredients();
+  }
+
+  Future<void> _openBarcodeScanner() async {
+    if (!mounted) return;
+    
+    final scannedBarcode = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (context) => const _BarcodeScannerPage(),
+      ),
+    );
+
+    if (scannedBarcode == null || scannedBarcode.isEmpty) return;
+
+    // Use the barcode as the ingredient search query
+    await _syncIngredientNutritionByName(scannedBarcode);
     await _loadIngredients();
   }
 
@@ -570,7 +587,6 @@ class _HealthPageState extends State<HealthPage> {
   }
 
   /* -------------------------- UI -------------------------- */
-
   @override
   Widget build(BuildContext context) {
     final ingredients = _ingredients;
@@ -580,22 +596,19 @@ class _HealthPageState extends State<HealthPage> {
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
         children: [
-          _SectionFrame(
-            title: 'INGREDIENTS',
+          _CollapsibleSection(
+            title: 'Ingredients',
+            icon: Icons.restaurant,
+            expanded: _ingredientsExpanded,
+            onToggle: () =>
+                setState(() => _ingredientsExpanded = !_ingredientsExpanded),
             rightAction: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  tooltip: 'Refresh ingredient details',
-                  onPressed: () async {
-                    for (final ing in _ingredients) {
-                      if (ing.calories == null) {
-                        await _syncIngredientNutritionByName(ing.name);
-                      }
-                    }
-                    await _loadIngredients();
-                  },
+                  icon: const Icon(Icons.qr_code_scanner, size: 22),
+                  tooltip: 'Scan barcode',
+                  onPressed: _openBarcodeScanner,
                 ),
                 IconButton(
                   icon: const Icon(Icons.add, size: 22),
@@ -615,8 +628,12 @@ class _HealthPageState extends State<HealthPage> {
           ),
           const SizedBox(height: 14),
 
-          _SectionFrame(
-            title: 'HEALTH FACTS',
+          _CollapsibleSection(
+            title: 'Health Facts',
+            icon: Icons.health_and_safety,
+            expanded: _healthFactsExpanded,
+            onToggle: () =>
+                setState(() => _healthFactsExpanded = !_healthFactsExpanded),
             rightAction: IconButton(
               icon: const Icon(Icons.refresh, size: 20),
               tooltip: 'Refresh facts',
@@ -644,8 +661,12 @@ class _HealthPageState extends State<HealthPage> {
           ),
           const SizedBox(height: 14),
 
-          _SectionFrame(
-            title: 'RECIPES',
+          _CollapsibleSection(
+            title: 'Recipes',
+            icon: Icons.menu_book,
+            expanded: _recipesExpanded,
+            onToggle: () =>
+                setState(() => _recipesExpanded = !_recipesExpanded),
             rightAction: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -960,11 +981,12 @@ class _IngredientCard extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.all(12),      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: neon.withOpacity(0.75), width: 1.2),
-        boxShadow: [BoxShadow(color: neon.withOpacity(0.10), blurRadius: 14)],
+        border: Border.all(color: neon, width: 1.5),
+        boxShadow: [
+          BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6),
+        ],
         color: Colors.black,
       ),
       child: Row(
@@ -1038,11 +1060,10 @@ class _NeonBullet extends StatelessWidget {
     final neon = Theme.of(context).colorScheme.secondary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: neon.withOpacity(0.55), width: 1),
-        boxShadow: [BoxShadow(color: neon.withOpacity(0.10), blurRadius: 10)],
+        border: Border.all(color: neon, width: 1.5),
+        boxShadow: [BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6)],
         color: Colors.black,
       ),
       child: Row(
@@ -1051,12 +1072,11 @@ class _NeonBullet extends StatelessWidget {
           Container(
             margin: const EdgeInsets.only(top: 6),
             width: 10,
-            height: 10,
-            decoration: BoxDecoration(
+            height: 10,            decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: neon.withOpacity(0.85), width: 1),
+              border: Border.all(color: neon, width: 1),
               boxShadow: [
-                BoxShadow(color: neon.withOpacity(0.18), blurRadius: 10),
+                BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6),
               ],
             ),
           ),
@@ -1088,12 +1108,11 @@ class _RecipeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap == null ? null : () => onTap!(recipe),
         child: Container(
-          width: 240,
-          decoration: BoxDecoration(
+          width: 240,          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: neon.withOpacity(0.7), width: 1.2),
+            border: Border.all(color: neon, width: 1.5),
             boxShadow: [
-              BoxShadow(color: neon.withOpacity(0.12), blurRadius: 14),
+              BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6),
             ],
           ),
           clipBehavior: Clip.antiAlias,
@@ -1191,48 +1210,70 @@ class _RecipeCard extends StatelessWidget {
 
 /* -------------------------- SHARED SECTION FRAME -------------------------- */
 
-class _SectionFrame extends StatelessWidget {
+class _CollapsibleSection extends StatelessWidget {
   final String title;
+  final IconData icon;
   final Widget child;
   final Widget? rightAction;
+  final bool expanded;
+  final VoidCallback onToggle;
 
-  const _SectionFrame({
+  const _CollapsibleSection({
     required this.title,
+    required this.icon,
     required this.child,
+    required this.expanded,
+    required this.onToggle,
     this.rightAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
+    final neon = Theme.of(context).colorScheme.secondary;    return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: neon.withOpacity(0.8), width: 1.2),
-        boxShadow: [BoxShadow(color: neon.withOpacity(0.12), blurRadius: 16)],
+        border: Border.all(color: neon, width: 2),
         color: Colors.black,
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w700,
-                  color: neon,
-                ),
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(18),
+              bottom: expanded ? Radius.zero : const Radius.circular(18),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(icon, color: neon, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: neon,
+                      ),
+                    ),
+                  ),
+                  if (expanded && rightAction != null) rightAction!,
+                  Icon(
+                    expanded ? Icons.remove : Icons.add,
+                    color: neon,
+                    size: 22,
+                  ),
+                ],
               ),
-              const Spacer(),
-              if (rightAction != null) rightAction!,
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          child,
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: child,
+            ),
         ],
       ),
     );
@@ -1252,6 +1293,41 @@ class _EmptyHint extends StatelessWidget {
         style: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.85)),
+      ),
+    );
+  }
+}
+
+/* -------------------------- BARCODE SCANNER -------------------------- */
+
+class _BarcodeScannerPage extends StatefulWidget {
+  const _BarcodeScannerPage();
+
+  @override
+  State<_BarcodeScannerPage> createState() => _BarcodeScannerPageState();
+}
+
+class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
+  bool _scanned = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan Barcode'),
+        backgroundColor: Colors.black,
+      ),
+      backgroundColor: Colors.black,
+      body: MobileScanner(
+        onDetect: (BarcodeCapture capture) {
+          if (_scanned) return;
+          final Barcode? barcode = capture.barcodes.isNotEmpty ? capture.barcodes.first : null;
+          final String? code = barcode?.rawValue;
+          if (code != null && code.isNotEmpty) {
+            _scanned = true;
+            Navigator.of(context).pop(code);
+          }
+        },
       ),
     );
   }

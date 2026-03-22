@@ -191,10 +191,12 @@ class _EventDismissibleOverlay extends StatefulWidget {
 class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
   double _swipeAmount = 0.0;
   bool _showActions = false;
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
       onHorizontalDragUpdate: (details) {
         setState(() {
           _swipeAmount += details.delta.dx;
@@ -236,27 +238,19 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
                 width: 2.0,
               ),
             ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 4,
-              ),
-              title: Text(
-                widget.event['title'] ?? '',
-                style: const TextStyle(color: Colors.white),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.event['description'] != null &&
-                            widget.event['description'].toString().isNotEmpty
-                        ? widget.event['description']
-                        : 'No description',
-                    style: const TextStyle(color: Colors.white60),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
+                  title: Text(
+                    widget.event['title'] ?? '',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
                     widget.event['all_day'] == true
                         ? 'All Day'
                         : (widget.event['start_time'] != null &&
@@ -268,8 +262,31 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              ),
+                  trailing: widget.event['description'] != null &&
+                          widget.event['description'].toString().isNotEmpty
+                      ? Icon(
+                          _expanded ? Icons.expand_less : Icons.expand_more,
+                          color: Colors.white54,
+                          size: 20,
+                        )
+                      : null,
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  child: _expanded &&
+                          widget.event['description'] != null &&
+                          widget.event['description'].toString().isNotEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                          child: Text(
+                            widget.event['description'],
+                            style: const TextStyle(color: Colors.white60, fontSize: 13),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
           AnimatedOpacity(
@@ -898,6 +915,8 @@ class EventsPageState extends State<EventsPage> {
         _currentMonthLabel = _formatMonthLabel(_focusedDay);
       });
     });
+
+    _fetchEventsFromSupabase();
 
     if (Hive.isBoxOpen('tasks')) {
       _tasksBox = Hive.box('tasks');
@@ -1591,7 +1610,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                       TextButton(
                         onPressed: _onAdd,
                         child: Text('Add', style: TextStyle(
-                          color: _titleCtl.text.trim().isEmpty ? Colors.grey[700] : const Color(0xFF39FF14),
+                          color: (_titleCtl.text.trim().isEmpty || (_tab == 0 && !_isTimeValid)) ? Colors.grey[700] : const Color(0xFF39FF14),
                           fontSize: 16, fontWeight: FontWeight.w600, shadows: [],
                         )),
                       ),
@@ -1715,11 +1734,11 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // Title + Location section
+          // Title + Description section
           _card(children: [
             _textField(_titleCtl, 'Title'),
             const Divider(height: 1, color: Colors.white12),
-            _textField(_locationCtl, 'Location'),
+            _textField(_locationCtl, 'Description (Optional)'),
           ]),
           const SizedBox(height: 16),
           // Date / time section
@@ -2100,8 +2119,18 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
         .toList();
   }
 
+  bool get _isTimeValid {
+    if (_allDay || _tab != 0) return true;
+    if (_startDate.isBefore(_endDate)) return true;
+    if (_endDate.isBefore(_startDate)) return false;
+    final startMins = _startTime.hour * 60 + _startTime.minute;
+    final endMins = _endTime.hour * 60 + _endTime.minute;
+    return endMins > startMins;
+  }
+
   void _onAdd() {
     if (_titleCtl.text.trim().isEmpty) return;
+    if (_tab == 0 && !_isTimeValid) return;
     if (_tab == 0) {
       widget.onEventAdded({
         'title': _titleCtl.text.trim(),
@@ -2570,9 +2599,18 @@ class _EditEventSheetState extends State<_EditEventSheet> {
     );
   }
 
+  bool get _isTimeValid {
+    if (_allDay) return true;
+    if (_startDate.isBefore(_endDate)) return true;
+    if (_endDate.isBefore(_startDate)) return false;
+    final startMins = _startTime.hour * 60 + _startTime.minute;
+    final endMins = _endTime.hour * 60 + _endTime.minute;
+    return endMins > startMins;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final canSave = _titleCtl.text.trim().isNotEmpty;
+    final canSave = _titleCtl.text.trim().isNotEmpty && _isTimeValid;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return AnimatedPadding(
@@ -2640,11 +2678,11 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
-                      // Title + Location section
+                      // Title + Description section
                       _card(children: [
                         _textField(_titleCtl, 'Title'),
                         const Divider(height: 1, color: Colors.white12),
-                        _textField(_locationCtl, 'Location'),
+                        _textField(_locationCtl, 'Description (Optional)'),
                       ]),
                       const SizedBox(height: 16),
                       // Date / time section

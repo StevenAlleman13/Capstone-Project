@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_picker_page.dart';
@@ -22,27 +23,35 @@ class SettingsPage extends StatelessWidget {
         children: [
           const _SectionFrame(title: 'ADVANCED'),
           const SizedBox(height: 14),
-          _SectionFrame(
-            title: 'SCREEN TIME',
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.apps),
-                label: const Text('Select Apps'),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AppPickerPage()),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
           const _SectionFrame(
             title: 'DIFFICULTY',
             child: _DifficultySelector(),
           ),
           const SizedBox(height: 14),
           const _SectionFrame(title: 'LIGHT / DARK MODE'),
+          const SizedBox(height: 14),
+          _SectionFrame(
+            title: 'PERMISSIONS',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Locked Apps',
+                    style: TextStyle(color: Colors.white70, fontSize: 15),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AppPickerPage()),
+                  ),
+                ),
+                const Divider(color: Colors.white12, height: 20),
+                const _OverlayPermissionButton(),
+              ],
+            ),
+          ),
           const SizedBox(height: 14),
 
           _SectionFrame(
@@ -57,6 +66,70 @@ class SettingsPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/* ----------------------- OVERLAY PERMISSION BUTTON ----------------------- */
+
+class _OverlayPermissionButton extends StatefulWidget {
+  const _OverlayPermissionButton();
+
+  @override
+  State<_OverlayPermissionButton> createState() => _OverlayPermissionButtonState();
+}
+
+class _OverlayPermissionButtonState extends State<_OverlayPermissionButton>
+    with WidgetsBindingObserver {
+  static final _channel = MethodChannel('lockin/monitor');
+  bool _granted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkPermission();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    try {
+      final granted = await _channel.invokeMethod<bool>('hasOverlayPermission') ?? false;
+      if (mounted) setState(() => _granted = granted);
+    } catch (_) {}
+  }
+
+  Future<void> _request() async {
+    await _channel.invokeMethod('requestOverlayPermission');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final neon = Theme.of(context).colorScheme.secondary;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        'App Overlay',
+        style: TextStyle(
+          color: Colors.white70,
+          fontSize: 15,
+        ),
+      ),
+      trailing: Switch(
+        value: _granted,
+        onChanged: _granted ? null : (_) => _request(),
+        activeThumbColor: neon,
       ),
     );
   }
@@ -78,6 +151,7 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
     ('easy', 'Easy', '4 hrs'),
     ('normal', 'Normal', '2 hrs'),
     ('hardcore', 'Hardcore', '1 hr'),
+    ('test', 'Test', '0 hrs'),
   ];
 
   @override
