@@ -1288,8 +1288,6 @@ class _FitnessPageState extends State<FitnessPage> {
     );
   }
 
-  // ── Conversation Archive ─────────────────────────────────────────────────
-
   Future<void> _loadArchivedConversations() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -1974,7 +1972,6 @@ class _FitnessPageState extends State<FitnessPage> {
       borderRadius: BorderRadius.circular(_cornerRadius),
       child: Stack(
         children: [
-          // ── Main chat container ──
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(_cornerRadius),
@@ -1984,7 +1981,6 @@ class _FitnessPageState extends State<FitnessPage> {
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                // Header row: Save + History buttons
                 Row(
                   children: [
                     Expanded(
@@ -2027,7 +2023,6 @@ class _FitnessPageState extends State<FitnessPage> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                // Chat messages
                 Expanded(
                   child: ListView.builder(
                     controller: _trainerScroll,
@@ -2081,7 +2076,6 @@ class _FitnessPageState extends State<FitnessPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                // Input row
                 Row(
                   children: [
                     Expanded(
@@ -2136,19 +2130,16 @@ class _FitnessPageState extends State<FitnessPage> {
             ),
           ),
 
-          // ── Sidebar overlay (slides in from right) ──
           if (_sidebarOpen)
             Positioned.fill(
               child: Row(
                 children: [
-                  // Dim tap area to close
                   Expanded(
                     child: GestureDetector(
                       onTap: () => setState(() => _sidebarOpen = false),
                       child: Container(color: Colors.black.withOpacity(0.4)),
                     ),
                   ),
-                  // Sidebar panel
                   Container(
                     width: 220,
                     decoration: BoxDecoration(
@@ -2274,7 +2265,6 @@ class _FitnessPageState extends State<FitnessPage> {
               ),
             ),
 
-          // ── Read-only conversation overlay ──
           if (_viewingConversation != null)
             Positioned.fill(
               child: Container(
@@ -2285,7 +2275,6 @@ class _FitnessPageState extends State<FitnessPage> {
                 ),
                 child: Column(
                   children: [
-                    // Overlay header
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 10, 8, 6),
                       child: Row(
@@ -2345,7 +2334,6 @@ class _FitnessPageState extends State<FitnessPage> {
                       ),
                     ),
                     const Divider(color: _neonGreen, height: 1),
-                    // Read-only messages
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.all(12),
