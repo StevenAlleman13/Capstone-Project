@@ -1,20 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 
 class VerticalStickyCalendar extends StatefulWidget {
   final DateTime firstDay;
   final DateTime lastDay;
   final DateTime? selectedDay;
   final ValueChanged<DateTime>? onDaySelected;
-  final Color? selectedColor;
-  final Color? todayColor;
-  final Color? textColor;
-  final Color? weekendColor;
   final List<Map> Function(DateTime)? eventsForDay;
   final List<Map<String, dynamic>> Function(DateTime)? tasksForDay;
   final List<Map<String, dynamic>> Function(DateTime)? completedTasksForDay;
   final bool isShowingEvents;
-  final bool showEventsBelow;
   final void Function(Map)? onEventEdit;
   final void Function(Map)? onEventDelete;
   final void Function(Map<String, dynamic>, int)? onTaskEdit;
@@ -28,15 +24,10 @@ class VerticalStickyCalendar extends StatefulWidget {
     required this.lastDay,
     this.selectedDay,
     this.onDaySelected,
-    this.selectedColor,
-    this.todayColor,
-    this.textColor,
-    this.weekendColor,
     this.eventsForDay,
     this.tasksForDay,
     this.completedTasksForDay,
     this.isShowingEvents = true,
-    this.showEventsBelow = false,
     this.onEventEdit,
     this.onEventDelete,
     this.onTaskEdit,
@@ -49,19 +40,10 @@ class VerticalStickyCalendar extends StatefulWidget {
   VerticalStickyCalendarState createState() => VerticalStickyCalendarState();
 }
 
-class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
-    with SingleTickerProviderStateMixin {
+class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
   late DateTime _focusedDay;
   late DateTime _selectedDay;
-  final ScrollController _scrollController = ScrollController();
-  late final ValueNotifier<String> _currentMonth;
-  bool _showWeekView = true;
   bool _jiggleMode = false;
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-
-  // Store a GlobalKey for each month section
-  List<GlobalKey> _monthKeys = [];
 
   /// Public method to jump the calendar to today's date in week view
   void jumpToToday() {
@@ -69,10 +51,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
     setState(() {
       _selectedDay = now;
       _focusedDay = now;
-      _showWeekView = true;
     });
-    _animationController.forward();
-    _updateMonthLabel();
     widget.onDaySelected?.call(now);
     widget.onViewModeChanged?.call(true);
   }
@@ -82,485 +61,87 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
     super.initState();
     _focusedDay = widget.selectedDay ?? DateTime.now();
     _selectedDay = widget.selectedDay ?? DateTime.now();
-    _currentMonth = ValueNotifier(DateFormat('MMMM yyyy').format(_focusedDay));
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-      value: 1.0, // Start fully visible so week view shows on load
-    );
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateMonthLabel());
-    _scrollController.addListener(_onScroll);
-    // Initialize month keys after months are generated
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _monthKeys = List.generate(
-          _generateMonths().length,
-          (_) => GlobalKey(),
-        );
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    _currentMonth.dispose();
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _onScroll() {
-    // Find the month that is most prominent at the top of the viewport
-    if (_monthKeys.isEmpty) return;
-    final RenderBox? listBox = context.findRenderObject() as RenderBox?;
-    if (listBox == null) return;
-    final viewportHeight = listBox.size.height;
-    // Use top third of viewport as the detection zone
-    final threshold = viewportHeight * 0.33;
-    int bestIndex = 0;
-    for (int i = 0; i < _monthKeys.length; i++) {
-      final key = _monthKeys[i];
-      final ctx = key.currentContext;
-      if (ctx != null) {
-        final box = ctx.findRenderObject() as RenderBox?;
-        if (box != null) {
-          final pos = box.localToGlobal(Offset.zero, ancestor: listBox);
-          final bottom = pos.dy + box.size.height;
-          // Pick this month if its content is still visible in the top portion
-          if (bottom > 0 && pos.dy < threshold) {
-            bestIndex = i;
-          }
-        }
-      }
-    }
-    final months = _generateMonths();
-    if (bestIndex < months.length) {
-      final label = DateFormat('MMMM yyyy').format(months[bestIndex]);
-      if (_currentMonth.value != label) {
-        _currentMonth.value = label;
-      }
-    }
-  }
-
-  void _updateMonthLabel() {
-    _currentMonth.value = DateFormat('MMMM yyyy').format(_focusedDay);
-  }
-
-  List<DateTime> _generateMonths() {
-    final months = <DateTime>[];
-    DateTime current = DateTime(widget.firstDay.year, widget.firstDay.month);
-    while (!current.isAfter(widget.lastDay)) {
-      months.add(current);
-      current = DateTime(current.year, current.month + 1);
-    }
-    return months;
-  }
-
-  List<DateTime> _daysInMonth(DateTime month) {
-    final first = DateTime(month.year, month.month, 1);
-    final days = <DateTime>[];
-    for (
-      int i = 0;
-      i < DateUtils.getDaysInMonth(month.year, month.month);
-      i++
-    ) {
-      days.add(DateTime(month.year, month.month, i + 1));
-    }
-    return days;
   }
 
   @override
   Widget build(BuildContext context) {
-    final months = _generateMonths();
-    _monthKeys = _monthKeys.length == months.length
-        ? _monthKeys
-        : List.generate(months.length, (_) => GlobalKey());
-    // Days of week labels, starting on Sunday
-    final weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () {
         if (_jiggleMode) setState(() => _jiggleMode = false);
       },
       child: Column(
-      children: [
-        // Animated header that transitions between month and week view
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          width: double.infinity,
-          color: const Color(0xFF232323),
-          padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Top row with back button and year/month name
-              if (_showWeekView)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: 8,
-                    right: 8,
-                    top: 24,
-                    bottom: 0,
-                  ),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          _animationController.reverse().then((_) {
-                            setState(() {
-                              _showWeekView = false;
-                            });
-                            widget.onViewModeChanged?.call(false);
-                          });
-                        },
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.chevron_left,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                            const SizedBox(width: 4),
-                            ValueListenableBuilder<String>(
-                              valueListenable: _currentMonth,
-                              builder: (context, value, _) {
-                                final monthName = value.split(' ')[0];
-                                return Text(
-                                  monthName,
-                                  style: const TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.white,
-                                    shadows: [],
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              // Large month name in month view
-              if (!_showWeekView)
-                ValueListenableBuilder<String>(
-                  valueListenable: _currentMonth,
-                  builder: (context, value, _) {
-                    final monthName = value.split(' ')[0];
-                    return Padding(
-                      padding: const EdgeInsets.only(left: 16, top: 42, bottom: 0),
-                      child: Text(
-                        monthName,
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          shadows: [],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              // Days of week labels in month view
-              if (!_showWeekView)
-                Container(
-                  height: 28,
-                  padding: EdgeInsets.zero,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: List.generate(
-                      weekDays.length,
-                      (i) => Expanded(
-                        child: Center(
-                          child: Text(
-                            weekDays[i],
-                            style: TextStyle(
-                              color: (i == 0 || i == 6)
-                                  ? const Color(0xFF7A7A7A)
-                                  : Colors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
-                              shadows: [],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              // Week view buttons appear in week view
-              if (_showWeekView) _buildWeekViewContent(),
-            ],
-          ),
-        ),
-        // Neon horizontal line below header, expanded to screen borders
-        Container(
-          width: double.infinity,
-          height: 1,
-          decoration: BoxDecoration(
-            color: const Color(0xFF39FF14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF39FF14).withOpacity(0.4),
-                blurRadius: 2,
-                spreadRadius: 0.2,
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Stack(
-            children: [
-              // Calendar month view - fades and slides down
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeInOut,
-                top: _showWeekView ? 100 : 0,
-                left: 0,
-                right: 0,
-                bottom: _showWeekView ? -100 : 0,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 300),
-                  opacity: _showWeekView ? 0.0 : 1.0,
-                  child: ListView.builder(
-                    key: const ValueKey('month-view'),
-                    controller: _scrollController,
-                    itemCount: months.length,
-                    physics: _showWeekView
-                        ? const NeverScrollableScrollPhysics()
-                        : null,
-                    itemBuilder: (context, index) =>
-                        _buildMonthGrid(months, index),
-                  ),
-                ),
-              ),
-              // Events list - slides up from bottom
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeInOut,
-                top: _showWeekView ? 0 : 500,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 300),
-                  opacity: _showWeekView ? 1.0 : 0.0,
-                  child: _showWeekView
-                      ? (widget.isShowingEvents ? _buildEventsList() : _buildTasksList())
-                      : const SizedBox.shrink(),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-      ),
-    );
-  }
-
-  Widget _buildMonthGrid(List<DateTime> months, int index) {
-    final month = months[index];
-    final days = _daysInMonth(month);
-    final firstWeekday = (days.first.weekday % 7);
-    final offset = days.first.weekday == DateTime.sunday
-        ? 0
-        : days.first.weekday;
-    return Container(
-      key: _monthKeys[index],
-      child: Column(
         children: [
-          // Month abbreviation above the horizontal line, aligned with the 1st
-          Row(
-            children: [
-              Expanded(flex: firstWeekday, child: const SizedBox.shrink()),
-              Expanded(
-                flex: 7 - firstWeekday,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 10, bottom: 4),
-                  child: Text(
-                    DateFormat('MMM').format(month).toUpperCase(),
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                      shadows: [],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          // Thin horizontal line above each new month, starting at the weekday of the 1st
-          Row(
-            children: [
-              Expanded(flex: firstWeekday, child: const SizedBox.shrink()),
-              Expanded(
-                flex: 7 - firstWeekday,
-                child: Container(height: 1, color: Colors.white24),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 48),
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                mainAxisSpacing: 40,
-                crossAxisSpacing: 8,
-                childAspectRatio: 0.85,
-              ),
-              itemCount: days.length + ((days.first.weekday % 7)),
-              itemBuilder: (context, i) {
-                if (i < (days.first.weekday % 7)) {
-                  return const SizedBox.shrink();
-                }
-                final day = days[i - (days.first.weekday % 7)];
-                final isSelected = DateUtils.isSameDay(day, _selectedDay);
-                final isToday = DateUtils.isSameDay(day, DateTime.now());
-                final isWeekend =
-                    day.weekday == DateTime.saturday ||
-                    day.weekday == DateTime.sunday;
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedDay = day;
-                      _focusedDay = day;
-                      _showWeekView = true;
-                    });
-                    _animationController.forward();
-                    widget.onDaySelected?.call(day);
-                    widget.onViewModeChanged?.call(true);
-                    _updateMonthLabel();
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? (widget.selectedColor ?? Colors.blue[400])
-                          : isToday
-                          ? (widget.todayColor ?? Colors.green[400])
-                          : Colors.transparent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${day.day}',
-                        style: TextStyle(
-                          fontSize: 20,
-                          color: isSelected
-                              ? Colors.white
-                              : isToday
-                              ? Colors.white
-                              : isWeekend
-                              ? (widget.weekendColor ?? Color(0xFFB0B0B0))
-                              : (widget.textColor ?? Colors.white),
-                          fontWeight: isSelected || isToday
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          shadows: [],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
+          Container(
+            color: const Color(0xFF232323),
+            child: TableCalendar(
+              firstDay: widget.firstDay,
+              lastDay: widget.lastDay,
+              focusedDay: _focusedDay,
+              selectedDayPredicate: (day) => DateUtils.isSameDay(day, _selectedDay),
+              calendarFormat: CalendarFormat.week,
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  _selectedDay = selectedDay;
+                  _focusedDay = focusedDay;
+                });
+                widget.onDaySelected?.call(selectedDay);
+                widget.onViewModeChanged?.call(true);
               },
+              onPageChanged: (focusedDay) {
+                setState(() => _focusedDay = focusedDay);
+              },
+              headerStyle: const HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                headerPadding: EdgeInsets.only(top: 24, bottom: 4),
+                titleTextStyle: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  shadows: [],
+                ),
+                leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
+                rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+                decoration: BoxDecoration(color: Color(0xFF232323)),
+              ),
+              calendarStyle: CalendarStyle(
+                defaultTextStyle: const TextStyle(color: Colors.white, shadows: []),
+                weekendTextStyle: const TextStyle(color: Color(0xFF7A7A7A), shadows: []),
+                todayDecoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+                selectedDecoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                selectedTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, shadows: []),
+                todayTextStyle: const TextStyle(color: Colors.white, shadows: []),
+                outsideDaysVisible: false,
+              ),
+              daysOfWeekStyle: const DaysOfWeekStyle(
+                weekdayStyle: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600, shadows: []),
+                weekendStyle: TextStyle(color: Color(0xFF7A7A7A), fontWeight: FontWeight.w600, shadows: []),
+              ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWeekViewContent() {
-    final weekDaysShort = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    final startOfWeek = _selectedDay.subtract(
-      Duration(days: _selectedDay.weekday % 7),
-    );
-
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Top spacing to align horizontal line with month view
-          const SizedBox(height: 2),
-          // Day names row
-          SizedBox(
-            height: 18,
-            child: Row(
-              children: List.generate(7, (i) {
-                return Expanded(
-                  child: Center(
-                    child: Text(
-                      weekDaysShort[i],
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: (i == 0 || i == 6)
-                            ? const Color(0xFF7A7A7A)
-                            : Colors.white70,
-                        shadows: [],
-                      ),
-                    ),
-                  ),
-                );
-              }),
+          // Neon line
+          Container(
+            width: double.infinity,
+            height: 1,
+            decoration: BoxDecoration(
+              color: const Color(0xFF39FF14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF39FF14).withOpacity(0.4),
+                  blurRadius: 2,
+                  spreadRadius: 0.2,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 0),
-          // Week day buttons row
-          SizedBox(
-            height: 48,
-            child: Row(
-              children: List.generate(7, (i) {
-                final dayDate = startOfWeek.add(Duration(days: i));
-                final isSelected = DateUtils.isSameDay(dayDate, _selectedDay);
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedDay = dayDate;
-                        _focusedDay = dayDate;
-                      });
-                      widget.onDaySelected?.call(dayDate);
-                      widget.onViewModeChanged?.call(true);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      margin: const EdgeInsets.all(8),
-                      child: Center(
-                        child: Text(
-                          dayDate.day.toString(),
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected ? Colors.black : Colors.white,
-                            shadows: [],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          // Horizontal divider at same height as month view
-          const Divider(height: 1, thickness: 1, color: Color(0xFF39FF14)),
-          // Date label
+          // Selected date label
           Container(
             color: Colors.black,
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
@@ -576,13 +157,13 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar>
               ),
             ),
           ),
+          const Divider(height: 1, thickness: 1, color: const Color(0xFF39FF14)),
+          Expanded(
+            child: widget.isShowingEvents ? _buildEventsList() : _buildTasksList(),
+          ),
         ],
       ),
     );
-  }
-
-  Widget _buildWeekButtonsInline() {
-    return _buildWeekViewContent();
   }
 
   // Helper function to parse time strings and convert to minutes for sorting

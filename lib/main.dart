@@ -325,17 +325,12 @@ class _MyHomePageState extends State<MyHomePage> {
                                   ),
                                 ),
                               ),
-                              // Events/Tasks toggle button - centered (hidden in month view)
-                              if (selectedIndex == 3) 
+                              // Events/Tasks toggle button - centered
+                              if (selectedIndex == 3)
                                 Builder(
                                   builder: (context) {
                                     final currentTab = eventsPageKey.currentState?.selectedTab ?? 0;
-                                    final isMonthView = eventsPageKey.currentState?.showMonthView ?? false;
-                                    
-                                    if (isMonthView) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    
+
                                     return GestureDetector(
                                       onTap: () {
                                         eventsPageKey.currentState?.toggleTab();

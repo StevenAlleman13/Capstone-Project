@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 // import 'package:table_calendar/table_calendar.dart';
 // import 'package:table_calendar/table_calendar.dart' show isSameDay;
 import '../widgets/vertical_sticky_calendar.dart';
-import 'package:hive/hive.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -374,7 +371,6 @@ class EventsPage extends StatefulWidget {
 }
 
 class EventsPageState extends State<EventsPage> {
-  String _currentMonthLabel = "";
 
   static const List<String> _fullWeekdays = [
     'Sunday',
@@ -397,9 +393,6 @@ class EventsPageState extends State<EventsPage> {
         onTaskUpdated: (updatedTask) async {
           setState(() {
             _tasks[idx] = updatedTask;
-            if (_tasksBox != null && _tasksBox!.isOpen) {
-              _tasksBox!.putAt(idx, updatedTask);
-            }
           });
           
           // Sync to Supabase
@@ -438,7 +431,8 @@ class EventsPageState extends State<EventsPage> {
         event: Map<String, dynamic>.from(event),
         formatTime: formatTime,
         onEventUpdated: (updatedEvent) async {
-          _box.put(updatedEvent['id'], updatedEvent);
+          final idx = _events.indexWhere((e) => e['id'] == updatedEvent['id']);
+          if (idx != -1) setState(() => _events[idx] = updatedEvent);
           
           // Sync to Supabase
           final eventId = updatedEvent['id'];
@@ -473,9 +467,7 @@ class EventsPageState extends State<EventsPage> {
     );
   }
 
-  // Persistent task list using Hive
   List<Map<String, dynamic>> _tasks = [];
-  Box? _tasksBox;
 
   // Show a bottom-aligned date picker that fills the bottom of the screen
   Future<DateTime?> _showBottomDatePicker({
@@ -537,12 +529,9 @@ class EventsPageState extends State<EventsPage> {
         .select()
         .eq('user_id', userId)
         .order('date', ascending: true);
-    for (final ev in response) {
-      if (ev['id'] != null) {
-        _box.put(ev['id'], ev);
-      }
-    }
-    setState(() {});
+    setState(() {
+      _events = List<Map<String, dynamic>>.from(response);
+    });
   }
 
   Future<void> _fetchTasksFromSupabase() async {
@@ -553,38 +542,18 @@ class EventsPageState extends State<EventsPage> {
           .from('user_tasks')
           .select()
           .eq('user_id', userId);
-      
-      // Clear existing tasks box and reload from Supabase
-      if (_tasksBox != null && _tasksBox!.isOpen) {
-        await _tasksBox!.clear();
-        for (final taskData in response) {
-          final task = {
-            'id': taskData['id'],
-            'name': taskData['name'],
-            'days': List<String>.from(taskData['days'] ?? []),
-            'end_date': taskData['end_date'], // null means indefinite
-            'completedDates': List<String>.from(taskData['completed_dates'] ?? []),
-            'user_id': taskData['user_id'],
-          };
-          await _tasksBox!.add(task);
-        }
-      }
-      if (mounted) _loadTasksFromHive();
+      final loaded = (response as List).map((taskData) => {
+        'id': taskData['id'],
+        'name': taskData['name'],
+        'days': List<String>.from(taskData['days'] ?? []),
+        'end_date': taskData['end_date'],
+        'completedDates': List<String>.from(taskData['completed_dates'] ?? []),
+        'user_id': taskData['user_id'],
+      }).toList();
+      if (mounted) setState(() => _tasks = List<Map<String, dynamic>>.from(loaded));
     } catch (e) {
       print('Error fetching tasks from Supabase: $e');
     }
-  }
-
-  void _loadTasksFromHive() {
-    if (_tasksBox == null) return;
-    final loaded = _tasksBox!.values
-        .whereType<Map>()
-        .map((m) => Map<String, dynamic>.from(m))
-        .toList();
-    if (!mounted) return;
-    setState(() {
-      _tasks = loaded;
-    });
   }
 
   void _markTaskAsCompleted(int idx) async {
@@ -601,11 +570,7 @@ class EventsPageState extends State<EventsPage> {
       }
       _tasks[idx]['completedDates'] = completedDates;
       
-      setState(() {
-        if (_tasksBox != null && _tasksBox!.isOpen) {
-          _tasksBox!.putAt(idx, _tasks[idx]);
-        }
-      });
+      setState(() {});
       
       // Sync to Supabase
       final taskId = _tasks[idx]['id'];
@@ -679,17 +644,13 @@ class EventsPageState extends State<EventsPage> {
 
   // 0 = Events, 1 = Tasks
   int _selectedTab = 0;
-  final Box _box = Hive.box('events');
-  DateTime _focusedDay = DateTime.now();
+  List<Map<String, dynamic>> _events = [];
   DateTime _selectedDay = DateTime.now();
-  bool _showMonthView = false;
-  bool _isCalendarInWeekView = true; // Tracks VerticalStickyCalendar's internal view state
   final _calendarKey = GlobalKey<VerticalStickyCalendarState>();
-  final List<String> _weekdays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
   List<Map> _eventsForDay(DateTime day) {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    return _box.values
+    return _events
         .where(
           (ev) =>
               ev['date']?.substring(0, 10) ==
@@ -769,13 +730,10 @@ class EventsPageState extends State<EventsPage> {
 
   // Public methods for button actions
   int get selectedTab => _selectedTab;
-  bool get showMonthView => !_isCalendarInWeekView;
 
   void jumpToToday() {
     setState(() {
       _selectedDay = DateTime.now();
-      _focusedDay = DateTime.now();
-      _showMonthView = false;
     });
     _calendarKey.currentState?.jumpToToday();
   }
@@ -812,7 +770,7 @@ class EventsPageState extends State<EventsPage> {
             'end_time': event['end_time'] ?? '23:59',
             'all_day': event['all_day'] ?? false,
           };
-          _box.put(id, fullEvent);
+          setState(() => _events.add(fullEvent));
           try {
             await Supabase.instance.client.from('user_events').insert([
               {
@@ -849,7 +807,6 @@ class EventsPageState extends State<EventsPage> {
           setState(() {
             _tasks.add(newTask);
           });
-          _tasksBox?.add(newTask);
           
           // Sync to Supabase
           try {
@@ -887,16 +844,11 @@ class EventsPageState extends State<EventsPage> {
   // Update event completion logic and sync with Supabase
   void _checkAndMoveCompletedEvents() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    final events = _box.values
-        .where((ev) => ev['user_id'] == userId)
-        .cast<Map>()
-        .toList();
-    for (final ev in events) {
-      final event = Map<String, dynamic>.from(ev);
-      if (_isEventCompleted(event) && event['completed'] != true) {
+    for (int i = 0; i < _events.length; i++) {
+      final event = Map<String, dynamic>.from(_events[i]);
+      if (event['user_id'] == userId && _isEventCompleted(event) && event['completed'] != true) {
         event['completed'] = true;
-        _box.put(event['id'], event);
-        // Optionally sync with Supabase here
+        _events[i] = event;
         Supabase.instance.client
             .from('user_events')
             .update({'completed': true})
@@ -909,112 +861,9 @@ class EventsPageState extends State<EventsPage> {
   @override
   void initState() {
     super.initState();
-    // Set initial month label
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {
-        _currentMonthLabel = _formatMonthLabel(_focusedDay);
-      });
-    });
-
     _fetchEventsFromSupabase();
-
-    if (Hive.isBoxOpen('tasks')) {
-      _tasksBox = Hive.box('tasks');
-      _loadTasksFromHive();
-      _fetchTasksFromSupabase(); // Fetch tasks from Supabase
-    } else {
-      Hive.openBox('tasks').then((box) {
-        setState(() {
-          _tasksBox = box;
-          _loadTasksFromHive();
-          _fetchTasksFromSupabase(); // Fetch tasks from Supabase
-        });
-      });
-    }
-
-    // Supabase realtime subscription for user_events
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId != null) {
-      final eventsChannel = Supabase.instance.client.channel('public:user_events');
-      eventsChannel.onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: 'user_events',
-        callback: (payload) {
-          _fetchEventsFromSupabase();
-        },
-      );
-      eventsChannel.onPostgresChanges(
-        event: PostgresChangeEvent.update,
-        schema: 'public',
-        table: 'user_events',
-        callback: (payload) {
-          _fetchEventsFromSupabase();
-        },
-      );
-      eventsChannel.onPostgresChanges(
-        event: PostgresChangeEvent.delete,
-        schema: 'public',
-        table: 'user_events',
-        callback: (payload) {
-          _fetchEventsFromSupabase();
-        },
-      );
-      eventsChannel.subscribe();
-      
-      // Supabase realtime subscription for user_tasks
-      final tasksChannel = Supabase.instance.client.channel('public:user_tasks');
-      tasksChannel.onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: 'user_tasks',
-        callback: (payload) {
-          _fetchTasksFromSupabase();
-        },
-      );
-      tasksChannel.onPostgresChanges(
-        event: PostgresChangeEvent.update,
-        schema: 'public',
-        table: 'user_tasks',
-        callback: (payload) {
-          _fetchTasksFromSupabase();
-        },
-      );
-      tasksChannel.onPostgresChanges(
-        event: PostgresChangeEvent.delete,
-        schema: 'public',
-        table: 'user_tasks',
-        callback: (payload) {
-          _fetchTasksFromSupabase();
-        },
-      );
-      tasksChannel.subscribe();
-    }
-    Future.delayed(Duration.zero, () {
-      _checkAndMoveCompletedEvents();
-    });
-  }
-
-  String _formatMonthLabel(DateTime date) {
-    return "${_monthName(date.month)} ${date.year}";
-  }
-
-  String _monthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return months[month - 1];
+    _fetchTasksFromSupabase();
+    _checkAndMoveCompletedEvents();
   }
 
   @override
@@ -1022,8 +871,7 @@ class EventsPageState extends State<EventsPage> {
     return Scaffold(
       body: Column(
         children: [
-          if (!_showMonthView)
-            Flexible(
+          Flexible(
               fit: FlexFit.loose,
               child: VerticalStickyCalendar(
                 key: _calendarKey,
@@ -1035,27 +883,16 @@ class EventsPageState extends State<EventsPage> {
                 onDaySelected: (date) {
                   setState(() {
                     _selectedDay = date;
-                    _focusedDay = date;
-                    // Always start on events when selecting a day
                     _selectedTab = 0;
                   });
-                  // Notify main page
                   widget.onViewModeChanged?.call();
                 },
                 onViewModeChanged: (isWeekView) {
                   setState(() {
-                    _isCalendarInWeekView = isWeekView;
-                    if (isWeekView) {
-                      _selectedTab = 0; // Always start on events when entering week view
-                    }
+                    if (isWeekView) _selectedTab = 0;
                   });
                   widget.onViewModeChanged?.call();
                 },
-                selectedColor: Colors.blue[400],
-                todayColor: Colors.green[400],
-                textColor: Colors.white,
-                weekendColor: Color(0xFF7A7A7A),
-                showEventsBelow: true,
                 eventsForDay: _selectedTab == 0 ? _eventsForDay : null,
                 tasksForDay: _selectedTab == 1 ? _tasksForDay : null,
                 completedTasksForDay: _selectedTab == 1 ? _completedTasksForDay : null,
@@ -1065,7 +902,7 @@ class EventsPageState extends State<EventsPage> {
                 },
                 onEventDelete: (event) async {
                   setState(() {
-                    _box.delete(event['id']);
+                    _events.removeWhere((e) => e['id'] == event['id']);
                   });
                   try {
                     await Supabase.instance.client
@@ -1123,9 +960,6 @@ class EventsPageState extends State<EventsPage> {
                     final taskId = task['id'];
                     setState(() {
                       _tasks.removeAt(realIndex);
-                      if (_tasksBox != null && _tasksBox!.isOpen) {
-                        _tasksBox!.deleteAt(realIndex);
-                      }
                     });
                     
                     // Delete from Supabase
@@ -1156,170 +990,6 @@ class EventsPageState extends State<EventsPage> {
                 },
               ),
             ),
-          // Month view - show calendar grid when _showMonthView is true
-          if (_showMonthView) ...[
-            Container(
-              color: Color(0xFF232323),
-              child: Column(
-                children: [
-                  // Back button at the top left
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        left: 8,
-                        top: 8,
-                        bottom: 4,
-                      ),
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[900],
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 8,
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _showMonthView = false;
-                            // Reset selected day highlight when returning to week view
-                            _selectedDay = DateTime.now();
-                            // Always start on events when returning to week view
-                            _selectedTab = 0;
-                          });
-                          // Notify main page to update button bar
-                          widget.onViewModeChanged?.call();
-                          // Force update of month label immediately
-                          Future.delayed(Duration.zero, () {
-                            if (mounted) {
-                              setState(() {});
-                            }
-                          });
-                        },
-                        child: const Text('Back'),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(_weekdays.length, (i) {
-                        // ...existing code...
-                        final startOfWeek = _selectedDay.subtract(
-                          Duration(days: _selectedDay.weekday % 7),
-                        );
-                        final dayDate = startOfWeek.add(Duration(days: i));
-                        final isSelected =
-                            _selectedDay.day == dayDate.day &&
-                            _selectedDay.month == dayDate.month &&
-                            _selectedDay.year == dayDate.year;
-                        return Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: ElevatedButton(
-                              // ...existing code...
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isSelected
-                                    ? Colors.black
-                                    : Colors.grey[800],
-                                foregroundColor: Colors.white,
-                                minimumSize: const Size(18, 48),
-                                maximumSize: const Size(22, 56),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  side: isSelected
-                                      ? const BorderSide(
-                                          color: Color(0xFF39FF14),
-                                          width: 2.5,
-                                        )
-                                      : BorderSide.none,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                  horizontal: 0,
-                                ),
-                                shadowColor: isSelected
-                                    ? Color(0xFF39FF14)
-                                    : null,
-                                elevation: isSelected ? 8 : 2,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _selectedDay = dayDate;
-                                  _focusedDay = dayDate;
-                                  // Return to week view and start on events tab
-                                  _showMonthView = false;
-                                  _selectedTab = 0;
-                                });
-                                // Notify main page to update button bar
-                                widget.onViewModeChanged?.call();
-                              },
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _weekdays[i],
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: isSelected
-                                          ? Color(0xFF39FF14)
-                                          : Colors.white,
-                                    ),
-                                  ),
-                                  Text(
-                                    dayDate.day.toString(),
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isSelected
-                                          ? Color(0xFF39FF14)
-                                          : Colors.white70,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                  // Divider below weekday buttons
-                  const Divider(
-                    thickness: 2,
-                    height: 0,
-                    color: Color(0xFF232323),
-                  ),
-                ],
-              ),
-            ),
-            // Month view displays the calendar grid only
-            // Events and tasks are handled in the week view
-            Expanded(
-              child: Container(
-                color: Colors.grey[800],
-                child: Center(
-                  child: Text(
-                    'Month view - Calendar grid would go here\n(Events & Tasks handled in Week View)',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
