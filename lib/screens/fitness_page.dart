@@ -48,6 +48,11 @@ class _FitnessPageState extends State<FitnessPage> {
   final TextEditingController _trainerCtrl = TextEditingController();
   final ScrollController _trainerScroll = ScrollController();
   bool _trainerSending = false;
+  bool _sidebarOpen = false;
+  List<_ArchivedConversation> _archivedConversations = [];
+  bool _archivedLoading = false;
+  _ArchivedConversation? _viewingConversation;
+  bool _suppressResumeWarning = false;
 
   double? _goalCalories;
   double? _goalCarbs;
@@ -77,7 +82,40 @@ class _FitnessPageState extends State<FitnessPage> {
       _loadWeightsFromSupabase(),
       _loadMacroGoals(),
       _loadTodayLogs(),
+      _loadArchivedConversations(),
+      _loadUserSettings(),
     ]);
+  }
+
+  Future<void> _loadUserSettings() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await _client
+          .from('user_settings')
+          .select('suppress_resume_warning')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      if (!mounted) return;
+      if (row != null) {
+        setState(() {
+          _suppressResumeWarning = row['suppress_resume_warning'] == true;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveUserSettings({required bool suppressResumeWarning}) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      await _client.from('user_settings').upsert({
+        'user_id': user.id,
+        'suppress_resume_warning': suppressResumeWarning,
+      }, onConflict: 'user_id');
+      if (mounted)
+        setState(() => _suppressResumeWarning = suppressResumeWarning);
+    } catch (_) {}
   }
 
   @override
@@ -1236,6 +1274,321 @@ class _FitnessPageState extends State<FitnessPage> {
     );
   }
 
+  // ── Conversation Archive ─────────────────────────────────────────────────
+
+  Future<void> _loadArchivedConversations() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      if (mounted) setState(() => _archivedLoading = true);
+      final rows = await _client
+          .from('archived_conversations')
+          .select('id, name, messages, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', ascending: false);
+      if (!mounted) return;
+      setState(() {
+        _archivedConversations = (rows as List)
+            .map((r) => _ArchivedConversation.fromMap(r))
+            .toList();
+        _archivedLoading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _archivedLoading = false);
+    }
+  }
+
+  Future<void> _showSaveConversationDialog() async {
+    if (_trainerMsgs.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Start a conversation before saving.'),
+          backgroundColor: Colors.black,
+        ),
+      );
+      return;
+    }
+
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: _neonGreen, width: 1.5),
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
+        title: const Text(
+          'Save Conversation',
+          style: TextStyle(color: _neonGreen),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Warning: Your current conversation will be lost without saving it before another is opened!',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              style: const TextStyle(color: _neonGreen),
+              decoration: InputDecoration(
+                hintText: 'Name this conversation…',
+                hintStyle: TextStyle(color: _neonGreen.withOpacity(0.5)),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: _neonGreen),
+                  borderRadius: BorderRadius.circular(_cornerRadius),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: _neonGreen, width: 2),
+                  borderRadius: BorderRadius.circular(_cornerRadius),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: _neonGreen)),
+          ),
+          TextButton(
+            onPressed: () {
+              final name = ctrl.text.trim();
+              if (name.isEmpty) return;
+              Navigator.pop(ctx, name);
+            },
+            child: const Text(
+              'Save',
+              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (name == null || name.isEmpty) return;
+    await _saveConversation(name);
+  }
+
+  Future<void> _saveConversation(String name) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final messages = _trainerMsgs
+          .map(
+            (m) => {
+              'role': m.role == _TrainerRole.user ? 'user' : 'model',
+              'text': m.text,
+            },
+          )
+          .toList();
+
+      await _client.from('archived_conversations').insert({
+        'user_id': user.id,
+        'name': name,
+        'messages': messages,
+      });
+
+      await _loadArchivedConversations();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              side: BorderSide(color: _neonGreen, width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'Conversation saved as "$name"',
+              style: const TextStyle(color: _neonGreen),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save conversation: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteArchivedConversation(String id) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      await _client
+          .from('archived_conversations')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
+      await _loadArchivedConversations();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not delete: $e')));
+      }
+    }
+  }
+
+  void _doResume(_ArchivedConversation conv) {
+    setState(() {
+      _trainerMsgs.clear();
+      _trainerMsgs.addAll(conv.messages);
+      _viewingConversation = null;
+      _sidebarOpen = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollTrainerToBottom(),
+    );
+  }
+
+  Future<void> _resumeConversation(_ArchivedConversation conv) async {
+    final hasUnsaved = _trainerMsgs.length > 1;
+
+    if (!hasUnsaved || _suppressResumeWarning) {
+      _doResume(conv);
+      return;
+    }
+
+    bool dontShowAgain = false;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+          title: const Text(
+            'Resume Conversation?',
+            style: TextStyle(color: _neonGreen),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.redAccent, width: 1.2),
+                  color: Colors.redAccent.withOpacity(0.06),
+                ),
+                child: const Text(
+                  'Warning: Your current conversation will be lost if you resume without saving it first!',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'save'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: _neonGreen, width: 1.5),
+                  foregroundColor: _neonGreen,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_cornerRadius),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text(
+                  'Save & Resume',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'resume'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                  foregroundColor: Colors.redAccent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_cornerRadius),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text(
+                  'Resume Anyway',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'cancel'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: _neonGreen, width: 1.5),
+                  foregroundColor: _neonGreen,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(_cornerRadius),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(fontSize: 14, color: _neonGreen),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Checkbox(
+                    value: dontShowAgain,
+                    onChanged: (v) =>
+                        setDialogState(() => dontShowAgain = v ?? false),
+                    activeColor: _neonGreen,
+                    checkColor: Colors.black,
+                    side: BorderSide(color: _neonGreen),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  const Expanded(
+                    child: Text(
+                      "Don't show this again",
+                      style: TextStyle(color: _neonGreen, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: const [],
+        ),
+      ),
+    );
+
+    if (result == null || result == 'cancel') return;
+
+    if (dontShowAgain) {
+      await _saveUserSettings(suppressResumeWarning: true);
+    }
+
+    if (result == 'save') {
+      await _showSaveConversationDialog();
+      _doResume(conv);
+    } else if (result == 'resume') {
+      _doResume(conv);
+    }
+  }
+
   Future<void> _sendTrainer() async {
     final text = _trainerCtrl.text.trim();
     if (text.isEmpty || _trainerSending) return;
@@ -1603,113 +1956,464 @@ class _FitnessPageState extends State<FitnessPage> {
   }
 
   Widget _buildTrainerChat() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_cornerRadius),
-        border: Border.all(color: _neonGreen, width: 2),
-        color: Colors.black,
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(_cornerRadius),
+      child: Stack(
         children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _trainerScroll,
-              itemCount: _trainerMsgs.length + (_trainerSending ? 1 : 0),
-              itemBuilder: (context, i) {
-                if (_trainerSending && i == _trainerMsgs.length) {
-                  return const Align(
-                    alignment: Alignment.centerLeft,
-                    child: _TypingBubble(),
-                  );
-                }
-
-                final m = _trainerMsgs[i];
-                final isUser = m.role == _TrainerRole.user;
-
-                return Align(
-                  alignment: isUser
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 6),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isUser ? Colors.grey.shade900 : Colors.black,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: _neonGreen.withOpacity(0.8),
-                          width: 1.5,
+          // ── Main chat container ──
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(_cornerRadius),
+              border: Border.all(color: _neonGreen, width: 2),
+              color: Colors.black,
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                // Header row: Save + History buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _showSaveConversationDialog,
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: _neonGreen, width: 1.5),
+                          foregroundColor: _neonGreen,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(_cornerRadius),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _neonGreen.withOpacity(0.12),
-                            blurRadius: 10,
-                            spreadRadius: 1,
+                        child: const Text(
+                          'Save',
+                          style: TextStyle(fontSize: 13, color: _neonGreen),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton(
+                        onPressed: () =>
+                            setState(() => _sidebarOpen = !_sidebarOpen),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: _neonGreen, width: 1.5),
+                          foregroundColor: _neonGreen,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(_cornerRadius),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        child: const Text(
+                          'View Saved Conversations',
+                          style: TextStyle(fontSize: 13, color: _neonGreen),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // Chat messages
+                Expanded(
+                  child: ListView.builder(
+                    controller: _trainerScroll,
+                    itemCount: _trainerMsgs.length + (_trainerSending ? 1 : 0),
+                    itemBuilder: (context, i) {
+                      if (_trainerSending && i == _trainerMsgs.length) {
+                        return const Align(
+                          alignment: Alignment.centerLeft,
+                          child: _TypingBubble(),
+                        );
+                      }
+                      final m = _trainerMsgs[i];
+                      final isUser = m.role == _TrainerRole.user;
+                      return Align(
+                        alignment: isUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isUser
+                                  ? Colors.grey.shade900
+                                  : Colors.black,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: _neonGreen.withOpacity(0.8),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _neonGreen.withOpacity(0.12),
+                                  blurRadius: 10,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              m.text,
+                              style: const TextStyle(
+                                color: _neonGreen,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Input row
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _trainerCtrl,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendTrainer(),
+                        style: const TextStyle(color: _neonGreen),
+                        decoration: InputDecoration(
+                          hintText: 'Ask about workouts, diet plans, macros…',
+                          hintStyle: TextStyle(
+                            color: _neonGreen.withOpacity(0.55),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: _neonGreen,
+                              width: 1.5,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: _neonGreen,
+                              width: 2,
+                            ),
+                          ),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _trainerSending ? null : _sendTrainer,
+                      icon: _trainerSending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send, color: _neonGreen),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── Sidebar overlay (slides in from right) ──
+          if (_sidebarOpen)
+            Positioned.fill(
+              child: Row(
+                children: [
+                  // Dim tap area to close
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _sidebarOpen = false),
+                      child: Container(color: Colors.black.withOpacity(0.4)),
+                    ),
+                  ),
+                  // Sidebar panel
+                  Container(
+                    width: 220,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      border: Border(
+                        left: BorderSide(color: _neonGreen, width: 1.5),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
+                          child: Row(
+                            children: [
+                              const Text(
+                                'Saved',
+                                style: TextStyle(
+                                  color: _neonGreen,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: _neonGreen,
+                                  size: 18,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _sidebarOpen = false),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(color: _neonGreen, height: 1),
+                        Expanded(
+                          child: _archivedLoading
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              : _archivedConversations.isEmpty
+                              ? Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Text(
+                                    'No saved conversations yet.',
+                                    style: TextStyle(
+                                      color: _neonGreen.withOpacity(0.5),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  itemCount: _archivedConversations.length,
+                                  separatorBuilder: (_, __) => Divider(
+                                    color: _neonGreen.withOpacity(0.15),
+                                    height: 1,
+                                  ),
+                                  itemBuilder: (ctx, i) {
+                                    final conv = _archivedConversations[i];
+                                    return ListTile(
+                                      dense: true,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 2,
+                                          ),
+                                      title: Text(
+                                        conv.name,
+                                        style: const TextStyle(
+                                          color: _neonGreen,
+                                          fontSize: 13,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      subtitle: Text(
+                                        conv.formattedDate,
+                                        style: TextStyle(
+                                          color: _neonGreen.withOpacity(0.5),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      trailing: IconButton(
+                                        icon: Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.redAccent.withOpacity(
+                                            0.7,
+                                          ),
+                                          size: 16,
+                                        ),
+                                        onPressed: () =>
+                                            _confirmDeleteConversation(conv),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                      onTap: () {
+                                        setState(() {
+                                          _viewingConversation = conv;
+                                          _sidebarOpen = false;
+                                        });
+                                      },
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // ── Read-only conversation overlay ──
+          if (_viewingConversation != null)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(_cornerRadius),
+                  border: Border.all(color: _neonGreen, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    // Overlay header
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _viewingConversation!.name,
+                              style: const TextStyle(
+                                color: _neonGreen,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          OutlinedButton(
+                            onPressed: () =>
+                                _resumeConversation(_viewingConversation!),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: _neonGreen,
+                                width: 1.5,
+                              ),
+                              foregroundColor: _neonGreen,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  _cornerRadius,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Resume',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close,
+                              color: _neonGreen,
+                              size: 18,
+                            ),
+                            onPressed: () =>
+                                setState(() => _viewingConversation = null),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
                           ),
                         ],
                       ),
-                      child: Text(
-                        m.text,
-                        style: const TextStyle(color: _neonGreen, height: 1.25),
+                    ),
+                    const Divider(color: _neonGreen, height: 1),
+                    // Read-only messages
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _viewingConversation!.messages.length,
+                        itemBuilder: (ctx, i) {
+                          final m = _viewingConversation!.messages[i];
+                          final isUser = m.role == _TrainerRole.user;
+                          return Align(
+                            alignment: isUser
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 520),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 5),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: isUser
+                                      ? Colors.grey.shade900
+                                      : Colors.black,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: _neonGreen.withOpacity(0.6),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: Text(
+                                  m.text,
+                                  style: TextStyle(
+                                    color: _neonGreen.withOpacity(0.9),
+                                    height: 1.25,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _trainerCtrl,
-                  minLines: 1,
-                  maxLines: 4,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendTrainer(),
-                  style: const TextStyle(color: _neonGreen),
-                  decoration: InputDecoration(
-                    hintText: 'Ask about workouts, diet plans, macros…',
-                    hintStyle: TextStyle(color: _neonGreen.withOpacity(0.55)),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: _neonGreen,
-                        width: 1.5,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: _neonGreen, width: 2),
-                    ),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: _trainerSending ? null : _sendTrainer,
-                icon: _trainerSending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.send, color: _neonGreen),
-              ),
-            ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteConversation(_ArchivedConversation conv) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: _neonGreen, width: 1.5),
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
+        title: const Text(
+          'Delete Conversation',
+          style: TextStyle(color: _neonGreen),
+        ),
+        content: Text(
+          'Delete "${conv.name}"? This cannot be undone.',
+          style: TextStyle(color: _neonGreen.withOpacity(0.8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: _neonGreen)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
     );
+    if (ok == true) await _deleteArchivedConversation(conv.id);
   }
 
   Widget _collapsibleCard({
@@ -2634,6 +3338,44 @@ class _TypingBubbleState extends State<_TypingBubble>
         },
       ),
     );
+  }
+}
+
+class _ArchivedConversation {
+  final String id;
+  final String name;
+  final List<_TrainerMsg> messages;
+  final DateTime createdAt;
+
+  _ArchivedConversation({
+    required this.id,
+    required this.name,
+    required this.messages,
+    required this.createdAt,
+  });
+
+  factory _ArchivedConversation.fromMap(Map<String, dynamic> m) {
+    final msgs = (m['messages'] as List? ?? []).map((e) {
+      final map = e as Map<String, dynamic>;
+      final role = map['role'] == 'user'
+          ? _TrainerRole.user
+          : _TrainerRole.model;
+      return _TrainerMsg(role: role, text: map['text'].toString());
+    }).toList();
+
+    return _ArchivedConversation(
+      id: m['id'].toString(),
+      name: m['name'].toString(),
+      messages: msgs,
+      createdAt:
+          DateTime.tryParse(m['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+
+  String get formattedDate {
+    final d = createdAt.toLocal();
+    return '${d.month}/${d.day}/${d.year}';
   }
 }
 
