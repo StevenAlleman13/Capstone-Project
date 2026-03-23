@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,7 +35,7 @@ class _FitnessPageState extends State<FitnessPage> {
   bool _macrosExpanded = false;
   bool _trainerExpanded = false;
 
-  static const String _geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
+  static final String _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
   static const String _geminiModel = 'gemini-2.5-flash';
 
   final List<_TrainerMsg> _trainerMsgs = <_TrainerMsg>[

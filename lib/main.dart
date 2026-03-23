@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/login_page.dart';
 import 'screens/dashboard_page.dart' as dash;
@@ -21,17 +22,22 @@ const Color _neonGreen = Color(0xFF00FF66);
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await dotenv.load(fileName: ".env");
+
   await Hive.initFlutter();
   await Hive.deleteBoxFromDisk('events');
   await Hive.openBox('events');
   await Hive.openBox('tasks');
   await Hive.openBox('selected_apps');
 
-  await Supabase.initialize(
-    url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmenFiYXRkenV6YXVrbXFpZmVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcyODM1NjUsImV4cCI6MjA4Mjg1OTU2NX0.2kuf8GKWCMtZeKXPLgTSrOHUjYfOb7qCpwaIyFX7Ik8',
-  );
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+  if (supabaseUrl == null || supabaseAnonKey == null) {
+    throw Exception('Missing Supabase env variables');
+  }
+
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
   runApp(const MyApp());
 }
@@ -213,7 +219,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _startMonitorService() async {
     final box = Hive.box('selected_apps');
-    final packages = List<String>.from(box.get('packages', defaultValue: <String>[]));
+    final packages = List<String>.from(
+      box.get('packages', defaultValue: <String>[]),
+    );
     final difficulty = box.get('difficulty', defaultValue: 'normal') as String;
     final limitMins = _limitMinutes[difficulty] ?? 120;
 
@@ -264,7 +272,8 @@ class _MyHomePageState extends State<MyHomePage> {
       child: page,
     );
 
-    return Scaffold(      appBar: (selectedIndex == 0 || selectedIndex == 3)
+    return Scaffold(
+      appBar: (selectedIndex == 0 || selectedIndex == 3)
           ? null
           : AppBar(
               backgroundColor: Colors.black,
@@ -323,92 +332,107 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ),
                               ),
                               // Events/Tasks toggle button - centered (hidden in month view)
-                              if (selectedIndex == 3) 
+                              if (selectedIndex == 3)
                                 Builder(
                                   builder: (context) {
-                                    final currentTab = eventsPageKey.currentState?.selectedTab ?? 0;
-                                    final isMonthView = eventsPageKey.currentState?.showMonthView ?? false;
-                                    
+                                    final currentTab =
+                                        eventsPageKey
+                                            .currentState
+                                            ?.selectedTab ??
+                                        0;
+                                    final isMonthView =
+                                        eventsPageKey
+                                            .currentState
+                                            ?.showMonthView ??
+                                        false;
+
                                     if (isMonthView) {
                                       return const SizedBox.shrink();
                                     }
-                                    
+
                                     return GestureDetector(
                                       onTap: () {
                                         eventsPageKey.currentState?.toggleTab();
                                         setState(() {});
                                       },
                                       child: Container(
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[900],
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: _neonGreen.withOpacity(0.3),
-                                          width: 1,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[900],
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: _neonGreen.withOpacity(0.3),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: currentTab == 0
+                                                    ? _neonGreen
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                'Events',
+                                                style: TextStyle(
+                                                  color: currentTab == 0
+                                                      ? Colors.black
+                                                      : Colors.grey[400],
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  shadows: [],
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: currentTab == 1
+                                                    ? _neonGreen
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                'Tasks',
+                                                style: TextStyle(
+                                                  color: currentTab == 1
+                                                      ? Colors.black
+                                                      : Colors.grey[400],
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  shadows: [],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: currentTab == 0
-                                                  ? _neonGreen
-                                                  : Colors.transparent,
-                                              borderRadius: BorderRadius.circular(20),
-                                            ),
-                                            child: Text(
-                                              'Events',
-                                              style: TextStyle(
-                                                color: currentTab == 0
-                                                    ? Colors.black
-                                                    : Colors.grey[400],
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w500,
-                                                shadows: [],
-                                              ),
-                                            ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: currentTab == 1
-                                                  ? _neonGreen
-                                                  : Colors.transparent,
-                                              borderRadius: BorderRadius.circular(20),
-                                            ),
-                                            child: Text(
-                                              'Tasks',
-                                              style: TextStyle(
-                                                color: currentTab == 1
-                                                    ? Colors.black
-                                                    : Colors.grey[400],
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w500,
-                                                shadows: [],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                                    );
+                                  },
+                                ),
                               // Add button - just plus icon
                               Expanded(
                                 child: Align(
                                   alignment: Alignment.centerRight,
                                   child: IconButton(
                                     onPressed: () {
-                                      eventsPageKey.currentState?.addEventOrTask();
+                                      eventsPageKey.currentState
+                                          ?.addEventOrTask();
                                     },
                                     icon: Icon(
                                       Icons.add_circle,
@@ -437,34 +461,34 @@ class _MyHomePageState extends State<MyHomePage> {
                           showSelectedLabels: true,
                           showUnselectedLabels: true,
                           items: [
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.dashboard),
-                            label: 'Dashboard',
-                          ),
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.health_and_safety),
-                            label: 'Health',
-                          ),
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.fitness_center),
-                            label: 'Fitness',
-                          ),
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.event),
-                            label: 'Calendar',
-                          ),
-                          BottomNavigationBarItem(
-                            icon: Icon(Icons.settings),
-                            label: 'Settings',
-                          ),
-                        ],
-                        currentIndex: selectedIndex,
-                        onTap: (value) {
-                          setState(() {
-                            selectedIndex = value;
-                          });
-                        },
-                      ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.dashboard),
+                              label: 'Dashboard',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.health_and_safety),
+                              label: 'Health',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.fitness_center),
+                              label: 'Fitness',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.event),
+                              label: 'Calendar',
+                            ),
+                            BottomNavigationBarItem(
+                              icon: Icon(Icons.settings),
+                              label: 'Settings',
+                            ),
+                          ],
+                          currentIndex: selectedIndex,
+                          onTap: (value) {
+                            setState(() {
+                              selectedIndex = value;
+                            });
+                          },
+                        ),
                       ),
                     ],
                   ),
