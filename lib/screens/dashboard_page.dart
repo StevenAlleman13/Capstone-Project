@@ -121,7 +121,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             if (days.isEmpty || days.contains(todayWeekday)) {
               total++;
               if (List<String>.from(r['completed_dates'] ?? [])
-                  .contains(todayStr)) done++;
+                  .contains(todayStr)) {
+                done++;
+              }
             }
           }
           if (!mounted) return;
@@ -192,30 +194,35 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               .invokeMethod<bool>('hasUsageStatsPermission') ??
           false;
       if (!has) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _permissionDenied = true;
             _screenTimeLoading = false;
           });
+        }
         return;
       }
       final now = DateTime.now();
       final start = DateTime(now.year, now.month, now.day);
       final list = await AppUsage().getAppUsage(start, now);
       Duration total = Duration.zero;
-      for (final i in list) total += i.usage;
-      if (mounted)
+      for (final i in list) {
+        total += i.usage;
+      }
+      if (mounted) {
         setState(() {
           _usedToday = total;
           _permissionDenied = false;
           _screenTimeLoading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _permissionDenied = true;
           _screenTimeLoading = false;
         });
+      }
     }
   }
 

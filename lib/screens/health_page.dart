@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -16,10 +17,10 @@ class HealthPage extends StatefulWidget {
 class _HealthPageState extends State<HealthPage> {
   final _supabase = Supabase.instance.client;
 
-  static const List<String> _apiKeys = [
-    'd9928e2e194e429bb0f8ff330651ad89',
-    '160eeec24f1f43d5b642881f1be44243',
-  ];
+static final List<String> _apiKeys = [
+  dotenv.env['SPOONACULAR_KEY_1'] ?? '',
+  dotenv.env['SPOONACULAR_KEY_2'] ?? '',
+];
 
   List<IngredientRow> _ingredients = const [];
   bool _loadingIngredients = true;
@@ -971,11 +972,13 @@ class _IngredientCard extends StatelessWidget {
 
     String macroLine() {
       final parts = <String>[];
-      if (ing.calories != null)
+      if (ing.calories != null) {
         parts.add('${ing.calories!.toStringAsFixed(0)} cal');
+      }
       if (ing.carbsG != null) parts.add('${ing.carbsG!.toStringAsFixed(1)}c');
-      if (ing.proteinG != null)
+      if (ing.proteinG != null) {
         parts.add('${ing.proteinG!.toStringAsFixed(1)}p');
+      }
       if (ing.fatG != null) parts.add('${ing.fatG!.toStringAsFixed(1)}f');
       return parts.isEmpty ? 'Nutrition not synced yet' : parts.join(' • ');
     }
