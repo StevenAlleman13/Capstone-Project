@@ -2453,10 +2453,9 @@ class _FitnessPageState extends State<FitnessPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          title,
-                          style: Theme.of(
+                          title,                          style: Theme.of(
                             context,
-                          ).textTheme.titleLarge?.copyWith(color: _neonGreen),
+                          ).textTheme.titleLarge?.copyWith(color: Colors.white),
                         ),
                         if (!expanded && subtitle != null) ...[
                           SizedBox(height: 2),

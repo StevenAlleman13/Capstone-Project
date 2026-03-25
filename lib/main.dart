@@ -63,11 +63,10 @@ class MyApp extends StatelessWidget {
             onSurface: _neonGreen,
             error: Colors.red,
             onError: Colors.white,
-          ),
-          textTheme: TextTheme(
+          ),          textTheme: TextTheme(
             titleLarge: TextStyle(
-              color: _neonGreen,
-              shadows: [Shadow(color: _neonGreen, blurRadius: 12.0)],
+              color: Colors.white,
+              shadows: [],
               fontSize: 20,
             ),
             displayMedium: TextStyle(

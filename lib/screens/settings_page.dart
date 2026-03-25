@@ -239,13 +239,12 @@ class _SectionFrame extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+        children: [          Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   letterSpacing: 1.2,
                   fontWeight: FontWeight.w700,
-                  color: neon,
+                  color: Colors.white,
                 ),
           ),
           const SizedBox(height: 10),
