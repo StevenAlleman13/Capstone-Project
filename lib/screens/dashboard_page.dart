@@ -857,7 +857,8 @@ class _ScreenTimeWidget extends StatelessWidget {
         border: Border.all(color: neon, width: 2),
         color: Colors.black,
       ),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -941,6 +942,7 @@ class _ScreenTimeWidget extends StatelessWidget {
             _NeonProgressBar(value: progress, neon: barColor),
           ],
         ],
+        ),
       ),
     );
   }

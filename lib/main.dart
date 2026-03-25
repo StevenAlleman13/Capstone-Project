@@ -158,7 +158,10 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     if (_hasSession == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: SizedBox.shrink(),
+      );
     }
 
     if (_hasSession == true) {
