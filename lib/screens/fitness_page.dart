@@ -488,13 +488,14 @@ class _FitnessPageState extends State<FitnessPage> {
         'protein_goal': protein,
       }, onConflict: 'user_id');
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _goalCalories = cal;
           _goalCarbs = carbs;
           _goalFat = fat;
           _goalProtein = protein;
         });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

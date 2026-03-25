@@ -194,7 +194,9 @@ class _HealthPageState extends State<HealthPage> {
     await _loadIngredients();
     await _syncIngredientNutritionByName(name);
     await _loadIngredients();
-  }  Future<void> _removeIngredient(String name) async {
+  }  
+  
+  Future<void> _removeIngredient(String name) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 

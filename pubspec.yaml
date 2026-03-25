@@ -19,10 +19,12 @@ dependencies:
   flutter_slidable: ^4.0.3
   installed_apps: ^2.1.1
   app_usage: ^4.0.1
-  android_intent_plus: ^4.0.3
-  mobile_scanner: ^5.0.0
+  android_intent_plus: ^6.0.0
+  mobile_scanner: ^7.2.0
 
   scrollable_clean_calendar: ^1.5.0
+  app_settings: ^7.0.0
+  permission_handler: ^12.0.1
 
 dev_dependencies:
   flutter_test:
