@@ -30,7 +30,6 @@ Future<void> main() async {
   await Hive.openBox('tasks');
   await Hive.openBox('selected_apps');
 
-<<<<<<< HEAD
   final supabaseUrl = dotenv.env['SUPABASE_URL'];
   final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
 
@@ -39,15 +38,6 @@ Future<void> main() async {
   }
 
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
-=======
-await dotenv.load(fileName: '.env');
-
-await Supabase.initialize(
-  url: dotenv.env['SUPABASE_URL']!,
-  anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-);
-
->>>>>>> 4a8db3e72dc1646607159845487c144f64753ebf
 
   runApp(const MyApp());
 }
@@ -340,33 +330,11 @@ class _MyHomePageState extends State<MyHomePage> {
                                     ),
                                   ),
                                 ),
-                              ),
-<<<<<<< HEAD
-                              // Events/Tasks toggle button - centered (hidden in month view)
-                              if (selectedIndex == 3)
-                                Builder(
-                                  builder: (context) {
-                                    final currentTab =
-                                        eventsPageKey
-                                            .currentState
-                                            ?.selectedTab ??
-                                        0;
-                                    final isMonthView =
-                                        eventsPageKey
-                                            .currentState
-                                            ?.showMonthView ??
-                                        false;
-
-                                    if (isMonthView) {
-                                      return const SizedBox.shrink();
-                                    }
-=======
-                              // Events/Tasks toggle button - centered
+                              ),                              // Events/Tasks toggle button - centered
                               if (selectedIndex == 3)
                                 Builder(
                                   builder: (context) {
                                     final currentTab = eventsPageKey.currentState?.selectedTab ?? 0;
->>>>>>> 4a8db3e72dc1646607159845487c144f64753ebf
 
                                     return GestureDetector(
                                       onTap: () {
