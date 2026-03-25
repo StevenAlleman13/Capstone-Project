@@ -260,9 +260,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         ? 0.0
         : (1.0 - _usedToday.inSeconds / limit.inSeconds).clamp(0.0, 1.0);
     final screenBarColor = screenProgress < 0.2 ? Colors.red : neon;
-    final diffLabel = diffLabels[difficulty] ?? 'Normal';
-
-    return SafeArea(
+    final diffLabel = diffLabels[difficulty] ?? 'Normal';    return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Column(
@@ -278,28 +276,29 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               macroRing: _macroRing,
               weightRing: _weightRing,
             ),
-            const SizedBox(height: 10),
-
-            // ── Daily Tasks (expands to fill remaining space) ─────────────
+            const SizedBox(height: 10),              // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
-              child: _DailyTasksWidget(
+              flex: 1,              child: _DailyTasksWidget(
                 onTasksChanged: () => _loadRings(),
               ),
             ),
             const SizedBox(height: 10),
 
             // ── Screen Time ───────────────────────────────────────────────
-            _ScreenTimeWidget(
-              loading: _screenTimeLoading,
-              permissionDenied: _permissionDenied,
-              remaining: remaining,
-              usedToday: _usedToday,
-              limit: limit,
-              progress: screenProgress,
-              barColor: screenBarColor,
-              diffLabel: diffLabel,
-              fmtDuration: _fmtDuration,
-              onEnablePermission: _openUsageSettings,
+            Expanded(
+              flex: 1,
+              child: _ScreenTimeWidget(
+                loading: _screenTimeLoading,
+                permissionDenied: _permissionDenied,
+                remaining: remaining,
+                usedToday: _usedToday,
+                limit: limit,
+                progress: screenProgress,
+                barColor: screenBarColor,
+                diffLabel: diffLabel,
+                fmtDuration: _fmtDuration,
+                onEnablePermission: _openUsageSettings,
+              ),
             ),
           ],
         ),
@@ -328,9 +327,16 @@ class _ProfileWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
         color: Colors.black,
-      ),
-      child: Row(
+      ),      child: Row(
         children: [
+          // Left: Profile avatar
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: neon.withOpacity(0.15),
+            child: Icon(Icons.person, color: neon, size: 26),
+          ),
+          const SizedBox(width: 12),
+          // Middle: Profile info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -360,18 +366,15 @@ class _ProfileWidget extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: neon, width: 2),
-              color: Colors.black,
-              boxShadow: [
-                BoxShadow(color: neon.withOpacity(0.4), blurRadius: 10)
-              ],
-            ),
-            child: Icon(Icons.person, color: neon, size: 30),
+          // Right: Settings gear icon
+          IconButton(
+            icon: Icon(Icons.settings, color: neon, size: 26),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.of(context).pushNamed('/settings');
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -567,13 +570,11 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .select()
           .eq('user_id', user.id);
 
-      final todayWeekday = _weekdayName(DateTime.now().weekday);
-      final tasks = (rows as List).map((r) => {
+      final todayWeekday = _weekdayName(DateTime.now().weekday);      final tasks = (rows as List).map((r) => {
             'id': r['id'],
             'name': r['name'].toString(),
             'days': List<String>.from(r['days'] ?? []),
-            'end_date': r['end_date'],
-            'completed_dates':
+            'end_date': r['end_date'],            'completed_dates':
                 List<String>.from(r['completed_dates'] ?? []),
             'user_id': r['user_id'],
           }).where((t) {
@@ -592,9 +593,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
   }
 
   bool _isCompletedToday(Map<String, dynamic> task) =>
-      (task['completed_dates'] as List<String>).contains(_todayKey());
-
-  Future<void> _toggleTask(Map<String, dynamic> task) async {
+      (task['completed_dates'] as List<String>).contains(_todayKey());  Future<void> _toggleTask(Map<String, dynamic> task) async {
     final today = _todayKey();
     final completed = List<String>.from(task['completed_dates'] as List);
     if (completed.contains(today)) {
@@ -683,16 +682,13 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       'user_id': user.id,
     };
 
-    setState(() => _tasks.add(newTask));
-
-    try {
+    setState(() => _tasks.add(newTask));    try {
       await _supabase.from('user_tasks').insert({
         'id': id,
         'name': result,
         'days': [],
         'end_date': null,
-        'completed_dates': [],
-        'user_id': user.id,
+        'completed_dates': [],        'user_id': user.id,
       });
       widget.onTasksChanged();
     } catch (_) {
@@ -715,10 +711,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header
+        children: [          // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
+            padding: const EdgeInsets.fromLTRB(16, 2, 8, 0),
             child: Row(
               children: [
                 Icon(Icons.task_alt, color: neon, size: 20),
@@ -740,9 +735,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
               ],
             ),
           ),
-          Divider(height: 1, color: neon.withOpacity(0.2)),
-
-          // Task list
+          Divider(height: 1, color: neon.withOpacity(0.2)),          // Task list – hide completed tasks on dashboard
           Expanded(
             child: _loading
                 ? const Center(
@@ -752,10 +745,16 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : _tasks.isEmpty
-                    ? Center(
+                : Builder(builder: (_) {
+                    final incomplete = _tasks
+                        .where((t) => !_isCompletedToday(t))
+                        .toList();
+                    if (incomplete.isEmpty) {
+                      return Center(
                         child: Text(
-                          'No tasks for today.\nTap + to add one.',
+                          _tasks.isEmpty
+                              ? 'No tasks for today.\nTap + to add one.'
+                              : 'All tasks completed! 🎉',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: neon.withOpacity(0.5),
@@ -763,65 +762,54 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                             shadows: [],
                           ),
                         ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        itemCount: _tasks.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 6),
-                        itemBuilder: (context, i) {
-                          final task = _tasks[i];
-                          final done = _isCompletedToday(task);
-                          return InkWell(
-                            onTap: () => _toggleTask(task),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: done
-                                      ? neon
-                                      : neon.withOpacity(0.35),
-                                  width: done ? 1.5 : 1,
-                                ),
-                                color: done
-                                    ? neon.withOpacity(0.08)
-                                    : Colors.transparent,
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      itemCount: incomplete.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 2),                      itemBuilder: (context, i) {
+                        final task = incomplete[i];
+                        return InkWell(
+                          onTap: () => _toggleTask(task),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: neon.withOpacity(0.35),
+                                width: 1,
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    done
-                                        ? Icons.check_circle
-                                        : Icons.radio_button_unchecked,
-                                    color:
-                                        done ? neon : neon.withOpacity(0.4),
-                                    size: 22,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      task['name'] as String,
-                                      style: TextStyle(
-                                        color: done ? neon : Colors.white,
-                                        decoration: done
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                        decorationColor: neon,
-                                        fontSize: 14,
-                                        shadows: [],
-                                      ),
+                              color: Colors.transparent,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.radio_button_unchecked,
+                                  color: neon.withOpacity(0.4),
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    task['name'] as String,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      shadows: [],
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
+                    );
+                  }),
           ),
         ],
       ),
@@ -975,9 +963,9 @@ class _NeonProgressBar extends StatelessWidget {
       height: 22,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: neon.withValues(alpha: 0.95), width: 1.4),
+        border: Border.all(color: neon.withOpacity(0.95), width: 1.4),
         boxShadow: [
-          BoxShadow(color: neon.withValues(alpha: 0.18), blurRadius: 14)
+          BoxShadow(color: neon.withOpacity(0.18), blurRadius: 14)
         ],
         color: Colors.black,
       ),
@@ -991,7 +979,7 @@ class _NeonProgressBar extends StatelessWidget {
               color: neon,
               boxShadow: [
                 BoxShadow(
-                    color: neon.withValues(alpha: 0.35), blurRadius: 18),
+                    color: neon.withOpacity(0.35), blurRadius: 18),
               ],
             ),
           ),

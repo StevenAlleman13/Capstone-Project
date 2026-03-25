@@ -109,7 +109,7 @@ class HealthPageState extends State<HealthPage> {
     try {      if (mounted) setState(() => _loadingIngredients = true);
 
       // Try to fetch with serving columns first; fall back without them if the
-      // migration hasn't been run yet (PostgREST code 42703 = column not found).
+      // migration hasn't been run yet 
       List<dynamic> rows;
       try {
         rows = await _supabase
@@ -309,9 +309,7 @@ class HealthPageState extends State<HealthPage> {
           ],
         ),
       ),
-    );    if (result == null) return;
-
-    try {
+    );    if (result == null) return;    try {
       await _supabase.from('ingredients').insert({
         'user_id': user.id,
         'name': result.name,

@@ -88,12 +88,10 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await _supabase.auth.signInWithOAuth(
         OAuthProvider.google,
-        // Optional: if you have deep links configured, you can add redirectTo
-        // redirectTo: 'io.supabase.flutter://login-callback/',
+
       );
 
       // OAuth flow will redirect; on success your auth state listener should route.
-      // If you don't have a listener, you can check currentSession after returning.
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {

@@ -14,9 +14,12 @@ class SettingsPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-
+  Widget build(BuildContext context) {    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),

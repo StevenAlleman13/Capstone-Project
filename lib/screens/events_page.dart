@@ -541,8 +541,7 @@ class EventsPageState extends State<EventsPage> {
       final response = await Supabase.instance.client
           .from('user_tasks')
           .select()
-          .eq('user_id', userId);
-      final loaded = (response as List).map((taskData) => {
+          .eq('user_id', userId);      final loaded = (response as List).map((taskData) => {
         'id': taskData['id'],
         'name': taskData['name'],
         'days': List<String>.from(taskData['days'] ?? []),
@@ -554,9 +553,7 @@ class EventsPageState extends State<EventsPage> {
     } catch (e) {
       print('Error fetching tasks from Supabase: $e');
     }
-  }
-
-  void _markTaskAsCompleted(int idx) async {
+  }  void _markTaskAsCompleted(int idx) async {
     if (idx >= 0 && idx < _tasks.length) {
       final todayStr = _selectedDay.toIso8601String().substring(0, 10);
       if (_tasks[idx]['completedDates'] == null) {
@@ -771,8 +768,7 @@ class EventsPageState extends State<EventsPage> {
             'all_day': event['all_day'] ?? false,
           };
           setState(() => _events.add(fullEvent));
-          try {
-            await Supabase.instance.client.from('user_events').insert([
+          try {            await Supabase.instance.client.from('user_events').insert([
               {
                 'id': id,
                 'title': event['title'],
@@ -780,8 +776,7 @@ class EventsPageState extends State<EventsPage> {
                 'date': eventDate.toIso8601String(),
                 'user_id': userId,
                 'start_time': event['start_time'] ?? '00:00',
-                'end_time': event['end_time'] ?? '23:59',
-                'all_day': event['all_day'] ?? false,
+                'end_time': event['end_time'] ?? '23:59',                'all_day': event['all_day'] ?? false,
               },
             ]);
           } catch (e) {
@@ -809,15 +804,13 @@ class EventsPageState extends State<EventsPage> {
           });
           
           // Sync to Supabase
-          try {
-            await Supabase.instance.client.from('user_tasks').insert([
+          try {            await Supabase.instance.client.from('user_tasks').insert([
               {
                 'id': id,
                 'name': task['name'],
                 'days': task['days'] ?? [],
                 'end_date': task['end_date'], // null means indefinite
-                'completed_dates': [],
-                'user_id': userId,
+                'completed_dates': [],                'user_id': userId,
               },
             ]);
           } catch (e) {

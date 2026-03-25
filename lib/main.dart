@@ -96,12 +96,11 @@ class MyApp extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
           ),
-        ),
-
-        home: const AuthGate(),
+        ),        home: const AuthGate(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const MyHomePage(),
+          '/settings': (context) => const settings.SettingsPage(),
         },
       ),
     );
@@ -234,45 +233,40 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    var colorScheme = Theme.of(context).colorScheme;
-
-    Widget page;
+    var colorScheme = Theme.of(context).colorScheme;    Widget page;
     switch (selectedIndex) {
       case 0:
         page = const dash.DashboardPage();
       case 1:
-        page =
-            const health.HealthPage(); // or HealthPageDb if you made the DB wrapper
-      case 2:
-        page = const fit.FitnessPage();
-      case 3:
         page = EventsPage(
           key: eventsPageKey,
           onViewModeChanged: () {
             setState(() {}); // Rebuild to update button bar
           },
         );
+      case 2:
+        // Plus button - does nothing rn
+        page = const dash.DashboardPage();
+      case 3:
+        page =
+            const health.HealthPage();
       case 4:
-        page = const settings.SettingsPage();
+        page = const fit.FitnessPage();
       default:
         throw UnimplementedError('no widget for $selectedIndex');
-    }
-
-    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Settings'];
-    // If selectedIndex == 3 (Calendar), show blank title
-    final pageTitle = (selectedIndex == 3)
-        ? ''
-        : (selectedIndex >= 0 && selectedIndex < pageTitles.length
-              ? pageTitles[selectedIndex]
-              : '');
+    }    final pageTitles = ['Dashboard', 'Events', '', 'Health', 'Fitness'];
+    final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
+        ? pageTitles[selectedIndex]
+        : '';
 
     var mainArea = ColoredBox(
       color: colorScheme.surfaceContainerHighest,
       child: page,
     );
 
+    // Hide AppBar on Dashboard (0), Events (1), and Plus (2)
     return Scaffold(
-      appBar: (selectedIndex == 0 || selectedIndex == 3)
+      appBar: (selectedIndex == 0 || selectedIndex == 1 || selectedIndex == 2)
           ? null
           : AppBar(
               backgroundColor: Colors.black,
@@ -291,9 +285,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 Expanded(child: mainArea),
                 SafeArea(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (selectedIndex == 3)
+                    mainAxisSize: MainAxisSize.min,                    children: [
+                      if (selectedIndex == 1)
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.grey[900],
@@ -329,8 +322,8 @@ class _MyHomePageState extends State<MyHomePage> {
                                     ),
                                   ),
                                 ),
-                              ),                              // Events/Tasks toggle button - centered
-                              if (selectedIndex == 3)
+                              ),                             
+                              if (selectedIndex == 1)
                                 Builder(
                                   builder: (context) {
                                     final currentTab = eventsPageKey.currentState?.selectedTab ?? 0;
@@ -429,50 +422,65 @@ class _MyHomePageState extends State<MyHomePage> {
                               ),
                             ],
                           ),
-                        ),
-                      Theme(
-                        data: ThemeData(
-                          splashColor: Colors.transparent,
-                          highlightColor: Colors.transparent,
-                          hoverColor: Colors.transparent,
-                          splashFactory: NoSplash.splashFactory,
-                        ),
-                        child: BottomNavigationBar(
-                          backgroundColor: Colors.grey[800],
-                          type: BottomNavigationBarType.fixed,
-                          selectedItemColor: _neonGreen,
-                          unselectedItemColor: Colors.grey[500],
-                          enableFeedback: false,
-                          showSelectedLabels: true,
-                          showUnselectedLabels: true,
-                          items: [
-                            BottomNavigationBarItem(
-                              icon: Icon(Icons.dashboard),
+                        ),                      Container(
+                        color: Colors.grey[800],
+                        padding: const EdgeInsets.only(top: 6, bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _NavBarIcon(
+                              icon: Icons.dashboard,
                               label: 'Dashboard',
+                              isSelected: selectedIndex == 0,
+                              onTap: () => setState(() => selectedIndex = 0),
                             ),
-                            BottomNavigationBarItem(
-                              icon: Icon(Icons.health_and_safety),
+                            const SizedBox(width: 12),
+                            _NavBarIcon(
+                              icon: Icons.event,
+                              label: 'Events',
+                              isSelected: selectedIndex == 1,
+                              onTap: () => setState(() => selectedIndex = 1),
+                            ),
+                            const SizedBox(width: 12),
+                            // ── Plus button ──
+                            GestureDetector(
+                              onTap: () {}, // no page switch
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _neonGreen,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _neonGreen.withOpacity(0.4),
+                                      blurRadius: 12,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.add,
+                                  color: Colors.black,
+                                  size: 36,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            _NavBarIcon(
+                              icon: Icons.health_and_safety,
                               label: 'Health',
+                              isSelected: selectedIndex == 3,
+                              onTap: () => setState(() => selectedIndex = 3),
                             ),
-                            BottomNavigationBarItem(
-                              icon: Icon(Icons.fitness_center),
+                            const SizedBox(width: 12),
+                            _NavBarIcon(
+                              icon: Icons.fitness_center,
                               label: 'Fitness',
-                            ),
-                            BottomNavigationBarItem(
-                              icon: Icon(Icons.event),
-                              label: 'Calendar',
-                            ),
-                            BottomNavigationBarItem(
-                              icon: Icon(Icons.settings),
-                              label: 'Settings',
+                              isSelected: selectedIndex == 4,
+                              onTap: () => setState(() => selectedIndex = 4),
                             ),
                           ],
-                          currentIndex: selectedIndex,
-                          onTap: (value) {
-                            setState(() {
-                              selectedIndex = value;
-                            });
-                          },
                         ),
                       ),
                     ],
@@ -492,11 +500,18 @@ class _MyHomePageState extends State<MyHomePage> {
                     selectedLabelTextStyle: TextStyle(color: _neonGreen),
                     unselectedLabelTextStyle: TextStyle(
                       color: Colors.grey[500],
-                    ),
-                    destinations: [
+                    ),                    destinations: [
                       NavigationRailDestination(
                         icon: Icon(Icons.dashboard),
                         label: Text('Dashboard'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.event),
+                        label: Text('Events'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.add_circle, color: _neonGreen),
+                        label: Text(''),
                       ),
                       NavigationRailDestination(
                         icon: Icon(Icons.health_and_safety),
@@ -505,14 +520,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       NavigationRailDestination(
                         icon: Icon(Icons.fitness_center),
                         label: Text('Fitness'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.event),
-                        label: Text('Calendar'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.settings),
-                        label: Text('Settings'),
                       ),
                     ],
                     selectedIndex: selectedIndex,
@@ -620,6 +627,49 @@ class FavoritesPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  CUSTOM NAV BAR ICON
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NavBarIcon extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _NavBarIcon({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSelected ? _neonGreen : Colors.grey[500]!;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 56,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(color: color, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
