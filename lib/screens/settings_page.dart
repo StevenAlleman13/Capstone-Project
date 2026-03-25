@@ -14,9 +14,12 @@ class SettingsPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-
+  Widget build(BuildContext context) {    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
@@ -239,13 +242,12 @@ class _SectionFrame extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+        children: [          Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   letterSpacing: 1.2,
                   fontWeight: FontWeight.w700,
-                  color: neon,
+                  color: Colors.white,
                 ),
           ),
           const SizedBox(height: 10),

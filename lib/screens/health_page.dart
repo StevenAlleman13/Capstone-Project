@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -11,16 +10,17 @@ class HealthPage extends StatefulWidget {
   final void Function(RecipeCardUi recipe)? onRecipeTap;
 
   @override
-  State<HealthPage> createState() => _HealthPageState();
+  State<HealthPage> createState() => HealthPageState();
 }
 
-class _HealthPageState extends State<HealthPage> {
+// ignore: library_private_types_in_public_api
+class HealthPageState extends State<HealthPage> {
   final _supabase = Supabase.instance.client;
 
-static final List<String> _apiKeys = [
-  dotenv.env['SPOONACULAR_KEY_1'] ?? '',
-  dotenv.env['SPOONACULAR_KEY_2'] ?? '',
-];
+  static const List<String> _apiKeys = [
+    'd9928e2e194e429bb0f8ff330651ad89',
+    '160eeec24f1f43d5b642881f1be44243',
+  ];
 
   List<IngredientRow> _ingredients = const [];
   bool _loadingIngredients = true;
@@ -44,10 +44,35 @@ static final List<String> _apiKeys = [
     super.initState();
     _bootstrap();
   }
-
   Future<void> _bootstrap() async {
     await _loadFavorites();
     await _loadIngredients();
+  }
+
+  // ── Public deep-link methods (called from Quick Insert FAB) ──────────────
+
+  /// Expands Ingredients and opens the barcode scanner.
+  void openBarcodeScanner() {
+    setState(() => _ingredientsExpanded = true);
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) _openBarcodeScanner();
+    });
+  }
+
+  /// Expands Ingredients and opens the add-ingredient dialog.
+  void openAddIngredient() {
+    setState(() => _ingredientsExpanded = true);
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) _addIngredientDialog();
+    });
+  }
+
+  /// Expands Recipes and opens the add-recipe dialog.
+  void openAddRecipe() {
+    setState(() => _recipesExpanded = true);
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) _addRecipeDialog();
+    });
   }
 
   Future<http.Response?> _spoonGet(Uri uri) async {
@@ -81,18 +106,32 @@ static final List<String> _apiKeys = [
       return;
     }
 
-    try {
-      if (mounted) setState(() => _loadingIngredients = true);
+    try {      if (mounted) setState(() => _loadingIngredients = true);
 
-      final rows = await _supabase
-          .from('ingredients')
-          .select(
-            'name, spoonacular_id, image_url, calories, carbs_g, protein_g, fat_g, fiber_g, sugar_g, sodium_mg, last_nutrition_sync',
-          )
-          .eq('user_id', user.id)
-          .order('created_at');
-
-      final list = (rows as List)
+      // Try to fetch with serving columns first; fall back without them if the
+      // migration hasn't been run yet 
+      List<dynamic> rows;
+      try {
+        rows = await _supabase
+            .from('ingredients')
+            .select(
+              'name, spoonacular_id, image_url, calories, carbs_g, protein_g,'
+              ' fat_g, fiber_g, sugar_g, sodium_mg, last_nutrition_sync,'
+              ' serving_amount, serving_unit',
+            )
+            .eq('user_id', user.id)
+            .order('created_at');
+      } catch (_) {
+        // Columns not yet migrated — fetch without them
+        rows = await _supabase
+            .from('ingredients')
+            .select(
+              'name, spoonacular_id, image_url, calories, carbs_g, protein_g,'
+              ' fat_g, fiber_g, sugar_g, sodium_mg, last_nutrition_sync',
+            )
+            .eq('user_id', user.id)
+            .order('created_at');
+      }      final list = rows
           .map((r) => IngredientRow.fromMap(r as Map<String, dynamic>))
           .where((x) => x.name.trim().isNotEmpty)
           .toList();
@@ -132,7 +171,6 @@ static final List<String> _apiKeys = [
     }
     return true;
   }
-
   Future<void> _addIngredientDialog() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -143,59 +181,153 @@ static final List<String> _apiKeys = [
       return;
     }
 
-    final controller = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final amountCtrl = TextEditingController(text: '100');
     final formKey = GlobalKey<FormState>();
+    String selectedUnit = 'g';
 
-    final name = await showDialog<String>(
+    final result = await showDialog<({String name, double amount, String unit})>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.black,
-        title: const Text('Add Ingredient'),
-        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: controller,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
-              hintText: 'e.g., bananas',
-              hintStyle: TextStyle(color: Colors.white54),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDState) => AlertDialog(
+          backgroundColor: Colors.black,
+          title: const Text('Add Ingredient'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── Name ──
+                TextFormField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Ingredient',
+                    hintText: 'e.g., bananas',
+                    hintStyle: TextStyle(color: Colors.white54),
+                  ),
+                  validator: (v) {
+                    final s = (v ?? '').trim();
+                    if (s.isEmpty) return 'Enter an ingredient';
+                    if (s.length > 40) return 'Keep it short';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 14),
+                // ── Amount + unit row ──
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: amountCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          labelText: 'Amount',
+                          hintText: '100',
+                          hintStyle: TextStyle(color: Colors.white54),
+                        ),
+                        validator: (v) {
+                          final d = double.tryParse((v ?? '').trim());
+                          if (d == null || d <= 0) return 'Enter a valid amount';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Unit toggle chips
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Unit',
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: ['g', 'cups'].map((unit) {
+                            final sel = selectedUnit == unit;
+                            final neon = Theme.of(context).colorScheme.secondary;
+                            return GestureDetector(
+                              onTap: () => setDState(() => selectedUnit = unit),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 160),
+                                margin: const EdgeInsets.only(right: 6),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: sel ? neon : Colors.grey.shade700,
+                                    width: sel ? 1.8 : 1.0,
+                                  ),
+                                  color: sel
+                                      ? neon.withOpacity(0.12)
+                                      : Colors.transparent,
+                                ),
+                                child: Text(
+                                  unit,
+                                  style: TextStyle(
+                                    color: sel ? neon : Colors.grey,
+                                    fontWeight: sel
+                                        ? FontWeight.w700
+                                        : FontWeight.normal,
+                                    fontSize: 13,
+                                    shadows: [],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
             ),
-            validator: (v) {
-              final s = (v ?? '').trim();
-              if (s.isEmpty) return 'Enter an ingredient';
-              if (s.length > 40) return 'Keep it short';
-              return null;
-            },
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() != true) return;
+                Navigator.pop(context, (
+                  name: nameCtrl.text.trim(),
+                  amount: double.parse(amountCtrl.text.trim()),
+                  unit: selectedUnit,
+                ));
+              },
+              child: const Text('Add'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (formKey.currentState?.validate() != true) return;
-              Navigator.pop(context, controller.text.trim());
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
-    );
-
-    if (name == null) return;
-
-    await _supabase.from('ingredients').insert({
-      'user_id': user.id,
-      'name': name,
-    });
+    );    if (result == null) return;    try {
+      await _supabase.from('ingredients').insert({
+        'user_id': user.id,
+        'name': result.name,
+        'serving_amount': result.amount,
+        'serving_unit': result.unit,
+      });
+    } catch (_) {
+      // Fall back without serving columns if migration hasn't run yet
+      await _supabase.from('ingredients').insert({
+        'user_id': user.id,
+        'name': result.name,
+      });
+    }
 
     await _loadIngredients();
-    await _syncIngredientNutritionByName(name);
+    await _syncIngredientNutrition(result.name, result.amount, result.unit);
     await _loadIngredients();
-  }  Future<void> _removeIngredient(String name) async {
+  }Future<void> _removeIngredient(String name) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
@@ -223,16 +355,22 @@ static final List<String> _apiKeys = [
     await _syncIngredientNutritionByName(scannedBarcode);
     await _loadIngredients();
   }
-
-  Future<void> _syncIngredientNutritionByName(String name) async {
+  Future<void> _syncIngredientNutrition(
+    String name,
+    double amount,
+    String unit,
+  ) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
+
+    // Convert cups → grams (approximate: 1 cup ≈ 236 g for liquids, use as-is for dry)
+    final amountG = unit == 'cups' ? amount * 236.0 : amount;
 
     try {
       final found = await _spoonSearchIngredient(name);
       if (found == null) return;
 
-      final info = await _spoonIngredientInformation(found.id);
+      final info = await _spoonIngredientInformation(found.id, amountG: amountG);
       if (info == null) return;
 
       await _supabase
@@ -253,6 +391,10 @@ static final List<String> _apiKeys = [
           .eq('name', name);
     } catch (_) {}
   }
+
+  // Keep old name as a shim so barcode scanner still works
+  Future<void> _syncIngredientNutritionByName(String name) =>
+      _syncIngredientNutrition(name, 100, 'g');
 
   /* -------------------------- HEALTH FACTS -------------------------- */
 
@@ -298,7 +440,6 @@ static final List<String> _apiKeys = [
       if (mounted) setState(() => _loadingFacts = false);
     }
   }
-
   List<String> _buildFactsFromIngredients(List<IngredientRow> items) {
     final facts = <String>[];
 
@@ -313,13 +454,23 @@ static final List<String> _apiKeys = [
       if (ing.sugarG != null) parts.add('${_fmt1(ing.sugarG)}g sugar');
       if (ing.sodiumMg != null) parts.add('${_fmt0(ing.sodiumMg)}mg sodium');
 
+      // Build a human-readable serving label
+      String servingLabel = 'per 100g';
+      if (ing.servingAmount != null) {
+        final amt = ing.servingAmount!;
+        final display = amt == amt.truncate()
+            ? amt.toInt().toString()
+            : amt.toStringAsFixed(1);
+        servingLabel = 'per $display ${ing.servingUnit}';
+      }
+
       if (parts.isEmpty) {
         facts.add(
-          'Add details for ${ing.name} by refreshing ingredients (nutrition not synced yet).',
+          '${_title(ing.name)}: nutrition not synced yet — tap refresh to load.',
         );
       } else {
         facts.add(
-          '${_title(ing.name)} (typical serving): ${parts.join(' • ')}.',
+          '${_title(ing.name)} ($servingLabel): ${parts.join(' • ')}.',
         );
       }
     }
@@ -645,20 +796,9 @@ static final List<String> _apiKeys = [
                     text: 'Add ingredients to generate health facts.',
                   )
                 : _loadingFacts
-                ? const _EmptyHint(text: 'Loading facts...')
-                : _healthFacts.isEmpty
+                ? const _EmptyHint(text: 'Loading facts...')                : _healthFacts.isEmpty
                 ? const _EmptyHint(text: 'No facts yet. Tap refresh.')
-                : SizedBox(
-                    height: 120,
-                    child: PageView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: _healthFacts.length,
-                      itemBuilder: (context, i) => Padding(
-                        padding: const EdgeInsets.only(right: 10),
-                        child: _NeonBullet(text: _healthFacts[i]),
-                      ),
-                    ),
-                  ),
+                : _HealthFactsPager(facts: _healthFacts),
           ),
           const SizedBox(height: 14),
 
@@ -685,15 +825,14 @@ static final List<String> _apiKeys = [
                   },
                 ),
               ],
-            ),
-            child: ingredients.isEmpty
+            ),            child: ingredients.isEmpty
                 ? const _EmptyHint(text: 'Add ingredients to get recipes.')
                 : _loadingRecipes || _loadingFavorites
                 ? const _EmptyHint(text: 'Loading recipes...')
                 : _recipeCards.isEmpty
                 ? const _EmptyHint(text: 'No recipes found.')
                 : SizedBox(
-                    height: 240,
+                    height: 280,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
@@ -736,10 +875,11 @@ static final List<String> _apiKeys = [
 
     return _SpoonIngredientSearchResult(id: id, name: name, image: image);
   }
-
-  Future<_SpoonIngredientInfo?> _spoonIngredientInformation(int id) async {
+  Future<_SpoonIngredientInfo?> _spoonIngredientInformation(int id,
+      {double amountG = 100}) async {
     final uri = Uri.parse(
-      'https://api.spoonacular.com/food/ingredients/$id/information?amount=1&includeNutrition=true',
+      'https://api.spoonacular.com/food/ingredients/$id/information'
+      '?amount=${amountG.toStringAsFixed(1)}&unit=grams&includeNutrition=true',
     );
 
     final resp = await _spoonGet(uri);
@@ -836,6 +976,10 @@ class IngredientRow {
   final num? sugarG;
   final num? sodiumMg;
 
+  /// Serving size entered by the user (e.g. 100 g or 0.5 cups)
+  final double? servingAmount;
+  final String servingUnit; // 'g' | 'cups'
+
   const IngredientRow({
     required this.name,
     this.spoonacularId,
@@ -847,6 +991,8 @@ class IngredientRow {
     this.fiberG,
     this.sugarG,
     this.sodiumMg,
+    this.servingAmount,
+    this.servingUnit = 'g',
   });
 
   factory IngredientRow.fromMap(Map<String, dynamic> m) {
@@ -867,6 +1013,8 @@ class IngredientRow {
       fiberG: n(m['fiber_g']),
       sugarG: n(m['sugar_g']),
       sodiumMg: n(m['sodium_mg']),
+      servingAmount: n(m['serving_amount'])?.toDouble(),
+      servingUnit: (m['serving_unit'] ?? 'g').toString(),
     );
   }
 }
@@ -946,16 +1094,18 @@ class _IngredientCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final ing in items) ...[
-          _IngredientCard(
-            ing: ing,
-            onRemove: onRemove == null ? null : () => onRemove!(ing.name),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ],
+    return SizedBox(
+      height: 170,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, i) => _IngredientCard(
+          ing: items[i],
+          onRemove: onRemove == null ? null : () => onRemove!(items[i].name),
+        ),
+      ),
     );
   }
 }
@@ -972,80 +1122,115 @@ class _IngredientCard extends StatelessWidget {
 
     String macroLine() {
       final parts = <String>[];
-      if (ing.calories != null) {
+      if (ing.calories != null)
         parts.add('${ing.calories!.toStringAsFixed(0)} cal');
-      }
       if (ing.carbsG != null) parts.add('${ing.carbsG!.toStringAsFixed(1)}c');
-      if (ing.proteinG != null) {
+      if (ing.proteinG != null)
         parts.add('${ing.proteinG!.toStringAsFixed(1)}p');
-      }
       if (ing.fatG != null) parts.add('${ing.fatG!.toStringAsFixed(1)}f');
-      return parts.isEmpty ? 'Nutrition not synced yet' : parts.join(' • ');
+      return parts.isEmpty ? 'Tap sync' : parts.join(' • ');
+    }
+
+    String servingLabel() {
+      if (ing.servingAmount == null) return '';
+      final amt = ing.servingAmount!;
+      final display = amt == amt.truncate()
+          ? amt.toInt().toString()
+          : amt.toStringAsFixed(1);
+      return '$display ${ing.servingUnit}';
     }
 
     return Container(
-      padding: const EdgeInsets.all(12),      decoration: BoxDecoration(
+      width: 130,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: neon, width: 1.5),
-        boxShadow: [
-          BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6),
-        ],
+        boxShadow: [BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6)],
         color: Colors.black,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (ing.imageUrl.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                ing.imageUrl,
-                width: 44,
-                height: 44,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    Container(width: 44, height: 44, color: Colors.black),
-              ),
-            )
-          else
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: neon.withOpacity(0.4)),
-              ),
-              child: const Icon(Icons.restaurant, size: 20),
-            ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  ing.name,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  macroLine(),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: neon.withOpacity(0.85),
+          // Image + remove button row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Image
+              if (ing.imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    ing.imageUrl,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: Colors.black,
+                        border: Border.all(color: neon.withOpacity(0.4)),
+                      ),
+                      child: Icon(Icons.restaurant, size: 18, color: neon),
+                    ),
                   ),
+                )
+              else
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: neon.withOpacity(0.4)),
+                  ),
+                  child: Icon(Icons.restaurant, size: 18, color: neon),
                 ),
-              ],
+              const Spacer(),
+              // Remove button
+              if (onRemove != null)
+                GestureDetector(
+                  onTap: onRemove,
+                  child: Icon(Icons.close, size: 16, color: neon.withOpacity(0.7)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Name
+          Text(
+            ing.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
             ),
           ),
-          if (onRemove != null)
-            InkWell(
-              borderRadius: BorderRadius.circular(999),
-              onTap: onRemove,
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Icon(Icons.close, size: 18, color: neon),
+          // Serving size
+          if (servingLabel().isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              servingLabel(),
+              style: TextStyle(
+                color: neon.withOpacity(0.7),
+                fontSize: 11,
+                shadows: [],
               ),
             ),
+          ],
+          const Spacer(),
+          // Macros
+          Text(
+            macroLine(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: neon.withOpacity(0.9),
+              fontSize: 10,
+              shadows: [],
+            ),
+          ),
         ],
       ),
     );
@@ -1083,10 +1268,72 @@ class _NeonBullet extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text)),
+          const SizedBox(width: 10),          Expanded(child: Text(text)),
         ],
       ),
+    );
+  }
+}
+
+/* ── Health Facts Pager with dot indicators ── */
+
+class _HealthFactsPager extends StatefulWidget {
+  final List<String> facts;
+  const _HealthFactsPager({required this.facts});
+
+  @override
+  State<_HealthFactsPager> createState() => _HealthFactsPagerState();
+}
+
+class _HealthFactsPagerState extends State<_HealthFactsPager> {
+  int _currentPage = 0;
+  final PageController _ctrl = PageController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final neon = Theme.of(context).colorScheme.secondary;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          height: 150,
+          child: PageView.builder(
+            controller: _ctrl,
+            physics: const BouncingScrollPhysics(),
+            itemCount: widget.facts.length,
+            onPageChanged: (i) => setState(() => _currentPage = i),
+            itemBuilder: (context, i) => Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: _NeonBullet(text: widget.facts[i]),
+            ),
+          ),
+        ),
+        if (widget.facts.length > 1) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(widget.facts.length, (i) {
+              final active = i == _currentPage;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: active ? 16 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(3),
+                  color: active ? neon : neon.withOpacity(0.3),
+                ),
+              );
+            }),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1117,10 +1364,10 @@ class _RecipeCard extends StatelessWidget {
             boxShadow: [
               BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6),
             ],
-          ),
-          clipBehavior: Clip.antiAlias,
+          ),          clipBehavior: Clip.antiAlias,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Stack(
                 children: [
@@ -1256,9 +1503,8 @@ class _CollapsibleSection extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: neon,
+                      title,                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
                       ),
                     ),
                   ),
