@@ -1,21 +1,43 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 
+import 'dart:async';
+
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'screens/login_page.dart';
+import 'screens/dashboard_page.dart' as dash;
+import 'screens/health_page.dart' as health;
+import 'screens/fitness_page.dart' as fit;
+import 'screens/events_page.dart' show EventsPage, EventsPageState;
+import 'screens/settings_page.dart' as settings;
+import 'package:hive_flutter/hive_flutter.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: 'https://jfzqbatdzuzaukmqifef.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmenFiYXRkenV6YXVrbXFpZmVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcyODM1NjUsImV4cCI6MjA4Mjg1OTU2NX0.2kuf8GKWCMtZeKXPLgTSrOHUjYfOb7qCpwaIyFX7Ik8',
-  );
+  await dotenv.load(fileName: ".env");
+
+  await Hive.initFlutter();
+  await Hive.deleteBoxFromDisk('events');
+  await Hive.openBox('events');
+  await Hive.openBox('tasks');
+  await Hive.openBox('selected_apps');
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL'];
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+
+  if (supabaseUrl == null || supabaseAnonKey == null) {
+    throw Exception('Missing Supabase env variables');
+  }
+
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
 
   runApp(const MyApp());
 }
@@ -37,17 +59,14 @@ class MyApp extends StatelessWidget {
             onPrimary: _neonGreen,
             secondary: _neonGreen,
             onSecondary: Colors.black,
-            background: Colors.black,
-            onBackground: _neonGreen,
             surface: Colors.black,
             onSurface: _neonGreen,
             error: Colors.red,
             onError: Colors.white,
-          ),
-          textTheme: TextTheme(
+          ),          textTheme: TextTheme(
             titleLarge: TextStyle(
-              color: _neonGreen,
-              shadows: [Shadow(color: _neonGreen, blurRadius: 12.0)],
+              color: Colors.white,
+              shadows: [],
               fontSize: 20,
             ),
             displayMedium: TextStyle(
@@ -77,16 +96,79 @@ class MyApp extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
           ),
-        ),
-
-        // Login-first flow:
-        initialRoute: '/login',
+        ),        home: const AuthGate(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const MyHomePage(),
+          '/settings': (context) => const settings.SettingsPage(),
         },
       ),
     );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  StreamSubscription<AuthState>? _authSub;
+  bool? _hasSession;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapAuthState();
+  }
+
+  Future<void> _bootstrapAuthState() async {
+    final auth = Supabase.instance.client.auth;
+
+    _authSub = auth.onAuthStateChange.listen((event) {
+      if (!mounted) return;
+      setState(() {
+        _hasSession = event.session != null;
+      });
+    });
+
+    var session = auth.currentSession;
+    if (session == null) {
+      final deadline = DateTime.now().add(const Duration(seconds: 2));
+      while (session == null && DateTime.now().isBefore(deadline)) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        session = auth.currentSession;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _hasSession = session != null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasSession == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: SizedBox.shrink(),
+      );
+    }
+
+    if (_hasSession == true) {
+      return const MyHomePage();
+    }
+
+    return const LoginPage();
   }
 }
 
@@ -125,52 +207,79 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   var selectedIndex = 0;
+  final GlobalKey<EventsPageState> eventsPageKey = GlobalKey<EventsPageState>();
+
+  static final _monitorChannel = MethodChannel('lockin/monitor');
+  static const _limitMinutes = {'easy': 240, 'normal': 120, 'hardcore': 60};
+
+  @override
+  void initState() {
+    super.initState();
+    _startMonitorService();
+  }
+
+  Future<void> _startMonitorService() async {
+    final box = Hive.box('selected_apps');
+    final packages = List<String>.from(
+      box.get('packages', defaultValue: <String>[]),
+    );
+    final difficulty = box.get('difficulty', defaultValue: 'normal') as String;
+    final limitMins = _limitMinutes[difficulty] ?? 120;
+
+    try {
+      await _monitorChannel.invokeMethod('startMonitorService', {
+        'packages': packages,
+        'limitMinutes': limitMins,
+      });
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
-    var colorScheme = Theme.of(context).colorScheme;
-
-    Widget page;
+    var colorScheme = Theme.of(context).colorScheme;    Widget page;
     switch (selectedIndex) {
       case 0:
-        page = DashboardPage();
-        break;
+        page = const dash.DashboardPage();
       case 1:
-        page = HealthPage();
-        break;
+        page = EventsPage(
+          key: eventsPageKey,
+          onViewModeChanged: () {
+            setState(() {}); // Rebuild to update button bar
+          },
+        );
       case 2:
-        page = FitnessPage();
-        break;
+        // Plus button - does nothing rn
+        page = const dash.DashboardPage();
       case 3:
-        page = EventsPage();
-        break;
+        page =
+            const health.HealthPage();
       case 4:
-        page = SettingsPage();
-        break;
+        page = const fit.FitnessPage();
       default:
         throw UnimplementedError('no widget for $selectedIndex');
-    }
-
-    final pageTitles = ['Dashboard', 'Health', 'Fitness', 'Events', 'Settings'];
+    }    final pageTitles = ['Dashboard', 'Events', '', 'Health', 'Fitness'];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
         ? pageTitles[selectedIndex]
         : '';
 
     var mainArea = ColoredBox(
-      color: colorScheme.surfaceVariant,
-      child: AnimatedSwitcher(
-        duration: Duration(milliseconds: 200),
-        child: page,
-      ),
+      color: colorScheme.surfaceContainerHighest,
+      child: page,
     );
 
+    // Hide AppBar on Dashboard (0), Events (1), and Plus (2)
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        centerTitle: false,
-        title: Text(pageTitle, style: Theme.of(context).textTheme.titleLarge),
-      ),
+      appBar: (selectedIndex == 0 || selectedIndex == 1 || selectedIndex == 2)
+          ? null
+          : AppBar(
+              backgroundColor: Colors.black,
+              elevation: 0,
+              centerTitle: false,
+              title: Text(
+                pageTitle,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth < 450) {
@@ -178,39 +287,206 @@ class _MyHomePageState extends State<MyHomePage> {
               children: [
                 Expanded(child: mainArea),
                 SafeArea(
-                  child: BottomNavigationBar(
-                    backgroundColor: Colors.grey[800],
-                    type: BottomNavigationBarType.fixed,
-                    selectedItemColor: _neonGreen,
-                    unselectedItemColor: Colors.grey[500],
-                    items: [
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.dashboard),
-                        label: 'Dashboard',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.health_and_safety),
-                        label: 'Health',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.fitness_center),
-                        label: 'Fitness',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.event),
-                        label: 'Events',
-                      ),
-                      BottomNavigationBarItem(
-                        icon: Icon(Icons.settings),
-                        label: 'Settings',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,                    children: [
+                      if (selectedIndex == 1)
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[900],
+                            border: Border(
+                              top: BorderSide(
+                                color: _neonGreen.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 16,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Today button - simple text
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton(
+                                    onPressed: () {
+                                      eventsPageKey.currentState?.jumpToToday();
+                                    },
+                                    child: Text(
+                                      'Today',
+                                      style: TextStyle(
+                                        color: _neonGreen,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),                             
+                              if (selectedIndex == 1)
+                                Builder(
+                                  builder: (context) {
+                                    final currentTab = eventsPageKey.currentState?.selectedTab ?? 0;
+
+                                    return GestureDetector(
+                                      onTap: () {
+                                        eventsPageKey.currentState?.toggleTab();
+                                        setState(() {});
+                                      },
+                                      child: Container(
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[900],
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: _neonGreen.withOpacity(0.3),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: currentTab == 0
+                                                    ? _neonGreen
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                'Events',
+                                                style: TextStyle(
+                                                  color: currentTab == 0
+                                                      ? Colors.black
+                                                      : Colors.grey[400],
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  shadows: [],
+                                                ),
+                                              ),
+                                            ),
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 8,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: currentTab == 1
+                                                    ? _neonGreen
+                                                    : Colors.transparent,
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: Text(
+                                                'Tasks',
+                                                style: TextStyle(
+                                                  color: currentTab == 1
+                                                      ? Colors.black
+                                                      : Colors.grey[400],
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  shadows: [],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              // Add button - just plus icon
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: IconButton(
+                                    onPressed: () {
+                                      eventsPageKey.currentState
+                                          ?.addEventOrTask();
+                                    },
+                                    icon: Icon(
+                                      Icons.add_circle,
+                                      color: _neonGreen,
+                                      size: 32,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),                      Container(
+                        color: Colors.grey[800],
+                        padding: const EdgeInsets.only(top: 6, bottom: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            _NavBarIcon(
+                              icon: Icons.dashboard,
+                              label: 'Dashboard',
+                              isSelected: selectedIndex == 0,
+                              onTap: () => setState(() => selectedIndex = 0),
+                            ),
+                            const SizedBox(width: 12),
+                            _NavBarIcon(
+                              icon: Icons.event,
+                              label: 'Events',
+                              isSelected: selectedIndex == 1,
+                              onTap: () => setState(() => selectedIndex = 1),
+                            ),
+                            const SizedBox(width: 12),
+                            // ── Plus button ──
+                            GestureDetector(
+                              onTap: () {}, // no page switch
+                              child: Container(
+                                width: 50,
+                                height: 50,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: _neonGreen,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _neonGreen.withOpacity(0.4),
+                                      blurRadius: 12,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.add,
+                                  color: Colors.black,
+                                  size: 36,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            _NavBarIcon(
+                              icon: Icons.health_and_safety,
+                              label: 'Health',
+                              isSelected: selectedIndex == 3,
+                              onTap: () => setState(() => selectedIndex = 3),
+                            ),
+                            const SizedBox(width: 12),
+                            _NavBarIcon(
+                              icon: Icons.fitness_center,
+                              label: 'Fitness',
+                              isSelected: selectedIndex == 4,
+                              onTap: () => setState(() => selectedIndex = 4),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
-                    currentIndex: selectedIndex,
-                    onTap: (value) {
-                      setState(() {
-                        selectedIndex = value;
-                      });
-                    },
                   ),
                 ),
               ],
@@ -227,11 +503,18 @@ class _MyHomePageState extends State<MyHomePage> {
                     selectedLabelTextStyle: TextStyle(color: _neonGreen),
                     unselectedLabelTextStyle: TextStyle(
                       color: Colors.grey[500],
-                    ),
-                    destinations: [
+                    ),                    destinations: [
                       NavigationRailDestination(
                         icon: Icon(Icons.dashboard),
                         label: Text('Dashboard'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.event),
+                        label: Text('Events'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.add_circle, color: _neonGreen),
+                        label: Text(''),
                       ),
                       NavigationRailDestination(
                         icon: Icon(Icons.health_and_safety),
@@ -240,14 +523,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       NavigationRailDestination(
                         icon: Icon(Icons.fitness_center),
                         label: Text('Fitness'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.event),
-                        label: Text('Events'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.settings),
-                        label: Text('Settings'),
                       ),
                     ],
                     selectedIndex: selectedIndex,
@@ -276,7 +551,7 @@ class GeneratorPage extends StatelessWidget {
 }
 
 class BigCard extends StatelessWidget {
-  const BigCard({Key? key, required this.pair}) : super(key: key);
+  const BigCard({super.key, required this.pair});
 
   final WordPair pair;
 
@@ -359,50 +634,44 @@ class FavoritesPage extends StatelessWidget {
   }
 }
 
-class DashboardPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+//  CUSTOM NAV BAR ICON
+// ─────────────────────────────────────────────────────────────────────────────
 
-class HealthPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
+class _NavBarIcon extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
 
-class FitnessPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
-
-class EventsPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.shrink();
-  }
-}
-
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
-
-  Future<void> _logout(BuildContext context) async {
-    await Supabase.instance.client.auth.signOut();
-
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-  }
+  const _NavBarIcon({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ElevatedButton.icon(
-        icon: const Icon(Icons.logout),
-        label: const Text('Log out'),
-        onPressed: () => _logout(context),
+    final color = isSelected ? _neonGreen : Colors.grey[500]!;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 56,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(color: color, fontSize: 11),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
