@@ -257,7 +257,7 @@ class _MyHomePageState extends State<MyHomePage> {
         page = const fit.FitnessPage();
       default:
         throw UnimplementedError('no widget for $selectedIndex');
-    }    final pageTitles = ['Dashboard', 'Events', '', 'Health', 'Fitness'];
+    }    final pageTitles = ['Dashboard', 'Journal', '', 'Health', 'Fitness'];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
         ? pageTitles[selectedIndex]
         : '';
@@ -325,87 +325,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                     ),
                                   ),
                                 ),
-                              ),                             
-                              if (selectedIndex == 1)
-                                Builder(
-                                  builder: (context) {
-                                    final currentTab = eventsPageKey.currentState?.selectedTab ?? 0;
-
-                                    return GestureDetector(
-                                      onTap: () {
-                                        eventsPageKey.currentState?.toggleTab();
-                                        setState(() {});
-                                      },
-                                      child: Container(
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[900],
-                                          borderRadius: BorderRadius.circular(
-                                            20,
-                                          ),
-                                          border: Border.all(
-                                            color: _neonGreen.withOpacity(0.3),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 8,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: currentTab == 0
-                                                    ? _neonGreen
-                                                    : Colors.transparent,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                              child: Text(
-                                                'Events',
-                                                style: TextStyle(
-                                                  color: currentTab == 0
-                                                      ? Colors.black
-                                                      : Colors.grey[400],
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  shadows: [],
-                                                ),
-                                              ),
-                                            ),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 8,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: currentTab == 1
-                                                    ? _neonGreen
-                                                    : Colors.transparent,
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                              ),
-                                              child: Text(
-                                                'Tasks',
-                                                style: TextStyle(
-                                                  color: currentTab == 1
-                                                      ? Colors.black
-                                                      : Colors.grey[400],
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  shadows: [],
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
+                              ),
                               // Add button - just plus icon
                               Expanded(
                                 child: Align(
@@ -440,10 +360,13 @@ class _MyHomePageState extends State<MyHomePage> {
                             ),
                             const SizedBox(width: 12),
                             _NavBarIcon(
-                              icon: Icons.event,
-                              label: 'Events',
+                              icon: Icons.menu_book,
+                              label: 'Journal',
                               isSelected: selectedIndex == 1,
-                              onTap: () => setState(() => selectedIndex = 1),
+                              onTap: () {
+                                setState(() => selectedIndex = 1);
+                                eventsPageKey.currentState?.collapseAll();
+                              },
                             ),
                             const SizedBox(width: 12),
                             // ── Plus button ──
@@ -509,8 +432,8 @@ class _MyHomePageState extends State<MyHomePage> {
                         label: Text('Dashboard'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.event),
-                        label: Text('Events'),
+                        icon: Icon(Icons.menu_book),
+                        label: Text('Journal'),
                       ),
                       NavigationRailDestination(
                         icon: Icon(Icons.add_circle, color: _neonGreen),
@@ -530,6 +453,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       setState(() {
                         selectedIndex = value;
                       });
+                      if (value == 1) {
+                        eventsPageKey.currentState?.collapseAll();
+                      }
                     },
                   ),
                 ),

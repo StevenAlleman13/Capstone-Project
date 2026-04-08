@@ -8,9 +8,11 @@ class VerticalStickyCalendar extends StatefulWidget {
   final DateTime? selectedDay;
   final ValueChanged<DateTime>? onDaySelected;
   final List<Map> Function(DateTime)? eventsForDay;
+  final List<Map> Function(DateTime)? completedEventsForDay;
   final List<Map<String, dynamic>> Function(DateTime)? tasksForDay;
   final List<Map<String, dynamic>> Function(DateTime)? completedTasksForDay;
   final bool isShowingEvents;
+  final bool showBothSections;
   final void Function(Map)? onEventEdit;
   final void Function(Map)? onEventDelete;
   final void Function(Map<String, dynamic>, int)? onTaskEdit;
@@ -25,9 +27,11 @@ class VerticalStickyCalendar extends StatefulWidget {
     this.selectedDay,
     this.onDaySelected,
     this.eventsForDay,
+    this.completedEventsForDay,
     this.tasksForDay,
     this.completedTasksForDay,
     this.isShowingEvents = true,
+    this.showBothSections = false,
     this.onEventEdit,
     this.onEventDelete,
     this.onTaskEdit,
@@ -44,6 +48,18 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
   late DateTime _focusedDay;
   late DateTime _selectedDay;
   bool _jiggleMode = false;
+  bool _workoutsExpanded = false;
+  bool _eventsExpanded = false;
+  bool _tasksExpanded = false;
+
+  /// Collapse both the events and tasks sections
+  void collapseAll() {
+    setState(() {
+      _workoutsExpanded = false;
+      _eventsExpanded = false;
+      _tasksExpanded = false;
+    });
+  }
 
   /// Public method to jump the calendar to today's date in week view
   void jumpToToday() {
@@ -159,7 +175,9 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
           ),
           const Divider(height: 1, thickness: 1, color: const Color(0xFF39FF14)),
           Expanded(
-            child: widget.isShowingEvents ? _buildEventsList() : _buildTasksList(),
+            child: widget.showBothSections
+                ? _buildBothSections()
+                : (widget.isShowingEvents ? _buildEventsList() : _buildTasksList()),
           ),
         ],
       ),
@@ -194,6 +212,333 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     }
   }
 
+  Widget _buildBothSections() {
+    const neon = Color(0xFF39FF14);
+    return Container(
+      color: Colors.black,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            // Workouts collapsible
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: neon, width: 2),
+                color: Colors.black,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => _workoutsExpanded = !_workoutsExpanded),
+                    borderRadius: BorderRadius.vertical(
+                      top: const Radius.circular(18),
+                      bottom: _workoutsExpanded ? Radius.zero : const Radius.circular(18),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.fitness_center, color: neon, size: 20),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Workouts',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                shadows: [],
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _workoutsExpanded ? Icons.remove : Icons.add,
+                            color: neon,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_workoutsExpanded)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: Center(
+                        child: Text(
+                          'No workouts',
+                          style: TextStyle(color: Colors.white54, fontSize: 16, shadows: []),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Events collapsible
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: neon, width: 2),
+                color: Colors.black,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => _eventsExpanded = !_eventsExpanded),
+                    borderRadius: BorderRadius.vertical(
+                      top: const Radius.circular(18),
+                      bottom: _eventsExpanded ? Radius.zero : const Radius.circular(18),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event, color: neon, size: 20),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Events',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                shadows: [],
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _eventsExpanded ? Icons.remove : Icons.add,
+                            color: neon,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_eventsExpanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: _buildEventsContent(),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Tasks collapsible
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: neon, width: 2),
+                color: Colors.black,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => _tasksExpanded = !_tasksExpanded),
+                    borderRadius: BorderRadius.vertical(
+                      top: const Radius.circular(18),
+                      bottom: _tasksExpanded ? Radius.zero : const Radius.circular(18),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.task_alt, color: neon, size: 20),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Tasks',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                shadows: [],
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _tasksExpanded ? Icons.remove : Icons.add,
+                            color: neon,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_tasksExpanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: _buildTasksContent(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventsContent() {
+    if (widget.eventsForDay == null) {
+      return const Text('No events function provided',
+          style: TextStyle(color: Colors.white54, shadows: []));
+    }
+    final events = widget.eventsForDay!(_selectedDay);
+    final completedEvents = widget.completedEventsForDay?.call(_selectedDay) ?? [];
+    if (events.isEmpty && completedEvents.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Text('No events',
+              style: TextStyle(color: Colors.white54, fontSize: 16, shadows: [])),
+        ),
+      );
+    }
+    final allDayEvents = events.where((e) => e['all_day'] == true).toList();
+    final timedEvents = events.where((e) => e['all_day'] != true).toList();
+    timedEvents.sort((a, b) {
+      final aTime = a['start_time'] as String?;
+      final bTime = b['start_time'] as String?;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return _parseTimeToMinutes(aTime).compareTo(_parseTimeToMinutes(bTime));
+    });
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        if (allDayEvents.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('ALL DAY',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...allDayEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                event: Map<String, dynamic>.from(entry.value),
+                index: entry.key,
+                isCompleted: false,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () => widget.onEventEdit?.call(entry.value),
+                onDelete: () => widget.onEventDelete?.call(entry.value),
+              )),
+          const SizedBox(height: 8),
+        ],
+        if (timedEvents.isNotEmpty) ...[
+          if (allDayEvents.isNotEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8, left: 4),
+              child: Text('SCHEDULED',
+                  style: TextStyle(
+                      color: Colors.white54, fontSize: 12,
+                      fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+            ),
+          ...timedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                event: Map<String, dynamic>.from(entry.value),
+                index: allDayEvents.length + entry.key,
+                isCompleted: false,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () => widget.onEventEdit?.call(entry.value),
+                onDelete: () => widget.onEventDelete?.call(entry.value),
+              )),
+        ],
+        if (completedEvents.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('COMPLETED',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...completedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                event: Map<String, dynamic>.from(entry.value),
+                index: allDayEvents.length + timedEvents.length + entry.key,
+                isCompleted: true,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () {},
+                onDelete: () => widget.onEventDelete?.call(entry.value),
+              )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTasksContent() {
+    if (widget.tasksForDay == null) {
+      return const Text('No tasks function provided',
+          style: TextStyle(color: Colors.white54, shadows: []));
+    }
+    final tasks = widget.tasksForDay!(_selectedDay);
+    final completedTasks = widget.completedTasksForDay?.call(_selectedDay) ?? [];
+    if (tasks.isEmpty && completedTasks.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Text('No tasks',
+              style: TextStyle(color: Colors.white54, fontSize: 16, shadows: [])),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        if (tasks.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('TASKS',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...tasks.asMap().entries.map((entry) => _TaskDismissibleOverlay(
+                task: entry.value,
+                index: entry.key,
+                isCompleted: false,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () => widget.onTaskEdit?.call(entry.value, entry.key),
+                onDelete: () async => await widget.onTaskDelete?.call(entry.value, entry.key),
+                onComplete: () => widget.onTaskComplete?.call(entry.value, entry.key),
+              )),
+          if (completedTasks.isNotEmpty) const SizedBox(height: 8),
+        ],
+        if (completedTasks.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('COMPLETED',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...completedTasks.asMap().entries.map((entry) => _TaskDismissibleOverlay(
+                task: entry.value,
+                index: entry.key,
+                isCompleted: true,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () {},
+                onDelete: () async => await widget.onTaskDelete?.call(entry.value, entry.key),
+                onComplete: () {},
+              )),
+        ],
+      ],
+    );
+  }
+
   Widget _buildEventsList() {
     if (widget.eventsForDay == null) {
       return Container(
@@ -208,11 +553,12 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     }
 
     final events = widget.eventsForDay!(_selectedDay);
+    final completedEvents = widget.completedEventsForDay?.call(_selectedDay) ?? [];
 
     // Separate all-day and timed events
     final allDayEvents = events.where((e) => e['all_day'] == true).toList();
     final timedEvents = events.where((e) => e['all_day'] != true).toList();
-    
+
     // Sort timed events by start time
     timedEvents.sort((a, b) {
       final aTime = a['start_time'] as String?;
@@ -229,7 +575,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
         children: [
           const SizedBox(height: 16),
           Expanded(
-            child: events.isEmpty
+            child: events.isEmpty && completedEvents.isEmpty
                 ? const Center(
                     child: Text(
                       'No events',
@@ -256,6 +602,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                         ...allDayEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
                           event: Map<String, dynamic>.from(entry.value),
                           index: entry.key,
+                          isCompleted: false,
                           isJiggling: _jiggleMode,
                           onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
                           onEdit: () { widget.onEventEdit?.call(entry.value); },
@@ -281,9 +628,35 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                         ...timedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
                           event: Map<String, dynamic>.from(entry.value),
                           index: allDayEvents.length + entry.key,
+                          isCompleted: false,
                           isJiggling: _jiggleMode,
                           onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
                           onEdit: () { widget.onEventEdit?.call(entry.value); },
+                          onDelete: () { widget.onEventDelete?.call(entry.value); },
+                        )),
+                      ],
+                      // Completed events section
+                      if (completedEvents.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8, left: 4),
+                          child: Text(
+                            'COMPLETED',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        ...completedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                          event: Map<String, dynamic>.from(entry.value),
+                          index: allDayEvents.length + timedEvents.length + entry.key,
+                          isCompleted: true,
+                          isJiggling: _jiggleMode,
+                          onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                          onEdit: () {},
                           onDelete: () { widget.onEventDelete?.call(entry.value); },
                         )),
                       ],
@@ -404,6 +777,7 @@ class _EventDismissibleOverlay extends StatefulWidget {
   final VoidCallback onEdit;
   final VoidCallback onLongPress;
   final bool isJiggling;
+  final bool isCompleted;
   final int index;
 
   const _EventDismissibleOverlay({
@@ -412,6 +786,7 @@ class _EventDismissibleOverlay extends StatefulWidget {
     required this.onEdit,
     required this.onLongPress,
     required this.isJiggling,
+    required this.isCompleted,
     required this.index,
   });
 
@@ -482,10 +857,10 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
               margin: const EdgeInsets.fromLTRB(0, 6, 6, 8),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.grey[850],
+                color: widget.isCompleted ? Colors.grey[900] : Colors.grey[850],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFF39FF14),
+                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF39FF14),
                   width: 1.5,
                 ),
               ),
@@ -499,11 +874,11 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                       padding: const EdgeInsets.only(right: 12),
                       child: Text(
                         widget.event['start_time'],
-                        style: const TextStyle(
-                          color: Color(0xFF39FF14),
+                        style: TextStyle(
+                          color: widget.isCompleted ? Colors.grey[600] : const Color(0xFF39FF14),
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          shadows: [],
+                          shadows: const [],
                         ),
                       ),
                     ),
@@ -516,15 +891,15 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                             Expanded(
                               child: Text(
                                 widget.event['title'] ?? 'Unnamed Event',
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: widget.isCompleted ? Colors.grey[600] : Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
-                                  shadows: [],
+                                  shadows: const [],
                                 ),
                               ),
                             ),
-                            if (hasDescription && !widget.isJiggling)
+                            if (hasDescription && !widget.isJiggling && !widget.isCompleted)
                               Icon(
                                 _expanded
                                     ? Icons.expand_less
@@ -538,10 +913,10 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                             widget.event['end_time'] != null)
                           Text(
                             'Until ${widget.event['end_time']}',
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color: widget.isCompleted ? Colors.grey[700] : Colors.white60,
                               fontSize: 12,
-                              shadows: [],
+                              shadows: const [],
                             ),
                           ),
                         AnimatedSize(
@@ -678,9 +1053,7 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                 color: widget.isCompleted ? Colors.grey[900] : Colors.grey[850],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: widget.isCompleted
-                      ? const Color(0xFF39FF14).withOpacity(0.5)
-                      : const Color(0xFF39FF14),
+                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF39FF14),
                   width: 1.5,
                 ),
               ),
@@ -694,29 +1067,19 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                         Text(
                           widget.task['name'] ?? 'Unnamed Task',
                           style: TextStyle(
-                            color: widget.isCompleted
-                                ? Colors.white54
-                                : Colors.white,
+                            color: widget.isCompleted ? Colors.grey[600] : Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             shadows: const [],
-                            decoration: widget.isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
                           ),
                         ),
                         if ((widget.task['days'] as List?)?.isNotEmpty ?? false)
                           Text(
                             'Repeats on: ${(widget.task['days'] as List).join(", ")}',
                             style: TextStyle(
-                              color: widget.isCompleted
-                                  ? Colors.white38
-                                  : Colors.white60,
+                              color: widget.isCompleted ? Colors.grey[700] : Colors.white60,
                               fontSize: 12,
                               shadows: const [],
-                              decoration: widget.isCompleted
-                                  ? TextDecoration.lineThrough
-                                  : null,
                             ),
                           ),
                       ],
