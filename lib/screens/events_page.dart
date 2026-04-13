@@ -4,362 +4,9 @@ import 'package:flutter/material.dart';
 import '../widgets/vertical_sticky_calendar.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-// Overlay Dismissible widget for task row
-class _TaskDismissibleOverlay extends StatefulWidget {
-  final Map<String, dynamic> task;
-  final int idx;
-  final VoidCallback onDelete;
-  final VoidCallback onEdit;
-  const _TaskDismissibleOverlay({
-    required this.task,
-    required this.idx,
-    required this.onDelete,
-    required this.onEdit,
-  });
-
-  @override
-  State<_TaskDismissibleOverlay> createState() =>
-      _TaskDismissibleOverlayState();
-}
-
-class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay> {
-  double _swipeAmount = 0.0;
-  bool _showActions = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onHorizontalDragUpdate: (details) {
-        setState(() {
-          _swipeAmount += details.delta.dx;
-          if (_swipeAmount < -60) {
-            _showActions = true;
-          } else if (_swipeAmount > -20) {
-            _showActions = false;
-          }
-        });
-      },
-      onHorizontalDragEnd: (_) {
-        setState(() {
-          if (_swipeAmount < -60) {
-            _showActions = true;
-            _swipeAmount = -60;
-          } else {
-            _showActions = false;
-            _swipeAmount = 0.0;
-          }
-        });
-      },
-      child: Stack(
-        alignment: Alignment.centerRight,
-        children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey[850],
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-              border: Border.all(
-                color: Color(0xFF39FF14), // Neon green
-                width: 2.0,
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    title: Text(
-                      widget.task['name'] ?? '',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      (widget.task['days'] as List<String>).isNotEmpty
-                          ? 'Repeats on: ${(widget.task['days'] as List<String>).join(", ")}'
-                          : 'No repeat days selected',
-                      style: const TextStyle(color: Colors.white60),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          AnimatedOpacity(
-            opacity: _showActions ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: _showActions
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.symmetric(
-                          vertical: 6,
-                          horizontal: 4,
-                        ),
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Color(0xFF39FF14),
-                            width: 3.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0xFF39FF14).withOpacity(0.3),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.white),
-                          tooltip: 'Edit',
-                          onPressed: widget.onEdit,
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(
-                          top: 6,
-                          bottom: 6,
-                          right: 24,
-                          left: 2,
-                        ),
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Color(0xFF39FF14),
-                            width: 3.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0xFF39FF14).withOpacity(0.3),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.white),
-                          tooltip: 'Delete',
-                          onPressed: widget.onDelete,
-                        ),
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Overlay Dismissible widget for events
-class _EventDismissibleOverlay extends StatefulWidget {
-  final Map<String, dynamic> event;
-  final VoidCallback onDelete;
-  final VoidCallback onEdit;
-  const _EventDismissibleOverlay({
-    required this.event,
-    required this.onDelete,
-    required this.onEdit,
-  });
-
-  @override
-  State<_EventDismissibleOverlay> createState() =>
-      _EventDismissibleOverlayState();
-}
-
-class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay> {
-  double _swipeAmount = 0.0;
-  bool _showActions = false;
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => setState(() => _expanded = !_expanded),
-      onHorizontalDragUpdate: (details) {
-        setState(() {
-          _swipeAmount += details.delta.dx;
-          if (_swipeAmount < -60) {
-            _showActions = true;
-          } else if (_swipeAmount > -20) {
-            _showActions = false;
-          }
-        });
-      },
-      onHorizontalDragEnd: (_) {
-        setState(() {
-          if (_swipeAmount < -60) {
-            _showActions = true;
-            _swipeAmount = -60;
-          } else {
-            _showActions = false;
-            _swipeAmount = 0.0;
-          }
-        });
-      },
-      child: Stack(
-        alignment: Alignment.centerRight,
-        children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            decoration: BoxDecoration(
-              color: Colors.grey[850],
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-              border: Border.all(
-                color: Color(0xFF39FF14), // Neon green
-                width: 2.0,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  title: Text(
-                    widget.event['title'] ?? '',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  subtitle: Text(
-                    widget.event['all_day'] == true
-                        ? 'All Day'
-                        : (widget.event['start_time'] != null &&
-                                  widget.event['end_time'] != null
-                              ? '${widget.event['start_time']} - ${widget.event['end_time']}'
-                              : 'Time not set'),
-                    style: const TextStyle(
-                      color: Color(0xFF39FF14),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  trailing: widget.event['description'] != null &&
-                          widget.event['description'].toString().isNotEmpty
-                      ? Icon(
-                          _expanded ? Icons.expand_less : Icons.expand_more,
-                          color: Colors.white54,
-                          size: 20,
-                        )
-                      : null,
-                ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  child: _expanded &&
-                          widget.event['description'] != null &&
-                          widget.event['description'].toString().isNotEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                          child: Text(
-                            widget.event['description'],
-                            style: const TextStyle(color: Colors.white60, fontSize: 13),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
-          ),
-          AnimatedOpacity(
-            opacity: _showActions ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 200),
-            child: _showActions
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.symmetric(
-                          vertical: 6,
-                          horizontal: 4,
-                        ),
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Color(0xFF39FF14),
-                            width: 3.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0xFF39FF14).withOpacity(0.3),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.white),
-                          tooltip: 'Edit',
-                          onPressed: widget.onEdit,
-                        ),
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(
-                          top: 6,
-                          bottom: 6,
-                          right: 24,
-                          left: 2,
-                        ),
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.black,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Color(0xFF39FF14),
-                            width: 3.0,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0xFF39FF14).withOpacity(0.3),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.white),
-                          tooltip: 'Delete',
-                          onPressed: widget.onDelete,
-                        ),
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
-      ),
-    );
-  }
-}
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 class EventsPage extends StatefulWidget {
   final VoidCallback? onViewModeChanged;
@@ -541,8 +188,7 @@ class EventsPageState extends State<EventsPage> {
       final response = await Supabase.instance.client
           .from('user_tasks')
           .select()
-          .eq('user_id', userId);
-      final loaded = (response as List).map((taskData) => {
+          .eq('user_id', userId);      final loaded = (response as List).map((taskData) => {
         'id': taskData['id'],
         'name': taskData['name'],
         'days': List<String>.from(taskData['days'] ?? []),
@@ -554,9 +200,7 @@ class EventsPageState extends State<EventsPage> {
     } catch (e) {
       print('Error fetching tasks from Supabase: $e');
     }
-  }
-
-  void _markTaskAsCompleted(int idx) async {
+  }  void _markTaskAsCompleted(int idx) async {
     if (idx >= 0 && idx < _tasks.length) {
       final todayStr = _selectedDay.toIso8601String().substring(0, 10);
       if (_tasks[idx]['completedDates'] == null) {
@@ -650,15 +294,22 @@ class EventsPageState extends State<EventsPage> {
 
   List<Map> _eventsForDay(DateTime day) {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    return _events
-        .where(
-          (ev) =>
-              ev['date']?.substring(0, 10) ==
-                  day.toIso8601String().substring(0, 10) &&
-              (ev['user_id'] == userId),
-        )
-        .cast<Map>()
-        .toList();
+    const fullWeekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    final dayStr = day.toIso8601String().substring(0, 10);
+    return _events.where((ev) {
+      if (ev['user_id'] != userId) return false;
+      final List<String> days = List<String>.from(ev['days'] ?? []);
+      if (days.isEmpty) {
+        return ev['date']?.substring(0, 10) == dayStr;
+      } else {
+        final eventDate = DateTime.tryParse(ev['date'] ?? '');
+        if (eventDate == null) return false;
+        final eventDateOnly = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final dayOnly = DateTime(day.year, day.month, day.day);
+        if (dayOnly.isBefore(eventDateOnly)) return false;
+        return days.contains(fullWeekdays[day.weekday % 7]);
+      }
+    }).cast<Map>().toList();
   }
 
   List<Map<String, dynamic>> _tasksForDay(DateTime day) {
@@ -671,7 +322,7 @@ class EventsPageState extends State<EventsPage> {
       'Friday',
       'Saturday',
     ];
-    
+
     return _tasks.where((task) {
       final List<String> days = List<String>.from(task['days'] ?? []);
       final List completedDates = List<String>.from(task['completedDates'] ?? []);
@@ -769,10 +420,12 @@ class EventsPageState extends State<EventsPage> {
             'start_time': event['start_time'] ?? '00:00',
             'end_time': event['end_time'] ?? '23:59',
             'all_day': event['all_day'] ?? false,
+            'days': event['days'] ?? [],
+            'latitude': event['latitude'],
+            'longitude': event['longitude'],
           };
           setState(() => _events.add(fullEvent));
-          try {
-            await Supabase.instance.client.from('user_events').insert([
+          try {            await Supabase.instance.client.from('user_events').insert([
               {
                 'id': id,
                 'title': event['title'],
@@ -782,6 +435,9 @@ class EventsPageState extends State<EventsPage> {
                 'start_time': event['start_time'] ?? '00:00',
                 'end_time': event['end_time'] ?? '23:59',
                 'all_day': event['all_day'] ?? false,
+                'days': event['days'] ?? [],
+                'latitude': event['latitude'],
+                'longitude': event['longitude'],
               },
             ]);
           } catch (e) {
@@ -809,15 +465,13 @@ class EventsPageState extends State<EventsPage> {
           });
           
           // Sync to Supabase
-          try {
-            await Supabase.instance.client.from('user_tasks').insert([
+          try {            await Supabase.instance.client.from('user_tasks').insert([
               {
                 'id': id,
                 'name': task['name'],
                 'days': task['days'] ?? [],
                 'end_date': task['end_date'], // null means indefinite
-                'completed_dates': [],
-                'user_id': userId,
+                'completed_dates': [],                'user_id': userId,
               },
             ]);
           } catch (e) {
@@ -1219,6 +873,10 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   TimeOfDay _endTime = const TimeOfDay(hour: 14, minute: 0);
   // Which time picker is expanded: null, 'start', or 'end'
   String? _expandedTimePicker;
+  // Event repeat days
+  List<bool> _eventSelectedDays = List.generate(7, (_) => false);
+  // Event location
+  LatLng? _pickedLocation;
   // Task fields
   final _notesCtl = TextEditingController();
   String _repeatOption = 'Never';
@@ -1404,11 +1062,13 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // Title + Description section
+          // Title + Description + Location section
           _card(children: [
             _textField(_titleCtl, 'Title'),
             const Divider(height: 1, color: Colors.white12),
             _textField(_locationCtl, 'Description (Optional)'),
+            const Divider(height: 1, color: Colors.white12),
+            _locationRow(),
           ]),
           const SizedBox(height: 16),
           // Date / time section
@@ -1433,7 +1093,86 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
             if (!_allDay && _expandedTimePicker == 'end')
               _inlineTimePicker(_endTime, (t) => setState(() => _endTime = t)),
           ]),
+          const SizedBox(height: 16),
+          _card(children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Center(
+                child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+              ),
+            ),
+            const Divider(height: 1, color: Colors.white12),
+            _eventRepeatDaysRow(),
+          ]),
         ],
+      ),
+    );
+  }
+
+  Widget _locationRow() {
+    return GestureDetector(
+      onTap: () async {
+        final result = await showModalBottomSheet<LatLng>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const _LocationPickerSheet(),
+        );
+        if (result != null) setState(() => _pickedLocation = result);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.location_on, color: Color(0xFF39FF14), size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _pickedLocation == null
+                    ? 'Add Location'
+                    : '${_pickedLocation!.latitude.toStringAsFixed(5)}, ${_pickedLocation!.longitude.toStringAsFixed(5)}',
+                style: TextStyle(
+                  color: _pickedLocation == null ? Colors.grey[500] : Colors.white,
+                  fontSize: 16,
+                  shadows: const [],
+                ),
+              ),
+            ),
+            if (_pickedLocation != null)
+              GestureDetector(
+                onTap: () => setState(() => _pickedLocation = null),
+                child: const Icon(Icons.close, color: Colors.white54, size: 18),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _eventRepeatDaysRow() {
+    final dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(7, (i) {
+          final sel = _eventSelectedDays[i];
+          return GestureDetector(
+            onTap: () => setState(() => _eventSelectedDays[i] = !_eventSelectedDays[i]),
+            child: Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+              ),
+              alignment: Alignment.center,
+              child: Text(dayLabels[i], style: TextStyle(
+                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: const [],
+              )),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -1809,6 +1548,9 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
         'all_day': _allDay,
         'start_time': _allDay ? '00:00' : _timeToString(_startTime),
         'end_time': _allDay ? '23:59' : _timeToString(_endTime),
+        'days': List.generate(7, (i) => _eventSelectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
+        'latitude': _pickedLocation?.latitude,
+        'longitude': _pickedLocation?.longitude,
       });
     } else {
       final days = _resolveRepeatDays();
@@ -2594,6 +2336,130 @@ class _EditEventSheetState extends State<_EditEventSheet> {
     final m = t.minute.toString().padLeft(2, '0');
     final ampm = t.period == DayPeriod.am ? 'AM' : 'PM';
     return '$h:$m $ampm';
+  }
+}
+
+// ─── Location Picker Sheet ────────────────────────────────────────────────────
+
+class _LocationPickerSheet extends StatefulWidget {
+  const _LocationPickerSheet();
+
+  @override
+  State<_LocationPickerSheet> createState() => _LocationPickerSheetState();
+}
+
+class _LocationPickerSheetState extends State<_LocationPickerSheet> {
+  LatLng? _pinned;
+  LatLng _center = const LatLng(32.5252, -92.6382); // default: Ruston, LA
+  final MapController _mapController = MapController();
+  bool _loadingLocation = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _goToCurrentLocation();
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) return;
+      final pos = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      setState(() {
+        _center = LatLng(pos.latitude, pos.longitude);
+        _loadingLocation = false;
+      });
+      _mapController.move(_center, 14);
+    } catch (_) {
+      if (mounted) setState(() => _loadingLocation = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                ),
+                const Spacer(),
+                const Text('Pick Location', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                const Spacer(),
+                TextButton(
+                  onPressed: _pinned == null ? null : () => Navigator.pop(context, _pinned),
+                  child: Text(
+                    'Confirm',
+                    style: TextStyle(
+                      color: _pinned == null ? Colors.grey[700] : const Color(0xFF39FF14),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      shadows: const [],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFF39FF14)),
+          // Map
+          Expanded(
+            child: _loadingLocation
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF39FF14)))
+                : FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: _center,
+                      initialZoom: 14,
+                      onTap: (_, latlng) => setState(() => _pinned = latlng),
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.flutter_application_1',
+                      ),
+                      if (_pinned != null)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: _pinned!,
+                              width: 40,
+                              height: 40,
+                              child: const Icon(Icons.location_on, color: Color(0xFF39FF14), size: 40),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+          ),
+          if (_pinned != null)
+            Container(
+              color: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '${_pinned!.latitude.toStringAsFixed(5)}, ${_pinned!.longitude.toStringAsFixed(5)}',
+                style: const TextStyle(color: Colors.white54, fontSize: 13, shadows: []),
+                textAlign: TextAlign.center,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
