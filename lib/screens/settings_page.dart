@@ -125,232 +125,34 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  final _screentimeController = TextEditingController();
-
-  // default values for settings (if null/new user, these are default values)
-  final String DEFAULT_DIFFICULTY = "normal";
-  final String DEFAULT_THEME = "darkmode";
-  final int DEFAULT_MAX = 120; // in minutes
-
-  // settings
-  String? _difficulty;
-  // String? _theme;
-  int? _maxScreenTime; // in minutes
-
-
-  // flags and page vars 
-  bool _loading = true;
-  // String? _statusText;
-
-  // supabase client
-  SupabaseClient get _client => Supabase.instance.client;
-
-  @override
-  void initState() {
-    super.initState();
-    _bootstrap();
-  }
-
-  Future<void> _bootstrap() async {
-    await Future.wait([
-      // _loadSettings(),
-      // _loadProfileFromSupabase()   will not be implemented until sprint 5 (3/20/2026)
-    ]);
-  }
-
-  @override
-  void dispose() {
-    _screentimeController.dispose();
-    super.dispose();
-  }
 
   // load from supabase settings table into local variables. can not fathom the reason but it does not work.
   // for context: this function imitates every other load function in this project but one element that is exactly
   // the same in the same context and everything is throwing an error consistently both in VSCode and when ran.
   // No solution of the many I've tried works. Will fix it but don't have time right now -3/27/2026
   /*
-  Future<void> _loadSettings() async {
-    if (mounted) setState(() => _loading = true);
-
-    final user = _client.auth.currentUser;
-    if (user == null) {
-      if (mounted) {
-        if (mounted) setState(() => _statusText = "Not signed in (no user session found)");
-        return;
-      }
-    }
-    try {
-      final row = await _client
-          .from('user_settings')
-          .select('difficulty, max_screentime, theme')
-          .eq('user_id', user.id)
-          .single();
-
-      if (row == null) return;
-
-      final difficulty = row['difficulty'];
-      final maxScreentime = row['max_screentime'];
-      final theme = row['theme'];
-
-
-      if (!mounted) return;
-      setState(() {
-        _difficulty = difficulty;
-        _theme = theme;
-        _maxScreenTime = maxScreentime;
-        if (difficulty != null) _difficulty = 'normal';
-        if (maxScreentime != null) _maxScreenTime = 120;
-        if (theme != null) _theme = 'darkmode';
-      });
-    } catch (e) {
-      if (mounted) {
-        setState(() => _statusText = 'Could not load settings.');
-      }
-    }
-  }
+  Future<void> _loadSettings() async { ... }
   */
 
-  // save max screentime to supabase
-  Future<void> _saveMaxScreentime(int screentimeLimit) async {
-    final user = _client.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      await _client.from('settings').upsert({
-        'user_id': user.id,
-        'max_screentime': screentimeLimit,
-      }, onConflict: 'user_id');
-
-      if (mounted) {
-        setState(() {
-          _maxScreenTime = screentimeLimit;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not save max screentime.',
-              style: TextStyle(color: _neonGreen),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  // save difficulty to supabase
-  
-  Future<void> _saveDifficulty(String newDifficulty) async {
-    final user = _client.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      await _client.from('settings').upsert({
-        'user_id': user.id,
-        'difficulty': newDifficulty,
-      }, onConflict: 'user_id');
-
-      if (mounted) {
-        setState(() {
-          _difficulty = newDifficulty;
-          if (_difficulty == 'easy') {
-            _saveMaxScreentime(240);
-          } 
-          else if (_difficulty == 'normal') {
-            _saveMaxScreentime(120);
-          }
-          else if (_difficulty == 'hardcore') {
-            _saveMaxScreentime(60);
-          }
-          
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not save difficulty.',
-              style: TextStyle(color: _neonGreen),
-            ),
-          ),
-        );
-      }
-    }
-  }
   Future<void> _logout(BuildContext context) async {
     await Supabase.instance.client.auth.signOut();
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
-  // pop up that prompts user to enter in
-  void _showSetScreentimeDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.black,
-        shape: RoundedRectangleBorder(
-          side: BorderSide(color: _neonGreen, width: 1.5),
-          borderRadius: BorderRadius.circular(_cornerRadius),
-        ),
-        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),
-        content: TextField(
-          controller: _screentimeController,
-          keyboardType: TextInputType.numberWithOptions(decimal: true),
-          style: TextStyle(color: _neonGreen),
-          decoration: _inputDecoration('Max Screentime'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: _neonGreen)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _setScreentime();
-            },
-            child: Text(
-              'Set',
-              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  // parse text controller for data and check validity
-  Future<void> _setScreentime() async {
-    final timevar = int.tryParse(_screentimeController.text.trim());
-    if (timevar == null) return;
-
-    if (mounted) setState(() => _maxScreenTime = timevar);
-
-    await _saveMaxScreentime(timevar);
-  }
-
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: _neonGreen),
-      enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: _neonGreen),
-        borderRadius: BorderRadius.circular(_cornerRadius),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: _neonGreen, width: 2),
-        borderRadius: BorderRadius.circular(_cornerRadius),
-      ),
-    );
-  }
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: _neonGreen),
+          onPressed: () => Navigator.of(context).pop(),
+        ),        title: const Text(
+          'Settings',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
@@ -370,12 +172,13 @@ class _SettingsPageState extends State<SettingsPage> {
           const _SectionFrame(
             title: 'DIFFICULTY',
             child: _DifficultySelector(),
-          ),
-
-          /* THEME TAB */
+          ),          /* THEME TAB */
 
           const SizedBox(height: 14),
-          const _SectionFrame(title: 'THEME'),
+          const _SectionFrame(
+            title: 'THEME',
+            child: _ThemeSelector(),
+          ),
     
           /* ADVANCED TAB */
           const SizedBox(height: 14),
@@ -393,11 +196,9 @@ class _SettingsPageState extends State<SettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ListTile(
-                  contentPadding: EdgeInsets.zero,
-
-                  title: const Text(
+                  contentPadding: EdgeInsets.zero,                  title: const Text(
                     'Locked Apps',
-                    style: TextStyle(color: Colors.white70, fontSize: 15),
+                    style: TextStyle(color: Colors.white, fontSize: 15),
                   ),
                   trailing: const Icon(Icons.chevron_right, color: Colors.white38),
                   onTap: () => Navigator.push(
@@ -424,10 +225,9 @@ class _SettingsPageState extends State<SettingsPage> {
           _SectionFrame(
             title: 'LOG OUT',
             child: Align(
-              alignment: Alignment.centerLeft,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.logout),
-                label: const Text('Log out'),
+              alignment: Alignment.centerLeft,              child: ElevatedButton.icon(
+                icon: const Icon(Icons.logout, color: Colors.white),
+                label: const Text('Log out', style: TextStyle(color: Colors.white)),
                 onPressed: () => _logout(context),
               ),
             ),
@@ -485,11 +285,10 @@ class _OverlayPermissionButtonState extends State<_OverlayPermissionButton>
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
     return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
+      contentPadding: EdgeInsets.zero,      title: Text(
         'App Overlay',
         style: TextStyle(
-          color: Colors.white70,
+          color: Colors.white,
           fontSize: 15,
         ),
       ),
@@ -565,20 +364,18 @@ class _NotificationButtonState extends State<_NotificationButton>
       if (mounted) setState(() => _granted = granted);
     } catch (_) {}
   }
-
   Future<void> _request() async {
-    PermissionStatus newStatus = await Permission.notification.request();
+    await Permission.notification.request();
   }
 
   @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
     return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
+      contentPadding: EdgeInsets.zero,      title: Text(
         'Notifications',
         style: TextStyle(
-          color: Colors.white70,
+          color: Colors.white,
           fontSize: 15,
         ),
       ),
@@ -623,6 +420,90 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
     Hive.box('selected_apps').put('difficulty', value);
     setState(() => _difficulty = value);
   }
+  @override
+  Widget build(BuildContext context) {
+    final neon = Theme.of(context).colorScheme.secondary;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: _options.map((opt) {
+          final (value, label, hours) = opt;
+          final isSelected = _difficulty == value;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: GestureDetector(
+              onTap: () => _select(value),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? neon : Colors.grey.shade700,
+                    width: isSelected ? 1.8 : 1.0,
+                  ),
+                  color: isSelected ? neon.withValues(alpha: 0.08) : Colors.transparent,
+                ),
+                child: Column(
+                  children: [                    Text(
+                      label,
+                      style: TextStyle(
+                        color: isSelected ? neon : Colors.white, shadows: [],
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hours,
+                      style: TextStyle(
+                        color: isSelected ? neon.withValues(alpha: 0.8) : Colors.white70,
+                        fontSize: 11,
+                        shadows: [],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+/* -------------------------- SHARED SECTION FRAME -------------------------- */
+
+/* --------------------------- THEME SELECTOR ----------------------------- */
+
+class _ThemeSelector extends StatefulWidget {
+  const _ThemeSelector();
+
+  @override
+  State<_ThemeSelector> createState() => _ThemeSelectorState();
+}
+
+class _ThemeSelectorState extends State<_ThemeSelector> {
+  String _theme = 'dark';
+
+  static const _options = [
+    ('dark', 'Dark', Icons.dark_mode),
+    ('light', 'Light', Icons.light_mode),
+    ('custom', 'Custom', Icons.palette),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _theme = Hive.box('selected_apps').get('theme', defaultValue: 'dark') as String;
+  }
+
+  void _select(String value) {
+    Hive.box('selected_apps').put('theme', value);
+    setState(() => _theme = value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -630,13 +511,13 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: _options.map((opt) {
-        final (value, label, hours) = opt;
-        final isSelected = _difficulty == value;
+        final (value, label, icon) = opt;
+        final isSelected = _theme == value;
         return GestureDetector(
           onTap: () => _select(value),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
@@ -646,22 +527,19 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
               color: isSelected ? neon.withValues(alpha: 0.08) : Colors.transparent,
             ),
             child: Column(
-              children: [
+              children: [                Icon(
+                  icon,
+                  size: 24,
+                  color: isSelected ? neon : Colors.white,
+                ),
+                const SizedBox(height: 4),
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSelected ? neon : Colors.grey, shadows: [],
+                    color: isSelected ? neon : Colors.white,
+                    shadows: [],
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
                     fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  hours,
-                  style: TextStyle(
-                    color: isSelected ? neon.withValues(alpha: 0.8) : Colors.grey.shade600,
-                    fontSize: 11,
-                    shadows: [],
                   ),
                 ),
               ],
@@ -673,7 +551,7 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
   }
 }
 
-/* -------------------------- SHARED SECTION FRAME -------------------------- */
+/* -------------------------- SHARED SECTION FRAME (cont.) -------------------------- */
 
 class _SectionFrame extends StatelessWidget {
   final String title;
@@ -698,13 +576,12 @@ class _SectionFrame extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
+        children: [          Text(
             title,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   letterSpacing: 1.2,
                   fontWeight: FontWeight.w700,
-                  color: neon,
+                  color: Colors.white,
                 ),
           ),
           const SizedBox(height: 10),
@@ -737,12 +614,42 @@ class _AdvancedSettings extends StatefulWidget {
 }
 
 class _AdvancedSettingsState extends State<_AdvancedSettings> {
-  int? maxScreentime = _SettingsPageState()._maxScreenTime;
+  final _screentimeController = TextEditingController();
+  int? _maxScreentime;
 
+  SupabaseClient get _client => Supabase.instance.client;
 
-  // pop up that prompts user to enter in
-  
+  @override
+  void dispose() {
+    _screentimeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveMaxScreentime(int screentimeLimit) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _client.from('settings').upsert({
+        'user_id': user.id,
+        'max_screentime': screentimeLimit,
+      }, onConflict: 'user_id');
+
+      if (mounted) setState(() => _maxScreentime = screentimeLimit);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not save max screentime.',
+                style: TextStyle(color: _neonGreen)),
+          ),
+        );
+      }
+    }
+  }
+
   void _showSetScreentimeDialog() {
+    _screentimeController.clear();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -751,12 +658,23 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
           side: BorderSide(color: _neonGreen, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),
-        content: TextField(
-          controller: _SettingsPageState()._screentimeController,
+        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),        content: TextField(
+          controller: _screentimeController,
+          cursorColor: Colors.white,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
           style: TextStyle(color: _neonGreen),
-          decoration: _SettingsPageState()._inputDecoration('Max Screentime'),
+          decoration: InputDecoration(
+            labelText: 'Max Screentime (minutes)',
+            labelStyle: TextStyle(color: _neonGreen),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _neonGreen),
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _neonGreen, width: 2),
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -766,7 +684,8 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _SettingsPageState()._setScreentime();
+              final timevar = int.tryParse(_screentimeController.text.trim());
+              if (timevar != null) _saveMaxScreentime(timevar);
             },
             child: Text(
               'Set',
@@ -777,7 +696,6 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
       ),
     );
   }
-  
 
   @override
   Widget build(BuildContext context) {
@@ -785,23 +703,20 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         OutlinedButton(
-        onPressed: _SettingsPageState()._loading ? null : _showSetScreentimeDialog,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: _neonGreen, width: 1.5),
-          foregroundColor: _neonGreen,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              _cornerRadius,
+          onPressed: _showSetScreentimeDialog,          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_cornerRadius),
             ),
           ),
-        ),
-        child: Text(
-          maxScreentime != null
-              ? 'Set Max Screentime (${(maxScreentime!)})'
-              : 'Set Max Screentime',
+          child: Text(
+            _maxScreentime != null
+                ? 'Set Max Screentime (${_maxScreentime!} min)'
+                : 'Set Max Screentime',
           ),
         ),
-      ]
+      ],
     );
   }
 }
@@ -818,26 +733,197 @@ class _Profile extends StatefulWidget {
 }
 
 class _ProfileState extends State<_Profile> {
+  final _usernameController = TextEditingController();
+  String _username = '...';
+  bool _saving = false;
 
+  SupabaseClient get _client => Supabase.instance.client;
 
   @override
-  Widget build(BuildContext context) {
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar( 
-          backgroundColor: const Color.fromARGB(255, 46, 46, 46),
-          radius: 128,
-          child: const Text(
-            'Profile Picture Sample',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Color.fromARGB(255, 112, 112, 112))
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
+  Future<void> _loadProfile() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final row = await _client
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (!mounted) return;
+      final fetched = (row?['username'] ?? '').toString();
+      if (fetched.isNotEmpty && fetched != _username) {
+        setState(() {
+          _username = fetched;
+          _usernameController.text = _username;
+        });
+      }
+    } catch (_) {
+      // keep current _username as-is
+    }
+  }
+
+  Future<void> _saveUsername() async {
+    final newName = _usernameController.text.trim();
+    if (newName.isEmpty || newName == _username) return;
+
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    setState(() => _saving = true);
+
+    try {
+      await _client.from('profiles').upsert({
+        'id': user.id,
+        'username': newName,
+      }, onConflict: 'id');
+
+      if (!mounted) return;
+      setState(() {
+        _username = newName;
+        _saving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Username updated!', style: TextStyle(color: _neonGreen)),
+          backgroundColor: Colors.grey[900],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not update username.', style: TextStyle(color: Colors.red)),
+          backgroundColor: Colors.grey[900],
+        ),
+      );
+    }
+  }
+
+  void _showEditUsernameDialog() {
+    _usernameController.text = _username;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: _neonGreen, width: 1.5),
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
+        title: Text('Edit Username', style: TextStyle(color: _neonGreen)),        content: TextField(
+          controller: _usernameController,
+          cursorColor: Colors.white,
+          style: TextStyle(color: _neonGreen),
+          maxLength: 24,
+          decoration: InputDecoration(
+            labelText: 'Username',
+            labelStyle: TextStyle(color: _neonGreen.withOpacity(0.7)),
+            counterStyle: TextStyle(color: Colors.grey),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _neonGreen),
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _neonGreen, width: 2),
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
           ),
-        )
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _saveUsername();
+            },
+            child: Text(
+              'Save',
+              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  @override
+  Widget build(BuildContext context) {    final displayName = _saving ? 'Saving...' : _username;
+
+    return Row(
+      children: [
+        // ── Profile picture (left) ──
+        GestureDetector(
+          onTap: () {
+            // TODO: implement profile picture upload
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Profile picture upload coming soon!',
+                  style: TextStyle(color: _neonGreen),
+                ),
+                backgroundColor: Colors.grey[900],
+              ),
+            );
+          },
+          child: Stack(
+            alignment: Alignment.bottomRight,
+            children: [              CircleAvatar(
+                backgroundColor: const Color.fromARGB(255, 46, 46, 46),
+                radius: 45,
+                child: const Icon(Icons.person, size: 49, color: Colors.grey),
+              ),
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: const BoxDecoration(
+                  color: _neonGreen,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.edit, size: 14, color: Colors.black),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // ── Username (right) ──
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _showEditUsernameDialog,
+                child: const Icon(Icons.edit, color: _neonGreen, size: 20),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
-
 }

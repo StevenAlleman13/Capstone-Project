@@ -63,7 +63,8 @@ class MyApp extends StatelessWidget {
             onSurface: _neonGreen,
             error: Colors.red,
             onError: Colors.white,
-          ),          textTheme: TextTheme(
+          ),
+          textTheme: TextTheme(
             titleLarge: TextStyle(
               color: Colors.white,
               shadows: [],
@@ -96,7 +97,8 @@ class MyApp extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
           ),
-        ),        home: const AuthGate(),
+        ),
+        home: const AuthGate(),
         routes: {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const MyHomePage(),
@@ -236,7 +238,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    var colorScheme = Theme.of(context).colorScheme;    Widget page;
+    var colorScheme = Theme.of(context).colorScheme;
+    Widget page;
     switch (selectedIndex) {
       case 0:
         page = const dash.DashboardPage();
@@ -251,8 +254,7 @@ class _MyHomePageState extends State<MyHomePage> {
         // Plus button - does nothing rn
         page = const dash.DashboardPage();
       case 3:
-        page =
-            const health.HealthPage();
+        page = const health.HealthPage();
       case 4:
         page = const fit.FitnessPage();
       default:
@@ -288,7 +290,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 Expanded(child: mainArea),
                 SafeArea(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,                    children: [
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       if (selectedIndex == 1)
                         Container(
                           decoration: BoxDecoration(
@@ -345,7 +348,8 @@ class _MyHomePageState extends State<MyHomePage> {
                               ),
                             ],
                           ),
-                        ),                      Container(
+                        ),
+                      Container(
                         color: Colors.grey[800],
                         padding: const EdgeInsets.only(top: 6, bottom: 8),
                         child: Row(
@@ -426,7 +430,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     selectedLabelTextStyle: TextStyle(color: _neonGreen),
                     unselectedLabelTextStyle: TextStyle(
                       color: Colors.grey[500],
-                    ),                    destinations: [
+                    ),
+                    destinations: [
                       NavigationRailDestination(
                         icon: Icon(Icons.dashboard),
                         label: Text('Dashboard'),
