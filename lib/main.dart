@@ -4,7 +4,6 @@ import 'dart:async';
 
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -213,31 +212,6 @@ class _MyHomePageState extends State<MyHomePage> {
   final GlobalKey<EventsPageState> eventsPageKey = GlobalKey<EventsPageState>();
   final GlobalKey<FitnessPageState> fitnessPageKey =
       GlobalKey<FitnessPageState>();
-
-  static final _monitorChannel = MethodChannel('lockin/monitor');
-  static const _limitMinutes = {'easy': 240, 'normal': 120, 'hardcore': 60};
-
-  @override
-  void initState() {
-    super.initState();
-    _startMonitorService();
-  }
-
-  Future<void> _startMonitorService() async {
-    final box = Hive.box('selected_apps');
-    final packages = List<String>.from(
-      box.get('packages', defaultValue: <String>[]),
-    );
-    final difficulty = box.get('difficulty', defaultValue: 'normal') as String;
-    final limitMins = _limitMinutes[difficulty] ?? 120;
-
-    try {
-      await _monitorChannel.invokeMethod('startMonitorService', {
-        'packages': packages,
-        'limitMinutes': limitMins,
-      });
-    } catch (_) {}
-  }
 
   @override
   Widget build(BuildContext context) {

@@ -298,7 +298,6 @@ class EventsPageState extends State<EventsPage> {
   DateTime _selectedDay = DateTime.now();
   final _calendarKey = GlobalKey<VerticalStickyCalendarState>();
   Timer? _completionTimer;
-  final Set<String> _completedTodayEventIds = {};
 
   List<Map> _eventsForDay(DateTime day) {
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -310,8 +309,8 @@ class EventsPageState extends State<EventsPage> {
       final List<String> days = List<String>.from(ev['days'] ?? []);
       final isRepeating = days.isNotEmpty;
       if (isRepeating) {
-        // Hide if completed in-memory for today
-        if (dayStr == todayStr && _completedTodayEventIds.contains(ev['id']?.toString())) return false;
+        // Hide if end_time has passed today (time-based, no in-memory state needed)
+        if (dayStr == todayStr && _isRepeatingEventCompletedToday(ev)) return false;
         final eventDate = DateTime.tryParse(ev['date'] ?? '');
         if (eventDate == null) return false;
         final eventDateOnly = DateTime(eventDate.year, eventDate.month, eventDate.day);
@@ -319,7 +318,7 @@ class EventsPageState extends State<EventsPage> {
         if (dayOnly.isBefore(eventDateOnly)) return false;
         return days.contains(fullWeekdays[day.weekday % 7]);
       } else {
-        if (ev['completed'] == true) return false;
+        if (_isEventCompleted(ev)) return false;
         return ev['date']?.substring(0, 10) == dayStr;
       }
     }).cast<Map>().toList();
@@ -335,9 +334,9 @@ class EventsPageState extends State<EventsPage> {
       final List<String> days = List<String>.from(ev['days'] ?? []);
       final isRepeating = days.isNotEmpty;
       if (isRepeating) {
-        // Only show as completed for today, and only if in the in-memory set
+        // Completed if end_time has passed today (time-based, no in-memory state needed)
         if (dayStr != todayStr) return false;
-        if (!_completedTodayEventIds.contains(ev['id']?.toString())) return false;
+        if (!_isRepeatingEventCompletedToday(ev)) return false;
         final eventDate = DateTime.tryParse(ev['date'] ?? '');
         if (eventDate == null) return false;
         final eventDateOnly = DateTime(eventDate.year, eventDate.month, eventDate.day);
@@ -345,7 +344,7 @@ class EventsPageState extends State<EventsPage> {
         if (dayOnly.isBefore(eventDateOnly)) return false;
         return days.contains(fullWeekdays[day.weekday % 7]);
       } else {
-        if (ev['completed'] != true) return false;
+        if (!_isEventCompleted(ev)) return false;
         return ev['date']?.substring(0, 10) == dayStr;
       }
     }).cast<Map>().toList();
@@ -539,12 +538,7 @@ class EventsPageState extends State<EventsPage> {
       final List<String> days = List<String>.from(event['days'] ?? []);
       final isRepeating = days.isNotEmpty;
       if (isRepeating) {
-        // Repeating events: track completion in memory for today only.
-        // Never set completed:true permanently — that would hide all future occurrences.
-        final id = event['id']?.toString() ?? '';
-        if (id.isNotEmpty && _isRepeatingEventCompletedToday(event)) {
-          if (_completedTodayEventIds.add(id)) changed = true;
-        }
+        // Repeating events: completion is purely time-based, nothing to sync.
       } else {
         // Non-repeating events: mark completed permanently in Supabase.
         if (_isEventCompleted(event) && event['completed'] != true) {
