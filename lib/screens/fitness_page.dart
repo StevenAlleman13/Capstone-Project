@@ -14,10 +14,11 @@ class FitnessPage extends StatefulWidget {
   const FitnessPage({super.key});
 
   @override
-  State<FitnessPage> createState() => _FitnessPageState();
+  State<FitnessPage> createState() => FitnessPageState();
 }
 
-class _FitnessPageState extends State<FitnessPage> {
+class FitnessPageState extends State<FitnessPage> {
+  // remove underscore
   final _weightController = TextEditingController();
   final _minController = TextEditingController();
   final _maxController = TextEditingController();
@@ -43,7 +44,7 @@ class _FitnessPageState extends State<FitnessPage> {
     _TrainerMsg(
       role: _TrainerRole.model,
       text:
-          "Hi, I'm your personal fitness trainer! I can answer any questions you have about fitness and nutrition. I can also make diet and workout regimens to follow based on your goals.",
+          "Hi, I'm your personal fitness trainer! I can answer fitness and nutrition questions, build diet and workout plans, and directly add ingredients, events, and tasks for you. What can I help you with?",
     ),
   ];
 
@@ -2645,6 +2646,10 @@ class _FitnessPageState extends State<FitnessPage> {
       ),
     );
     if (ok == true) await _deleteArchivedConversation(conv.id);
+  }
+
+  void expandTrainer() {
+    setState(() => _trainerExpanded = true);
   }
 
   Widget _collapsibleCard({

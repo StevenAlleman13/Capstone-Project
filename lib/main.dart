@@ -12,9 +12,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/login_page.dart';
 import 'screens/dashboard_page.dart' as dash;
 import 'screens/health_page.dart' as health;
-import 'screens/fitness_page.dart' as fit;
+import 'screens/fitness_page.dart' show FitnessPage, FitnessPageState;
 import 'screens/events_page.dart' show EventsPage, EventsPageState;
 import 'screens/settings_page.dart' as settings;
+import 'screens/quick_add.dart' as quick_add;
 import 'package:hive_flutter/hive_flutter.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
@@ -210,6 +211,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   var selectedIndex = 0;
   final GlobalKey<EventsPageState> eventsPageKey = GlobalKey<EventsPageState>();
+  final GlobalKey<FitnessPageState> fitnessPageKey =
+      GlobalKey<FitnessPageState>();
 
   static final _monitorChannel = MethodChannel('lockin/monitor');
   static const _limitMinutes = {'easy': 240, 'normal': 120, 'hardcore': 60};
@@ -256,7 +259,7 @@ class _MyHomePageState extends State<MyHomePage> {
       case 3:
         page = const health.HealthPage();
       case 4:
-        page = const fit.FitnessPage();
+        page = FitnessPage(key: fitnessPageKey);
       default:
         throw UnimplementedError('no widget for $selectedIndex');
     }
@@ -457,7 +460,12 @@ class _MyHomePageState extends State<MyHomePage> {
                             const SizedBox(width: 12),
                             // ── Plus button ──
                             GestureDetector(
-                              onTap: () {}, // no page switch
+                              onTap: () => quick_add.showQuickAddSheet(
+                                context,
+                                onNavigate: (index) =>
+                                    setState(() => selectedIndex = index),
+                                fitnessPageKey: fitnessPageKey,
+                              ),
                               child: Container(
                                 width: 50,
                                 height: 50,
