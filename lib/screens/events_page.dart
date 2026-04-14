@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 // import 'package:table_calendar/table_calendar.dart';
 // import 'package:table_calendar/table_calendar.dart' show isSameDay;
@@ -231,6 +232,7 @@ class EventsPageState extends State<EventsPage> {
     }
   }
 
+  // For non-repeating events: check if the event's own date+endTime has passed.
   bool _isEventCompleted(Map event) {
     if (event['all_day'] == true) {
       final eventDate =
@@ -251,34 +253,18 @@ class EventsPageState extends State<EventsPage> {
     if (date.isEmpty || endTime.isEmpty) return false;
     try {
       final endParts = endTime.split(":");
-      int hour = int.parse(endParts[0]);
-      int minute = int.parse(endParts[1]);
+      int hour = int.parse(endParts[0].trim());
+      int minute = int.parse(endParts[1].trim().split(' ')[0]);
       final now = DateTime.now();
-      // Use the event's date and end time to get the correct DateTime
       final eventEnd = DateTime.parse(date);
       DateTime eventEndDateTime = DateTime(
-        eventEnd.year,
-        eventEnd.month,
-        eventEnd.day,
-        hour,
-        minute,
+        eventEnd.year, eventEnd.month, eventEnd.day, hour, minute,
       );
-      // If endTime is in PM format, adjust hour
-      if (event['end_time'].toString().toUpperCase().contains('PM')) {
-        if (hour < 12) {
-          eventEndDateTime = eventEndDateTime.add(Duration(hours: 12));
-        }
+      if (endTime.toUpperCase().contains('PM') && hour < 12) {
+        eventEndDateTime = eventEndDateTime.add(const Duration(hours: 12));
       }
-      // If endTime is in AM format and hour is 12, set hour to 0
-      if (event['end_time'].toString().toUpperCase().contains('AM') &&
-          hour == 12) {
-        eventEndDateTime = DateTime(
-          eventEnd.year,
-          eventEnd.month,
-          eventEnd.day,
-          0,
-          minute,
-        );
+      if (endTime.toUpperCase().contains('AM') && hour == 12) {
+        eventEndDateTime = DateTime(eventEnd.year, eventEnd.month, eventEnd.day, 0, minute);
       }
       return eventEndDateTime.isBefore(now);
     } catch (_) {
@@ -286,28 +272,81 @@ class EventsPageState extends State<EventsPage> {
     }
   }
 
-  // 0 = Events, 1 = Tasks
-  int _selectedTab = 0;
+  // For repeating events: check if today's end_time has passed (not the original date).
+  bool _isRepeatingEventCompletedToday(Map event) {
+    final endTime = event['end_time'] ?? '';
+    if (endTime.isEmpty) return false;
+    try {
+      final endParts = endTime.split(":");
+      int hour = int.parse(endParts[0].trim());
+      int minute = int.parse(endParts[1].trim().split(' ')[0]);
+      final now = DateTime.now();
+      DateTime eventEndDateTime = DateTime(now.year, now.month, now.day, hour, minute);
+      if (endTime.toUpperCase().contains('PM') && hour < 12) {
+        eventEndDateTime = eventEndDateTime.add(const Duration(hours: 12));
+      }
+      if (endTime.toUpperCase().contains('AM') && hour == 12) {
+        eventEndDateTime = DateTime(now.year, now.month, now.day, 0, minute);
+      }
+      return eventEndDateTime.isBefore(now);
+    } catch (_) {
+      return false;
+    }
+  }
+
   List<Map<String, dynamic>> _events = [];
   DateTime _selectedDay = DateTime.now();
   final _calendarKey = GlobalKey<VerticalStickyCalendarState>();
+  Timer? _completionTimer;
+  final Set<String> _completedTodayEventIds = {};
 
   List<Map> _eventsForDay(DateTime day) {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     const fullWeekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     final dayStr = day.toIso8601String().substring(0, 10);
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
     return _events.where((ev) {
       if (ev['user_id'] != userId) return false;
       final List<String> days = List<String>.from(ev['days'] ?? []);
-      if (days.isEmpty) {
-        return ev['date']?.substring(0, 10) == dayStr;
-      } else {
+      final isRepeating = days.isNotEmpty;
+      if (isRepeating) {
+        // Hide if completed in-memory for today
+        if (dayStr == todayStr && _completedTodayEventIds.contains(ev['id']?.toString())) return false;
         final eventDate = DateTime.tryParse(ev['date'] ?? '');
         if (eventDate == null) return false;
         final eventDateOnly = DateTime(eventDate.year, eventDate.month, eventDate.day);
         final dayOnly = DateTime(day.year, day.month, day.day);
         if (dayOnly.isBefore(eventDateOnly)) return false;
         return days.contains(fullWeekdays[day.weekday % 7]);
+      } else {
+        if (ev['completed'] == true) return false;
+        return ev['date']?.substring(0, 10) == dayStr;
+      }
+    }).cast<Map>().toList();
+  }
+
+  List<Map> _completedEventsForDay(DateTime day) {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    const fullWeekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    final dayStr = day.toIso8601String().substring(0, 10);
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+    return _events.where((ev) {
+      if (ev['user_id'] != userId) return false;
+      final List<String> days = List<String>.from(ev['days'] ?? []);
+      final isRepeating = days.isNotEmpty;
+      if (isRepeating) {
+        // Only show as completed for today, and only if in the in-memory set
+        if (dayStr != todayStr) return false;
+        if (!_completedTodayEventIds.contains(ev['id']?.toString())) return false;
+        final eventDate = DateTime.tryParse(ev['date'] ?? '');
+        if (eventDate == null) return false;
+        final eventDateOnly = DateTime(eventDate.year, eventDate.month, eventDate.day);
+        final dayOnly = DateTime(day.year, day.month, day.day);
+        if (dayOnly.isBefore(eventDateOnly)) return false;
+        return days.contains(fullWeekdays[day.weekday % 7]);
+      } else {
+        if (ev['completed'] != true) return false;
+        return ev['date']?.substring(0, 10) == dayStr;
       }
     }).cast<Map>().toList();
   }
@@ -379,9 +418,6 @@ class EventsPageState extends State<EventsPage> {
     }).toList();
   }
 
-  // Public methods for button actions
-  int get selectedTab => _selectedTab;
-
   void jumpToToday() {
     setState(() {
       _selectedDay = DateTime.now();
@@ -389,10 +425,8 @@ class EventsPageState extends State<EventsPage> {
     _calendarKey.currentState?.jumpToToday();
   }
 
-  void toggleTab() {
-    setState(() {
-      _selectedTab = _selectedTab == 0 ? 1 : 0;
-    });
+  void collapseAll() {
+    _calendarKey.currentState?.collapseAll();
   }
 
   void addEventOrTask() {
@@ -406,7 +440,7 @@ class EventsPageState extends State<EventsPage> {
       backgroundColor: Colors.transparent,
       builder: (context) => _AddEventTaskSheet(
         selectedDay: _selectedDay,
-        initialTab: _selectedTab,
+        initialTab: 0,
         onEventAdded: (event) async {
           final id = Uuid().v4();
           final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -498,18 +532,33 @@ class EventsPageState extends State<EventsPage> {
   // Update event completion logic and sync with Supabase
   void _checkAndMoveCompletedEvents() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
+    bool changed = false;
     for (int i = 0; i < _events.length; i++) {
       final event = Map<String, dynamic>.from(_events[i]);
-      if (event['user_id'] == userId && _isEventCompleted(event) && event['completed'] != true) {
-        event['completed'] = true;
-        _events[i] = event;
-        Supabase.instance.client
-            .from('user_events')
-            .update({'completed': true})
-            .eq('id', event['id']);
+      if (event['user_id'] != userId) continue;
+      final List<String> days = List<String>.from(event['days'] ?? []);
+      final isRepeating = days.isNotEmpty;
+      if (isRepeating) {
+        // Repeating events: track completion in memory for today only.
+        // Never set completed:true permanently — that would hide all future occurrences.
+        final id = event['id']?.toString() ?? '';
+        if (id.isNotEmpty && _isRepeatingEventCompletedToday(event)) {
+          if (_completedTodayEventIds.add(id)) changed = true;
+        }
+      } else {
+        // Non-repeating events: mark completed permanently in Supabase.
+        if (_isEventCompleted(event) && event['completed'] != true) {
+          event['completed'] = true;
+          _events[i] = event;
+          changed = true;
+          Supabase.instance.client
+              .from('user_events')
+              .update({'completed': true})
+              .eq('id', event['id']);
+        }
       }
     }
-    if (mounted) setState(() {});
+    if (changed && mounted) setState(() {});
   }
 
   @override
@@ -518,6 +567,16 @@ class EventsPageState extends State<EventsPage> {
     _fetchEventsFromSupabase();
     _fetchTasksFromSupabase();
     _checkAndMoveCompletedEvents();
+    _completionTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _checkAndMoveCompletedEvents(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _completionTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -537,20 +596,17 @@ class EventsPageState extends State<EventsPage> {
                 onDaySelected: (date) {
                   setState(() {
                     _selectedDay = date;
-                    _selectedTab = 0;
                   });
                   widget.onViewModeChanged?.call();
                 },
                 onViewModeChanged: (isWeekView) {
-                  setState(() {
-                    if (isWeekView) _selectedTab = 0;
-                  });
                   widget.onViewModeChanged?.call();
                 },
-                eventsForDay: _selectedTab == 0 ? _eventsForDay : null,
-                tasksForDay: _selectedTab == 1 ? _tasksForDay : null,
-                completedTasksForDay: _selectedTab == 1 ? _completedTasksForDay : null,
-                isShowingEvents: _selectedTab == 0,
+                eventsForDay: _eventsForDay,
+                completedEventsForDay: _completedEventsForDay,
+                tasksForDay: _tasksForDay,
+                completedTasksForDay: _completedTasksForDay,
+                showBothSections: true,
                 onEventEdit: (event) {
                   _showEditEventDialog(event);
                 },
@@ -879,7 +935,6 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   LatLng? _pickedLocation;
   // Task fields
   final _notesCtl = TextEditingController();
-  String _repeatOption = 'Never';
   List<bool> _selectedDays = List.generate(7, (_) => false);
   DateTime? _taskEndDate; // Null means indefinite
 
@@ -1421,29 +1476,6 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
   }
 
   // ─── Task-specific rows ───────────────────────────────────────────────────
-  Widget _taskDateRow(String label, DateTime date, ValueChanged<DateTime> onDatePicked) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
-          const Spacer(),
-          _pillButton(
-            _formatDate(date),
-            () async {
-              final picked = await _showBottomDatePicker(
-                initialDate: date,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2030),
-              );
-              if (picked != null) onDatePicked(picked);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _taskOptionalEndDateRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
