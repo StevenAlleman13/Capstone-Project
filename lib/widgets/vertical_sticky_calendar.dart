@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class VerticalStickyCalendar extends StatefulWidget {
@@ -51,6 +52,100 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
   bool _workoutsExpanded = false;
   bool _eventsExpanded = false;
   bool _tasksExpanded = false;
+  bool _showWorkoutForm = false;
+  String? _editingWorkoutId;
+  final TextEditingController _workoutTitleController = TextEditingController();
+  final Map<String, List<Map<String, dynamic>>> _workoutsByDay = {};
+  final List<Map<String, dynamic>> _savedWorkoutsForDay = [];
+  bool _loadingWorkouts = false;
+
+  SupabaseClient get _supabase => Supabase.instance.client;
+  String? get _userId => _supabase.auth.currentUser?.id;
+
+  String get _dayKey {
+    final d = _selectedDay;
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  List<Map<String, dynamic>> get _exercises => _workoutsByDay.putIfAbsent(_dayKey, () => []);
+
+  Future<void> _loadWorkoutsForDay() async {
+    if (_userId == null) return;
+    setState(() => _loadingWorkouts = true);
+    final rows = await _supabase
+        .from('user_workouts')
+        .select()
+        .eq('user_id', _userId!)
+        .eq('workout_date', _dayKey)
+        .order('created_at', ascending: true);
+    setState(() {
+      _savedWorkoutsForDay
+        ..clear()
+        ..addAll(rows);
+      _loadingWorkouts = false;
+    });
+  }
+
+  void _openWorkoutForEditing(Map<String, dynamic> workout) {
+    final exercises = (workout['exercises'] as List).map((ex) {
+      final sets = (ex['sets'] as List).map((s) => <String, TextEditingController>{
+        'lbs': TextEditingController(text: s['lbs'] ?? ''),
+        'reps': TextEditingController(text: s['reps'] ?? ''),
+      }).toList();
+      return <String, dynamic>{
+        'name': TextEditingController(text: ex['name'] ?? ''),
+        'rows': sets,
+      };
+    }).toList();
+
+    setState(() {
+      _editingWorkoutId = workout['id'] as String;
+      _workoutTitleController.text = workout['title'] ?? '';
+      _workoutsByDay[_dayKey] = exercises;
+      _showWorkoutForm = true;
+    });
+  }
+
+  Future<void> _saveWorkout() async {
+    if (_userId == null) return;
+    final exercisesData = _exercises.map((ex) {
+      final rows = ex['rows'] as List<Map<String, TextEditingController>>;
+      return {
+        'name': (ex['name'] as TextEditingController).text.trim(),
+        'sets': rows.map((r) => {
+          'lbs': r['lbs']!.text.trim(),
+          'reps': r['reps']!.text.trim(),
+        }).toList(),
+      };
+    }).toList();
+
+    final payload = {
+      'title': _workoutTitleController.text.trim(),
+      'exercises': exercisesData,
+    };
+
+    if (_editingWorkoutId != null) {
+      await _supabase
+          .from('user_workouts')
+          .update(payload)
+          .eq('id', _editingWorkoutId!);
+    } else {
+      await _supabase.from('user_workouts').insert({
+        ...payload,
+        'user_id': _userId,
+        'workout_date': _dayKey,
+      });
+    }
+
+    setState(() {
+      _showWorkoutForm = false;
+      _editingWorkoutId = null;
+      _workoutTitleController.clear();
+      _workoutsByDay.remove(_dayKey);
+    });
+
+    await _loadWorkoutsForDay();
+  }
 
   /// Collapse both the events and tasks sections
   void collapseAll() {
@@ -77,6 +172,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     super.initState();
     _focusedDay = widget.selectedDay ?? DateTime.now();
     _selectedDay = widget.selectedDay ?? DateTime.now();
+    _loadWorkoutsForDay();
   }
 
   @override
@@ -100,7 +196,10 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                 setState(() {
                   _selectedDay = selectedDay;
                   _focusedDay = focusedDay;
+                  _showWorkoutForm = false;
+                  _workoutTitleController.clear();
                 });
+                _loadWorkoutsForDay();
                 widget.onDaySelected?.call(selectedDay);
                 widget.onViewModeChanged?.call(true);
               },
@@ -147,10 +246,10 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
             width: double.infinity,
             height: 1,
             decoration: BoxDecoration(
-              color: const Color(0xFF39FF14),
+              color: const Color(0xFF00FF66),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF39FF14).withOpacity(0.4),
+                  color: const Color(0xFF00FF66).withOpacity(0.4),
                   blurRadius: 2,
                   spreadRadius: 0.2,
                 ),
@@ -173,7 +272,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
               ),
             ),
           ),
-          const Divider(height: 1, thickness: 1, color: const Color(0xFF39FF14)),
+          const Divider(height: 1, thickness: 1, color: Color(0xFF00FF66)),
           Expanded(
             child: widget.showBothSections
                 ? _buildBothSections()
@@ -213,7 +312,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
   }
 
   Widget _buildBothSections() {
-    const neon = Color(0xFF39FF14);
+    const neon = Color(0xFF00FF66);
     return Container(
       color: Colors.black,
       child: SingleChildScrollView(
@@ -264,14 +363,297 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                     ),
                   ),
                   if (_workoutsExpanded)
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(14, 0, 14, 14),
-                      child: Center(
-                        child: Text(
-                          'No workouts',
-                          style: TextStyle(color: Colors.white54, fontSize: 16, shadows: []),
-                        ),
-                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: _showWorkoutForm
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                TextField(
+                                  controller: _workoutTitleController,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, shadows: []),
+                                  decoration: InputDecoration(
+                                    hintText: 'Workout Title',
+                                    hintStyle: TextStyle(color: Colors.grey[500], fontSize: 18),
+                                    enabledBorder: const UnderlineInputBorder(
+                                      borderSide: BorderSide(color: neon),
+                                    ),
+                                    focusedBorder: const UnderlineInputBorder(
+                                      borderSide: BorderSide(color: neon, width: 2),
+                                    ),
+                                    filled: false,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.only(bottom: 4),
+                                  ),
+                                ),
+                                ..._exercises.map((exercise) {
+                                  final nameController = exercise['name'] as TextEditingController;
+                                  final repRows = exercise['rows'] as List<Map<String, TextEditingController>>;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: neon.withValues(alpha: 0.4)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      child: Column(
+                                        children: [
+                                          // Exercise header row
+                                          Container(
+                                            decoration: const BoxDecoration(
+                                              border: Border(bottom: BorderSide(color: neon)),
+                                            ),
+                                            child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: [
+                                                Expanded(
+                                                  child: TextField(
+                                                    controller: nameController,
+                                                    style: const TextStyle(color: Colors.white, shadows: []),
+                                                    decoration: InputDecoration(
+                                                      hintText: 'Exercise Name',
+                                                      hintStyle: TextStyle(color: Colors.grey[500]),
+                                                      border: InputBorder.none,
+                                                      filled: false,
+                                                      isDense: true,
+                                                      contentPadding: const EdgeInsets.only(bottom: 0),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                GestureDetector(
+                                                  onTap: () => setState(() => _exercises.remove(exercise)),
+                                                  child: const Icon(Icons.delete_outline, color: neon, size: 18),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Rep rows
+                                          ...repRows.asMap().entries.map((entry) {
+                                            final i = entry.key;
+                                            final row = entry.value;
+                                            return Padding(
+                                              padding: const EdgeInsets.only(top: 6),
+                                              child: Row(
+                                                children: [
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Container(
+                                                        width: 46,
+                                                        height: 30,
+                                                        decoration: BoxDecoration(
+                                                          border: Border.all(color: neon.withValues(alpha: 0.5)),
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: TextField(
+                                                          controller: row['lbs'],
+                                                          keyboardType: TextInputType.number,
+                                                          textAlign: TextAlign.center,
+                                                          textAlignVertical: TextAlignVertical.center,
+                                                          expands: true,
+                                                          maxLines: null,
+                                                          style: const TextStyle(color: Colors.white, fontSize: 14, shadows: []),
+                                                          decoration: const InputDecoration(
+                                                            isDense: true,
+                                                            contentPadding: EdgeInsets.zero,
+                                                            border: InputBorder.none,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      const Text('lbs', style: TextStyle(color: Colors.white70, fontSize: 13, shadows: [])),
+                                                    ],
+                                                  ),
+                                                  Expanded(
+                                                    child: Center(
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Container(
+                                                            width: 46,
+                                                            height: 30,
+                                                            decoration: BoxDecoration(
+                                                              border: Border.all(color: neon.withValues(alpha: 0.5)),
+                                                              borderRadius: BorderRadius.circular(4),
+                                                            ),
+                                                            child: TextField(
+                                                              controller: row['reps'],
+                                                              keyboardType: TextInputType.number,
+                                                              textAlign: TextAlign.center,
+                                                              textAlignVertical: TextAlignVertical.center,
+                                                              expands: true,
+                                                              maxLines: null,
+                                                              style: const TextStyle(color: Colors.white, fontSize: 14, shadows: []),
+                                                              decoration: const InputDecoration(
+                                                                isDense: true,
+                                                                contentPadding: EdgeInsets.zero,
+                                                                border: InputBorder.none,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          const Text('Reps', style: TextStyle(color: Colors.white70, fontSize: 13, shadows: [])),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  GestureDetector(
+                                                    onTap: () => setState(() => repRows.removeAt(i)),
+                                                    child: const Icon(Icons.remove, color: neon, size: 18),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                          const Divider(color: Colors.white12, height: 16),
+                                          Center(
+                                            child: TextButton(
+                                              onPressed: () => setState(() => repRows.add({
+                                                'lbs': TextEditingController(),
+                                                'reps': TextEditingController(),
+                                              })),
+                                              style: TextButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                              child: const Text('Add Set', style: TextStyle(color: neon, fontSize: 12, shadows: [])),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: () => setState(() => _exercises.add({
+                                    'name': TextEditingController(),
+                                    'rows': <Map<String, TextEditingController>>[],
+                                  })),
+                                  child: const Text('+ Add Exercise', style: TextStyle(color: neon, shadows: [])),
+                                ),
+                                const SizedBox(height: 8),
+                                ElevatedButton(
+                                  onPressed: _saveWorkout,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: neon,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  child: const Text('Save Workout', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, shadows: [])),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_loadingWorkouts)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Center(child: CircularProgressIndicator(color: neon, strokeWidth: 2)),
+                                  )
+                                else ...[
+                                  ..._savedWorkoutsForDay.map((w) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: GestureDetector(
+                                      onTap: () => _openWorkoutForEditing(w),
+                                      child: Container(
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: neon, width: 1.5),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Container(
+                                              width: double.infinity,
+                                              padding: const EdgeInsets.symmetric(vertical: 8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[800],
+                                                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  w['title'] ?? 'Untitled',
+                                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, shadows: []),
+                                                ),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.center,
+                                                children: [
+                                            ...((w['exercises'] as List).asMap().entries.map((entry) {
+                                              final idx = entry.key;
+                                              final ex = entry.value;
+                                              final sets = ex['sets'] as List;
+                                              return Column(
+                                                children: [
+                                                  if (idx > 0)
+                                                    const Divider(color: neon, thickness: 0.5, height: 8),
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 2),
+                                                child: Center(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                                    children: [
+                                                      Text(ex['name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, shadows: [])),
+                                                      ...sets.map((s) => Text(
+                                                        '${s['lbs']} lbs × ${s['reps']} reps',
+                                                        style: TextStyle(color: Colors.grey[500], fontSize: 12, shadows: const []),
+                                                      )),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                                ],
+                                              );
+                                            })),
+                                                ],
+                                              ),
+                                            ),
+                                            const Divider(color: Colors.white12, height: 8),
+                                            Center(
+                                              child: TextButton(
+                                                onPressed: () async {
+                                                  await _supabase
+                                                      .from('user_workouts')
+                                                      .delete()
+                                                      .eq('id', w['id']);
+                                                  await _loadWorkoutsForDay();
+                                                },
+                                                style: TextButton.styleFrom(
+                                                  padding: EdgeInsets.zero,
+                                                  minimumSize: Size.zero,
+                                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                  alignment: Alignment.center,
+                                                ),
+                                                child: const Text('Delete Workout', style: TextStyle(color: neon, fontSize: 13, shadows: [])),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  )),
+                                ],
+                                Center(
+                                  child: OutlinedButton(
+                                    onPressed: () => setState(() => _showWorkoutForm = true),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: neon),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    child: const Text('Create Workout', style: TextStyle(color: neon, shadows: [])),
+                                  ),
+                                ),
+                              ],
+                            ),
                     ),
                 ],
               ),
@@ -860,7 +1242,7 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                 color: widget.isCompleted ? Colors.grey[900] : Colors.grey[850],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF39FF14),
+                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF00FF66),
                   width: 1.5,
                 ),
               ),
@@ -875,7 +1257,7 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                       child: Text(
                         widget.event['start_time'],
                         style: TextStyle(
-                          color: widget.isCompleted ? Colors.grey[600] : const Color(0xFF39FF14),
+                          color: widget.isCompleted ? Colors.grey[600] : const Color(0xFF00FF66),
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                           shadows: const [],
@@ -1053,7 +1435,7 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                 color: widget.isCompleted ? Colors.grey[900] : Colors.grey[850],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF39FF14),
+                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF00FF66),
                   width: 1.5,
                 ),
               ),
@@ -1095,13 +1477,13 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF39FF14),
+                            color: const Color(0xFF00FF66),
                             width: 2,
                           ),
                         ),
                         child: const Icon(
                           Icons.check,
-                          color: Color(0xFF39FF14),
+                          color: Color(0xFF00FF66),
                           size: 16,
                         ),
                       ),
@@ -1113,7 +1495,7 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                       margin: const EdgeInsets.only(left: 12, top: 2),
                       decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Color(0xFF39FF14),
+                        color: Color(0xFF00FF66),
                       ),
                       child: const Icon(
                         Icons.check,

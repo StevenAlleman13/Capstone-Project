@@ -1122,11 +1122,13 @@ class _IngredientCard extends StatelessWidget {
 
     String macroLine() {
       final parts = <String>[];
-      if (ing.calories != null)
+      if (ing.calories != null) {
         parts.add('${ing.calories!.toStringAsFixed(0)} cal');
+      }
       if (ing.carbsG != null) parts.add('${ing.carbsG!.toStringAsFixed(1)}c');
-      if (ing.proteinG != null)
+      if (ing.proteinG != null) {
         parts.add('${ing.proteinG!.toStringAsFixed(1)}p');
+      }
       if (ing.fatG != null) parts.add('${ing.fatG!.toStringAsFixed(1)}f');
       return parts.isEmpty ? 'Tap sync' : parts.join(' • ');
     }
