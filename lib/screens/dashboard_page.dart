@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:app_usage/app_usage.dart';
@@ -267,7 +266,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── Profile ───────────────────────────────────────────────────
-            _ProfileWidget(username: _username, coins: _coins),
+            _ProfileWidget(username: _username, coins: _coins, onSettingsReturn: _loadProfile),
             const SizedBox(height: 10),
 
             // ── Activity Rings ────────────────────────────────────────────
@@ -314,8 +313,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 class _ProfileWidget extends StatelessWidget {
   final String username;
   final int coins;
+  final VoidCallback? onSettingsReturn;
 
-  const _ProfileWidget({required this.username, required this.coins});
+  const _ProfileWidget({required this.username, required this.coins, this.onSettingsReturn});
 
   @override
   Widget build(BuildContext context) {
@@ -370,8 +370,9 @@ class _ProfileWidget extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.settings, color: neon, size: 26),
             tooltip: 'Settings',
-            onPressed: () {
-              Navigator.of(context).pushNamed('/settings');
+            onPressed: () async {
+              await Navigator.of(context).pushNamed('/settings');
+              onSettingsReturn?.call();
             },
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -408,119 +409,89 @@ class _ActivityRingsWidget extends StatelessWidget {
         border: Border.all(color: neon, width: 2),
         color: Colors.black,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [          _RingItem(value: taskRing, label: 'Tasks', color: const Color(0xFF00FF66)),
-          _RingItem(value: macroRing, label: 'Macros', color: const Color(0xFFFF9500)),
-          _RingItem(value: weightRing, label: 'Weight', color: const Color(0xFF2196F3)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ProgressBarItem(value: taskRing, label: 'Tasks', color: const Color(0xFF00FF66)),
+          const SizedBox(height: 12),
+          _ProgressBarItem(value: macroRing, label: 'Macros', color: const Color(0xFFFF9500)),
+          const SizedBox(height: 12),
+          _ProgressBarItem(value: weightRing, label: 'Weight', color: const Color(0xFF2196F3)),
         ],
       ),
     );
   }
 }
 
-class _RingItem extends StatelessWidget {
+class _ProgressBarItem extends StatelessWidget {
   final double value;
   final String label;
   final Color color;
 
-  const _RingItem(
-      {required this.value, required this.label, required this.color});
+  const _ProgressBarItem({
+    required this.value,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return Row(
       children: [
         SizedBox(
-          width: 72,
-          height: 72,
-          child: CustomPaint(
-            painter: _RingPainter(value: value, color: color),
-            child: Center(
-              child: Text(
-                '${(value * 100).round()}%',
-                style: TextStyle(
+          width: 60,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              shadows: [],
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 18,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withOpacity(0.5), width: 1),
+              color: Colors.black,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: value.clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
                     color: color,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    shadows: []),
+                    boxShadow: [
+                      BoxShadow(color: color.withOpacity(0.4), blurRadius: 8),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 5),
-        Text(label,
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 40,
+          child: Text(
+            '${(value * 100).round()}%',
             style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                shadows: [])),
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              shadows: [],
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
       ],
     );
   }
-}
-
-class _RingPainter extends CustomPainter {
-  final double value;
-  final Color color;
-
-  const _RingPainter({required this.value, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const strokeWidth = 8.0;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (math.min(size.width, size.height) - strokeWidth) / 2;
-    const startAngle = -math.pi / 2;
-
-    // Track
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = color.withOpacity(0.15)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.round,
-    );
-
-    if (value > 0) {
-      final sweep = 2 * math.pi * value.clamp(0.0, 1.0);
-      final rect = Rect.fromCircle(center: center, radius: radius);
-
-      // Glow
-      canvas.drawArc(
-        rect,
-        startAngle,
-        sweep,
-        false,
-        Paint()
-          ..color = color.withOpacity(0.35)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth + 4
-          ..strokeCap = StrokeCap.round
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-      );
-
-      // Fill
-      canvas.drawArc(
-        rect,
-        startAngle,
-        sweep,
-        false,
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) =>
-      old.value != value || old.color != color;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -536,14 +507,48 @@ class _DailyTasksWidget extends StatefulWidget {
 }
 
 class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
-  final _supabase = Supabase.instance.client;
+  final _supabase = Supabase.instance.client;  final _pageController = PageController();
   List<Map<String, dynamic>> _tasks = [];
   bool _loading = true;
+  int _currentPage = 0;
 
+  // Pool of daily challenges
+  static const List<String> _challengePool = [
+    'Drink 8 glasses of water',
+    'Workout for 1 hour',
+    'Workout outside for 30 minutes',
+    'Take a 20-minute walk',
+    'Meditate for 10 minutes',
+    'Eat a healthy breakfast',
+    'Stretch for 10 minutes',
+    'Read for 20 minutes',
+    'No social media for 2 hours',
+    'Write down 3 things you are grateful for',
+    'Go to bed before 11 PM',
+    'Take the stairs instead of the elevator',
+    'Call or message a friend',
+    'Avoid sugary drinks today',
+    'Do 30 squats',
+    'Do 20 pushups',
+    'Do 10 pullups',
+    'Practice deep breathing for 10 minutes',
+    'Limit screen time to 2 hours',
+    'Eat a serving of vegetables',
+    'Walk 5,000 steps',
+    'Walk 10,000 steps',
+    'Do a random act of kindness',
+    'Spend 10 minutes outdoors',
+  ];
   @override
   void initState() {
     super.initState();
     _loadTasks();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   String _todayKey() {
@@ -557,7 +562,6 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
   }
-
   Future<void> _loadTasks() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -568,20 +572,25 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       final rows = await _supabase
           .from('user_tasks')
           .select()
-          .eq('user_id', user.id);
-
-      final todayWeekday = _weekdayName(DateTime.now().weekday);      final tasks = (rows as List).map((r) => {
+          .eq('user_id', user.id);      final todayWeekday = _weekdayName(DateTime.now().weekday);
+      final tasks = (rows as List).map((r) => {
             'id': r['id'],
             'name': r['name'].toString(),
             'days': List<String>.from(r['days'] ?? []),
-            'end_date': r['end_date'],            'completed_dates':
+            'end_date': r['end_date'],
+            'completed_dates':
                 List<String>.from(r['completed_dates'] ?? []),
             'user_id': r['user_id'],
+            'is_challenge': (r['is_challenge'] as bool?) ?? false,
           }).where((t) {
+        final isChallenge = t['is_challenge'] as bool;
+        if (isChallenge) {
+          // Challenges are only shown today if they're added
+          return true;
+        }
         final days = t['days'] as List<String>;
         return days.isEmpty || days.contains(todayWeekday);
       }).toList();
-
       if (!mounted) return;
       setState(() {
         _tasks = tasks;
@@ -592,8 +601,85 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     }
   }
 
+  Future<void> _toggleChallenge(Map<String, dynamic> challenge) async {
+    final today = _todayKey();
+    final completed = List<String>.from(challenge['completed_dates'] as List? ?? []);
+    if (completed.contains(today)) {
+      completed.remove(today);
+    } else {
+      completed.add(today);
+    }
+    setState(() => challenge['completed_dates'] = completed);
+    try {
+      await _supabase
+          .from('user_tasks')
+          .update({'completed_dates': completed})
+          .eq('id', challenge['id']);
+      widget.onTasksChanged();
+    } catch (_) {}
+  }  Future<void> _showAddChallengeDialog() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    // Get challenges not already added today
+    final alreadyAdded = _tasks
+        .where((t) => (t['is_challenge'] as bool?) ?? false)
+        .map((t) => t['name'] as String)
+        .toList();
+    
+    final availableChallenges = _challengePool
+        .where((c) => !alreadyAdded.contains(c))
+        .toList();
+
+    if (availableChallenges.isEmpty) {
+      // All challenges already added
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('All challenges already added for today!')),
+      );
+      return;
+    }
+
+    // Randomly pick one
+    availableChallenges.shuffle();
+    final selected = availableChallenges.first;
+
+    final id = const Uuid().v4();
+    final newChallenge = {
+      'id': id,
+      'name': selected,
+      'days': <String>[],
+      'end_date': null,
+      'completed_dates': <String>[],
+      'user_id': user.id,
+      'is_challenge': true,
+    };
+
+    setState(() {
+      _tasks.add(newChallenge);
+    });
+
+    try {
+      await _supabase.from('user_tasks').insert({
+        'id': id,
+        'name': selected,
+        'days': [],
+        'end_date': null,
+        'completed_dates': [],
+        'user_id': user.id,
+        'is_challenge': true,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to add challenge: $e')),
+      );
+      // Remove from local list if database insert failed
+      setState(() => _tasks.removeWhere((t) => t['id'] == id));
+    }
+  }
   bool _isCompletedToday(Map<String, dynamic> task) =>
-      (task['completed_dates'] as List<String>).contains(_todayKey());  Future<void> _toggleTask(Map<String, dynamic> task) async {
+      (task['completed_dates'] as List<String>? ?? []).contains(_todayKey());Future<void> _toggleTask(Map<String, dynamic> task) async {
     final today = _todayKey();
     final completed = List<String>.from(task['completed_dates'] as List);
     if (completed.contains(today)) {
@@ -627,13 +713,13 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
         title: const Text('Add Task',
-            style: TextStyle(color: _neonGreen, shadows: [])),
-        content: Form(
+            style: TextStyle(color: _neonGreen, shadows: [])),        content: Form(
           key: formKey,
           child: TextFormField(
             controller: nameCtrl,
             autofocus: true,
             style: const TextStyle(color: Colors.white),
+            cursorColor: Colors.white,
             decoration: InputDecoration(
               hintText: 'Task name',
               hintStyle: const TextStyle(color: Colors.white38),
@@ -697,11 +783,19 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         const SnackBar(content: Text('Failed to save task.')),
       );
     }
-  }
-
-  @override
+  }  @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
+    
+    // Separate regular tasks and challenges
+    final regularTasks = _tasks.where((t) => (t['is_challenge'] as bool?) ?? false ? false : true).toList();
+    final challenges = _tasks.where((t) => (t['is_challenge'] as bool?) ?? false).toList();
+    
+    final incompleteRegular = regularTasks.where((t) => !_isCompletedToday(t)).toList();
+    final completedRegular = regularTasks.where((t) => _isCompletedToday(t)).toList();
+    
+    final incompleteChallenges = challenges.where((c) => !_isCompletedToday(c)).toList();
+    final completedChallenges = challenges.where((c) => _isCompletedToday(c)).toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -711,9 +805,10 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [          // Header
+        children: [
+          // Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 2, 8, 0),
+            padding: const EdgeInsets.fromLTRB(16, 2, 2, 1),
             child: Row(
               children: [
                 Icon(Icons.task_alt, color: neon, size: 20),
@@ -721,9 +816,25 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                 Expanded(
                   child: Text(
                     'DAILY TASKS',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                    ),
                   ),
                 ),
+                // Add challenge button
+                GestureDetector(
+                  onTap: _showAddChallengeDialog,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+                    ),
+                    child: const Icon(Icons.star, color: Color(0xFFFFD700), size: 18),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 IconButton(
                   icon: Icon(Icons.add, color: neon, size: 24),
                   tooltip: 'Add task',
@@ -735,7 +846,10 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
               ],
             ),
           ),
-          Divider(height: 1, color: neon.withOpacity(0.2)),          // Task list – hide completed tasks on dashboard
+
+          Divider(height: 1, color: neon.withOpacity(0.2)),
+
+          // PageView for tasks (swipe left/right)
           Expanded(
             child: _loading
                 ? const Center(
@@ -745,74 +859,126 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : Builder(builder: (_) {
-                    final incomplete = _tasks
-                        .where((t) => !_isCompletedToday(t))
-                        .toList();
-                    if (incomplete.isEmpty) {
-                      return Center(
-                        child: Text(
-                          _tasks.isEmpty
-                              ? 'No tasks for today.\nTap + to add one.'
-                              : 'All tasks completed! 🎉',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: neon.withOpacity(0.5),
-                            fontSize: 13,
-                            shadows: [],
-                          ),
-                        ),
-                      );
-                    }
-                    return ListView.separated(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      itemCount: incomplete.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(height: 2),                      itemBuilder: (context, i) {
-                        final task = incomplete[i];
-                        return InkWell(
-                          onTap: () => _toggleTask(task),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 6),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: neon.withOpacity(0.35),
-                                width: 1,
-                              ),
-                              color: Colors.transparent,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.radio_button_unchecked,
-                                  color: neon.withOpacity(0.4),
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    task['name'] as String,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      shadows: [],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  }),
+                : PageView(
+                    controller: _pageController,
+                    onPageChanged: (page) => setState(() => _currentPage = page),
+                    children: [
+                      // Page 0: Incomplete challenges + tasks
+                      _buildTaskList(incompleteRegular, incompleteChallenges, neon, isCompleted: false),
+                      // Page 1: Completed challenges + tasks
+                      _buildTaskList(completedRegular, completedChallenges, neon, isCompleted: true),
+                    ],
+                  ),
+          ),
+
+          // Page indicator dots
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildDot(0, neon),
+                const SizedBox(width: 8),
+                _buildDot(1, neon),
+              ],
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDot(int index, Color neon) {
+    final isActive = _currentPage == index;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: isActive ? 16 : 8,
+      height: 8,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        color: isActive ? neon : neon.withOpacity(0.3),
+      ),
+    );
+  }  Widget _buildTaskList(List<Map<String, dynamic>> tasks, List<Map<String, dynamic>> challenges, Color neon, {required bool isCompleted}) {
+    // Challenges at the top, then tasks
+    final allItems = [...challenges, ...tasks];
+    
+    if (allItems.isEmpty) {
+      return Center(
+        child: Text(
+          isCompleted
+              ? 'No completed tasks yet'
+              : ((_tasks.where((t) => (t['is_challenge'] as bool?) ?? false ? false : true).isEmpty &&
+                  _tasks.where((t) => (t['is_challenge'] as bool?) ?? false).isEmpty)
+                  ? 'No tasks for today.\nTap + to add one.'
+                  : 'All tasks completed!'),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: neon.withOpacity(0.5),
+            fontSize: 13,
+            shadows: [],
+          ),
+        ),
+      );
+    }
+
+    const Color challengeColor = Color(0xFFFFD700); // Gold/yellow for challenges
+
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      itemCount: allItems.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 2),
+      itemBuilder: (context, i) {
+        final item = allItems[i];
+        final isChallenge = (item['is_challenge'] as bool?) ?? false;
+        final itemColor = isChallenge ? challengeColor : neon;
+        
+        return InkWell(
+          onTap: () => isChallenge ? _toggleChallenge(item) : _toggleTask(item),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isCompleted ? itemColor.withOpacity(0.2) : itemColor.withOpacity(0.35),
+                width: 1,
+              ),
+              color: isCompleted ? itemColor.withOpacity(0.05) : Colors.transparent,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+                  color: isCompleted ? itemColor : itemColor.withOpacity(0.4),
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    item['name'] as String,
+                    style: TextStyle(
+                      color: isCompleted 
+                          ? (isChallenge ? Colors.white54 : Colors.white54)
+                          : (isChallenge ? challengeColor : Colors.white),
+                      fontSize: 14,
+                      decoration: isCompleted ? TextDecoration.lineThrough : null,
+                      shadows: [],
+                    ),
+                  ),
+                ),
+                // Star icon at the end for challenges
+                if (isChallenge)
+                  Icon(
+                    Icons.star,
+                    color: isCompleted ? challengeColor.withOpacity(0.5) : challengeColor,
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -861,13 +1027,14 @@ class _ScreenTimeWidget extends StatelessWidget {
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+        children: [          Row(
             children: [
               Expanded(
                 child: Text(
                   'REMAINING SCREEN TIME',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                  ),
                 ),
               ),
               Container(
