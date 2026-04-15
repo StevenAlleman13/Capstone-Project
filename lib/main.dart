@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:app_links/app_links.dart';
 
 import 'screens/login_page.dart';
 import 'screens/dashboard_page.dart' as dash;
@@ -124,6 +125,20 @@ class _AuthGateState extends State<AuthGate> {
   void initState() {
     super.initState();
     _bootstrapAuthState();
+    _handleIncomingLinks();
+  }
+
+  void _handleIncomingLinks() async {
+    final appLinks = AppLinks();
+    try {
+      final initialUri = await appLinks.getInitialLink();
+      if (initialUri != null) {
+        await Supabase.instance.client.auth.getSessionFromUrl(initialUri);
+      }
+    } catch (_) {}
+    appLinks.uriLinkStream.listen((uri) {
+      Supabase.instance.client.auth.getSessionFromUrl(uri);
+    });
   }
 
   Future<void> _bootstrapAuthState() async {

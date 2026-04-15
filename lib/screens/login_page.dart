@@ -66,7 +66,8 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.of(context).pushReplacementNamed('/home');
       } else {
         setState(() {
-          _error = 'Account created. Check your email to confirm before signing in.';
+          _error =
+              'Account created. Check your email to confirm before signing in.';
         });
       }
     } on AuthException catch (e) {
@@ -78,7 +79,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Google OAuth with Supabase
   Future<void> _signInWithGoogle() async {
     setState(() {
       _loading = true;
@@ -88,10 +88,9 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await _supabase.auth.signInWithOAuth(
         OAuthProvider.google,
-
+        redirectTo: 'com.example.flutter_application_1://login-callback',
+        authScreenLaunchMode: LaunchMode.externalApplication,
       );
-
-      // OAuth flow will redirect; on success your auth state listener should route.
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
@@ -101,39 +100,50 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    body: SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const SizedBox(height: 18),
+  @override
+  void initState() {
+    super.initState();
+    _supabase.auth.onAuthStateChange.listen((data) {
+      final session = data.session;
+      if (session != null && mounted) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    });
+  }
 
-          // LOCKIN Title
-          Center(
-            child: Text(
-              'LOCK IN',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    color: _neonGreen,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 3.0,
-                  ),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 18),
+
+            // LOCKIN Title
+            Center(
+              child: Text(
+                'LOCK IN',
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                  color: _neonGreen,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 3.0,
+                ),
+              ),
             ),
-          ),
 
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-          // Gameboy Logo
-          Center(
-            child: Image.asset(
-              'assets/images/gameboy_lock.png',
-              width: 150, // adjust size here
-              fit: BoxFit.contain,
+            // Gameboy Logo
+            Center(
+              child: Image.asset(
+                'assets/images/gameboy_lock.png',
+                width: 150, // adjust size here
+                fit: BoxFit.contain,
+              ),
             ),
-          ),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
             Center(
               child: Card(
@@ -147,7 +157,9 @@ Widget build(BuildContext context) {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           TextFormField(
-                            decoration: const InputDecoration(labelText: 'Email'),
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                            ),
                             keyboardType: TextInputType.emailAddress,
                             onChanged: (v) => _email = v,
                             validator: (v) => (v != null && v.contains('@'))
@@ -160,9 +172,12 @@ Widget build(BuildContext context) {
                               labelText: 'Password',
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscure ? Icons.visibility : Icons.visibility_off,
+                                  _obscure
+                                      ? Icons.visibility
+                                      : Icons.visibility_off,
                                 ),
-                                onPressed: () => setState(() => _obscure = !_obscure),
+                                onPressed: () =>
+                                    setState(() => _obscure = !_obscure),
                               ),
                             ),
                             obscureText: _obscure,
@@ -190,7 +205,9 @@ Widget build(BuildContext context) {
                                   ? const SizedBox(
                                       height: 16,
                                       width: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Text('Sign in'),
                             ),
@@ -206,9 +223,13 @@ Widget build(BuildContext context) {
                               icon: const Icon(Icons.g_mobiledata, size: 26),
                               label: const Text('Sign in with Google'),
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: _neonGreen.withOpacity(0.65)),
+                                side: BorderSide(
+                                  color: _neonGreen.withOpacity(0.65),
+                                ),
                                 foregroundColor: _neonGreen,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                               ),
                             ),
                           ),
