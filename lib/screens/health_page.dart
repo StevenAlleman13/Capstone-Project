@@ -27,12 +27,13 @@ class HealthPageState extends State<HealthPage> {
 
   List<String> _healthFacts = const [];
   bool _loadingFacts = false;
-
   List<RecipeCardUi> _recipeCards = const [];
   bool _loadingRecipes = false;
 
   Set<int> _favoriteRecipeIds = <int>{};
   bool _loadingFavorites = false;
+  List<RecipeCardUi> _favoriteRecipeCards = const [];
+  bool _showingFavorites = false;
   List<String> _cachedTrivia = const [];
   String? _lastRecipeIngredientKey;
   bool _ingredientsExpanded = false;
@@ -196,12 +197,12 @@ class HealthPageState extends State<HealthPage> {
             key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── Name ──
+              children: [                // ── Name ──
                 TextFormField(
                   controller: nameCtrl,
                   autofocus: true,
                   style: const TextStyle(color: Colors.white),
+                  cursorColor: Colors.white,
                   decoration: const InputDecoration(
                     labelText: 'Ingredient',
                     hintText: 'e.g., bananas',
@@ -218,13 +219,13 @@ class HealthPageState extends State<HealthPage> {
                 // ── Amount + unit row ──
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
+                  children: [                    Expanded(
                       child: TextFormField(
                         controller: amountCtrl,
                         keyboardType: const TextInputType.numberWithOptions(
                             decimal: true),
                         style: const TextStyle(color: Colors.white),
+                        cursorColor: Colors.white,
                         decoration: const InputDecoration(
                           labelText: 'Amount',
                           hintText: '100',
@@ -527,15 +528,12 @@ class HealthPageState extends State<HealthPage> {
         return;
       }
 
-      final list = jsonDecode(resp.body) as List<dynamic>;
-
-      final cards = list.map((e) {
+      final list = jsonDecode(resp.body) as List<dynamic>;      final cards = list.map((e) {
         final m = e as Map<String, dynamic>;
         final id = (m['id'] ?? 0) as int;
         final title = (m['title'] ?? 'Recipe').toString();
         final image = (m['image'] ?? '').toString();
-
-        final used = (m['usedIngredients'] as List?) ?? const [];
+        final have = (m['usedIngredients'] as List?) ?? const [];   /* usedIngredients is from the API - cant change */
         final missed = (m['missedIngredients'] as List?) ?? const [];
 
         final missingNames = missed
@@ -547,7 +545,7 @@ class HealthPageState extends State<HealthPage> {
           recipeId: id,
           title: title,
           imageUrl: image,
-          subtitle: 'Used: ${used.length} • Missing: ${missed.length}',
+          subtitle: 'Have: ${have.length} • Missing: ${missed.length}',
           missingIngredients: missingNames,
           isFavorite: _favoriteRecipeIds.contains(id),
         );
@@ -567,9 +565,7 @@ class HealthPageState extends State<HealthPage> {
       if (mounted) setState(() => _loadingRecipes = false);
     }
   }
-
   /* -------------------------- FAVORITES -------------------------- */
-
   Future<void> _loadFavorites() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
@@ -579,23 +575,53 @@ class HealthPageState extends State<HealthPage> {
 
       final rows = await _supabase
           .from('favorite_recipes')
-          .select('recipe_id')
+          .select('recipe_id, title, image_url, ingredients')
           .eq('user_id', user.id);
 
       final ids = <int>{};
+      final cards = <RecipeCardUi>[];
+      
       for (final r in (rows as List)) {
         final v = r['recipe_id'];
-        if (v is int) ids.add(v);
-        if (v is num) ids.add(v.toInt());
+        final recipeId = v is int ? v : (v is num ? v.toInt() : null);
+        if (recipeId != null) {
+          ids.add(recipeId);
+          final title = (r['title'] ?? 'Recipe').toString();
+          final image = (r['image_url'] ?? '').toString();
+          
+          // Parse ingredients from JSON
+          List<String> ingredients = const [];
+          try {
+            final ingredientsJson = r['ingredients'];
+            if (ingredientsJson != null) {
+              final parsed = jsonDecode(ingredientsJson.toString());
+              ingredients = List<String>.from(parsed as List? ?? []);
+            }
+          } catch (e) {
+            // If parsing fails, just use empty list
+            ingredients = const [];
+          }
+          
+          cards.add(RecipeCardUi(
+            recipeId: recipeId,
+            title: title,
+            imageUrl: image,
+            subtitle: 'Favorite',
+            missingIngredients: ingredients,
+            isFavorite: true,
+          ));
+        }
       }
 
       if (!mounted) return;
-      setState(() => _favoriteRecipeIds = ids);
+      setState(() {
+        _favoriteRecipeIds = ids;
+        _favoriteRecipeCards = cards;
+      });
     } finally {
       if (mounted) setState(() => _loadingFavorites = false);
     }
   }
-
   Future<void> _toggleFavorite(RecipeCardUi recipe) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
@@ -612,17 +638,20 @@ class HealthPageState extends State<HealthPage> {
             .eq('recipe_id', id);
         _favoriteRecipeIds.remove(id);
       } else {
+        // Serialize all ingredients (both missing and used)
+        final ingredientsJson = jsonEncode(recipe.missingIngredients);
+        
         await _supabase.from('favorite_recipes').insert({
           'user_id': user.id,
           'recipe_id': id,
           'title': recipe.title,
           'image_url': recipe.imageUrl,
+          'ingredients': ingredientsJson,
         });
         _favoriteRecipeIds.add(id);
-      }
-
-      if (!mounted) return;
+      }      if (!mounted) return;
       setState(() {
+        // Update suggested recipes list
         _recipeCards = _recipeCards
             .map(
               (r) => r.recipeId == id
@@ -630,6 +659,21 @@ class HealthPageState extends State<HealthPage> {
                   : r,
             )
             .toList();
+        
+        // Update favorite recipes list - remove if unfavorited, add if favorited
+        if (isFav) {
+          // Removed from favorites - filter it out
+          _favoriteRecipeCards = _favoriteRecipeCards
+              .where((r) => r.recipeId != id)
+              .toList();
+        } else {
+          // Added to favorites - update the card to mark as favorite
+          _favoriteRecipeCards = _favoriteRecipeCards
+              .map(
+                (r) => r.recipeId == id ? r.copyWith(isFavorite: true) : r,
+              )
+              .toList();
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -651,11 +695,11 @@ class HealthPageState extends State<HealthPage> {
         backgroundColor: Colors.black,
         title: const Text('Add Recipe'),
         content: Form(
-          key: formKey,
-          child: TextFormField(
+          key: formKey,          child: TextFormField(
             controller: controller,
             autofocus: true,
             style: const TextStyle(color: Colors.white),
+            cursorColor: Colors.white,
             decoration: const InputDecoration(
               hintText: 'Search recipes (e.g., chicken bowl)',
               hintStyle: TextStyle(color: Colors.white54),
@@ -737,14 +781,15 @@ class HealthPageState extends State<HealthPage> {
       ).showSnackBar(SnackBar(content: Text('Add recipe error: $e')));
     }
   }
-
   /* -------------------------- UI -------------------------- */
   @override
   Widget build(BuildContext context) {
     final ingredients = _ingredients;
 
     return Scaffold(
-      body: ListView(
+      body: MouseRegion(
+        cursor: SystemMouseCursors.basic,
+        child: ListView(
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
         children: [
@@ -800,9 +845,7 @@ class HealthPageState extends State<HealthPage> {
                 ? const _EmptyHint(text: 'No facts yet. Tap refresh.')
                 : _HealthFactsPager(facts: _healthFacts),
           ),
-          const SizedBox(height: 14),
-
-          _CollapsibleSection(
+          const SizedBox(height: 14),          _CollapsibleSection(
             title: 'Recipes',
             icon: Icons.menu_book,
             expanded: _recipesExpanded,
@@ -825,28 +868,65 @@ class HealthPageState extends State<HealthPage> {
                   },
                 ),
               ],
-            ),            child: ingredients.isEmpty
-                ? const _EmptyHint(text: 'Add ingredients to get recipes.')
-                : _loadingRecipes || _loadingFavorites
-                ? const _EmptyHint(text: 'Loading recipes...')
-                : _recipeCards.isEmpty
-                ? const _EmptyHint(text: 'No recipes found.')
-                : SizedBox(
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_favoriteRecipeCards.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),                    child: SegmentedButton<bool>(
+                      onSelectionChanged: (Set<bool> newSelection) {
+                        final isFavoritesSelected = newSelection.first;
+                        setState(() => _showingFavorites = isFavoritesSelected);
+                        
+                        // Reload favorites when switching to Favorites tab
+                        if (isFavoritesSelected) {
+                          _loadFavorites();
+                        }
+                      },
+                      selected: <bool>{_showingFavorites},
+                      segments: const <ButtonSegment<bool>>[
+                        ButtonSegment<bool>(
+                          value: false,
+                          label: Text('Suggested'),
+                        ),
+                        ButtonSegment<bool>(
+                          value: true,
+                          label: Text('Favorites'),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (ingredients.isEmpty)
+                  const _EmptyHint(text: 'Add ingredients to get recipes.')
+                else if (_loadingRecipes || _loadingFavorites)
+                  const _EmptyHint(text: 'Loading recipes...')
+                else if ((_showingFavorites ? _favoriteRecipeCards : _recipeCards).isEmpty)
+                  _EmptyHint(
+                    text: _showingFavorites
+                        ? 'No favorite recipes yet.'
+                        : 'No recipes found.',
+                  )
+                else
+                  SizedBox(
                     height: 280,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
-                      itemCount: _recipeCards.length,
+                      itemCount: (_showingFavorites ? _favoriteRecipeCards : _recipeCards).length,
                       separatorBuilder: (_, __) => const SizedBox(width: 12),
                       itemBuilder: (context, i) => _RecipeCard(
-                        recipe: _recipeCards[i],
+                        recipe: (_showingFavorites ? _favoriteRecipeCards : _recipeCards)[i],
                         onTap: widget.onRecipeTap,
                         onFavorite: _toggleFavorite,
                       ),
                     ),
                   ),
+              ],
+            ),
           ),
         ],
+      ),
       ),
     );
   }
