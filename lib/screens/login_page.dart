@@ -155,19 +155,18 @@ class _LoginPageState extends State<LoginPage> {
                       key: _formKey,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextFormField(
+                        children: [                          TextFormField(
                             decoration: const InputDecoration(
                               labelText: 'Email',
                             ),
                             keyboardType: TextInputType.emailAddress,
+                            cursorColor: Colors.white,
                             onChanged: (v) => _email = v,
                             validator: (v) => (v != null && v.contains('@'))
                                 ? null
                                 : 'Enter a valid email',
                           ),
-                          const SizedBox(height: 12),
-                          TextFormField(
+                          const SizedBox(height: 12),                          TextFormField(
                             decoration: InputDecoration(
                               labelText: 'Password',
                               suffixIcon: IconButton(
@@ -180,6 +179,7 @@ class _LoginPageState extends State<LoginPage> {
                                     setState(() => _obscure = !_obscure),
                               ),
                             ),
+                            cursorColor: Colors.white,
                             obscureText: _obscure,
                             onChanged: (v) => _password = v,
                             validator: (v) =>
