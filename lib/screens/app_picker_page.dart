@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:namer_app/main.dart' as m;
 
-const Color _neonGreen = Color(0xFF00FF66);
+// const Color _neonGreen = Color(0xFF00FF66); -- this can be referenced with m.secondaryColorDark
+
+Color primaryColor = m.primaryColor;
+Color secondaryColor = m.secondaryColor;
+Color textColor = m.textColor;
 
 class AppPickerPage extends StatefulWidget {
   const AppPickerPage({super.key});
@@ -69,29 +74,29 @@ class _AppPickerPageState extends State<AppPickerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: primaryColor,
       appBar: AppBar(
-        backgroundColor: Colors.grey[900],
-        title: const Text(
+        backgroundColor: Colors.grey[900],    // grey900
+        title: Text(
           'Select Apps',
           style: TextStyle(
-            color: Colors.white,
+            color: textColor,
             letterSpacing: 1.2,
             shadows: [],
           ),
         ),
-        iconTheme: const IconThemeData(color: Colors.white), 
+        iconTheme: IconThemeData(color: textColor), 
         actions: [
           IconButton(
-            icon: const Icon(Icons.check, color: Colors.white),
+            icon: Icon(Icons.check, color: textColor),
             onPressed: _save,
             tooltip: 'Save',
           ),
         ],
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: _neonGreen),
+          ? Center(
+              child: CircularProgressIndicator(color: secondaryColor),
             )
           : _error != null
               ? Center(
@@ -117,20 +122,20 @@ class _AppPickerPageState extends State<AppPickerPage> {
                             width: 40,
                             height: 40,
                             errorBuilder: (_, _, _) =>
-                                const Icon(Icons.android, color: _neonGreen, size: 40),
+                                Icon(Icons.android, color: secondaryColor, size: 40),
                           )
-                        : const Icon(Icons.android, color: _neonGreen, size: 40);
+                        : Icon(Icons.android, color: secondaryColor, size: 40);
 
                     return CheckboxListTile(
                       value: isSelected,
                       onChanged: (_) => _toggle(app.packageName),
-                      activeColor: _neonGreen,
-                      checkColor: Colors.black,
-                      tileColor: Colors.black,
+                      activeColor: secondaryColor,
+                      checkColor: primaryColor,
+                      tileColor: primaryColor,
                       secondary: iconWidget,
                       title: Text(
                         app.name,
-                        style: const TextStyle(color: _neonGreen),
+                        style: TextStyle(color: secondaryColor),
                       ),
                     );
                   },

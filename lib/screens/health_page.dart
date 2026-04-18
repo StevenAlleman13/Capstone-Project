@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:namer_app/main.dart' as m;
+
+Color primaryColor = m.primaryColor;
+Color secondaryColor = m.secondaryColor;
+Color textColor = m.textColor;
 
 class HealthPage extends StatefulWidget {
   const HealthPage({super.key, this.onRecipeTap});
@@ -190,7 +195,7 @@ class HealthPageState extends State<HealthPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDState) => AlertDialog(
-          backgroundColor: Colors.black,
+          backgroundColor: primaryColor,
           title: const Text('Add Ingredient'),
           content: Form(
             key: formKey,
@@ -648,7 +653,7 @@ class HealthPageState extends State<HealthPage> {
     final query = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
         title: const Text('Add Recipe'),
         content: Form(
           key: formKey,
@@ -699,7 +704,7 @@ class HealthPageState extends State<HealthPage> {
 
       final picked = await showModalBottomSheet<RecipeCardUi>(
         context: context,
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
         showDragHandle: true,
         builder: (context) {
           return ListView.separated(
@@ -1149,7 +1154,7 @@ class _IngredientCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: neon, width: 1.5),
         boxShadow: [BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6)],
-        color: Colors.black,
+        color: primaryColor,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1172,7 +1177,7 @@ class _IngredientCard extends StatelessWidget {
                       height: 44,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        color: Colors.black,
+                        color: primaryColor,
                         border: Border.all(color: neon.withOpacity(0.4)),
                       ),
                       child: Icon(Icons.restaurant, size: 18, color: neon),
@@ -1206,7 +1211,7 @@ class _IngredientCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: textColor,
             ),
           ),
           // Serving size
@@ -1254,7 +1259,7 @@ class _NeonBullet extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: neon, width: 1.5),
         boxShadow: [BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6)],
-        color: Colors.black,
+        color: primaryColor,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1354,7 +1359,7 @@ class _RecipeCard extends StatelessWidget {
     final neon = Theme.of(context).colorScheme.secondary;
 
     return Material(
-      color: Colors.black,
+      color: primaryColor,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -1380,16 +1385,16 @@ class _RecipeCard extends StatelessWidget {
                         recipe.imageUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) =>
-                            Container(color: Colors.black),
+                            Container(color: primaryColor),
                       ),
                     )
                   else
-                    Container(height: 110, color: Colors.black),
+                    Container(height: 110, color: primaryColor),
                   Positioned(
                     top: 6,
                     right: 6,
                     child: Material(
-                      color: Colors.black.withOpacity(0.6),
+                      color: primaryColor.withOpacity(0.6),
                       borderRadius: BorderRadius.circular(999),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(999),
@@ -1448,7 +1453,7 @@ class _RecipeCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white.withOpacity(0.80),
+                      color: textColor.withOpacity(0.80),
                     ),
                   ),
                 ),
@@ -1486,7 +1491,7 @@ class _CollapsibleSection extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: neon, width: 2),
-        color: Colors.black,
+        color: primaryColor,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1506,7 +1511,7 @@ class _CollapsibleSection extends StatelessWidget {
                   Expanded(
                     child: Text(
                       title,                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
+                        color: textColor,
                       ),
                     ),
                   ),
@@ -1543,7 +1548,7 @@ class _EmptyHint extends StatelessWidget {
         text,
         style: Theme.of(
           context,
-        ).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.85)),
+        ).textTheme.bodyMedium?.copyWith(color: textColor.withOpacity(0.85)),
       ),
     );
   }
@@ -1566,9 +1571,9 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan Barcode'),
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
       ),
-      backgroundColor: Colors.black,
+      backgroundColor: primaryColor,
       body: MobileScanner(
         onDetect: (BarcodeCapture capture) {
           if (_scanned) return;

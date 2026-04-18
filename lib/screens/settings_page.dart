@@ -11,7 +11,7 @@ import 'app_picker_page.dart';
 // import 'package:app_settings/app_settings.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-const Color _neonGreen = Color(0xFF00FF66);
+// const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 4.0;
 
 Color primaryColor = m.primaryColor;
@@ -149,14 +149,14 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: primaryColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _neonGreen),
+          icon: Icon(Icons.arrow_back, color: secondaryColor),
           onPressed: () => Navigator.of(context).pop(),
-        ),        title: const Text(
+        ),  title: Text(
           'Settings',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w700),
         ),
       ),
       body: ListView(
@@ -200,11 +200,11 @@ class _SettingsPageState extends State<SettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ListTile(
-                  contentPadding: EdgeInsets.zero,                  title: const Text(
+                  contentPadding: EdgeInsets.zero,                  title: Text(
                     'Locked Apps',
-                    style: TextStyle(color: Colors.white, fontSize: 15),
+                    style: TextStyle(color: textColor, fontSize: 15),
                   ),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),     // white38
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const AppPickerPage()),
@@ -230,8 +230,8 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'LOG OUT',
             child: Align(
               alignment: Alignment.centerLeft,              child: ElevatedButton.icon(
-                icon: const Icon(Icons.logout, color: Colors.white),
-                label: const Text('Log out', style: TextStyle(color: Colors.white)),
+                icon: Icon(Icons.logout, color: textColor),
+                label: Text('Log out', style: TextStyle(color: textColor)),
                 onPressed: () => _logout(context),
               ),
             ),
@@ -292,7 +292,7 @@ class _OverlayPermissionButtonState extends State<_OverlayPermissionButton>
       contentPadding: EdgeInsets.zero,      title: Text(
         'App Overlay',
         style: TextStyle(
-          color: Colors.white,
+          color: textColor,
           fontSize: 15,
         ),
       ),
@@ -379,7 +379,7 @@ class _NotificationButtonState extends State<_NotificationButton>
       contentPadding: EdgeInsets.zero,      title: Text(
         'Notifications',
         style: TextStyle(
-          color: Colors.white,
+          color: textColor,
           fontSize: 15,
         ),
       ),
@@ -453,7 +453,7 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
                   children: [                    Text(
                       label,
                       style: TextStyle(
-                        color: isSelected ? neon : Colors.white, shadows: [],
+                        color: isSelected ? neon : textColor, shadows: [],
                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
                         fontSize: 13,
                       ),
@@ -512,6 +512,33 @@ class _ThemeSelectorState extends State<_ThemeSelector> {
   @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
+    // set theme
+    if (_theme == 'dark') {
+      m.primaryColor = m.primaryColorDark;
+      m.secondaryColor = m.secondaryColorDark;
+      m.textColor = m.textColorDark;
+      m.accent1 = m.primaryAccent1Dark;
+      m.accent2 = m.primaryAccent2Dark;
+      m.accent3 = m.primaryAccent3Dark;
+      m.accent4 = m.primaryAccent4Dark;
+      // change within settings
+      primaryColor = m.primaryColorDark;
+      secondaryColor = m.secondaryColorLight;
+      textColor = m.textColorLight;
+    }
+    else if (_theme == 'light') {
+      m.primaryColor = m.primaryColorLight;
+      m.secondaryColor = m.secondaryColorLight;
+      m.textColor = m.textColorLight;
+      m.accent1 = m.primaryAccent1Light;
+      m.accent2 = m.primaryAccent2Light;
+      m.accent3 = m.primaryAccent3Light;
+      m.accent4 = m.primaryAccent4Light;
+      // change within settings
+      primaryColor = m.primaryColorLight;
+      secondaryColor = m.secondaryColorLight;
+      textColor = m.textColorLight;
+    }
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: _options.map((opt) {
@@ -531,16 +558,16 @@ class _ThemeSelectorState extends State<_ThemeSelector> {
               color: isSelected ? neon.withValues(alpha: 0.08) : Colors.transparent,
             ),
             child: Column(
-              children: [                Icon(
+              children: [ Icon(
                   icon,
                   size: 24,
-                  color: isSelected ? neon : Colors.white,
+                  color: isSelected ? neon : textColor,
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSelected ? neon : Colors.white,
+                    color: isSelected ? neon : textColor,
                     shadows: [],
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
                     fontSize: 13,
@@ -585,7 +612,7 @@ class _SectionFrame extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   letterSpacing: 1.2,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: textColor,
                 ),
           ),
           const SizedBox(height: 10),
@@ -664,7 +691,7 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
         ),
         title: Text('Set Max Screentime', style: TextStyle(color: secondaryColor)),        content: TextField(
           controller: _screentimeController,
-          cursorColor: Colors.white,
+          cursorColor: textColor,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
           style: TextStyle(color: secondaryColor),
           decoration: InputDecoration(
@@ -802,7 +829,7 @@ class _ProfileState extends State<_Profile> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Username updated!', style: TextStyle(color: secondaryColor)),
-          backgroundColor: Colors.grey[900],
+          backgroundColor: Colors.grey[900],    // grey900
         ),
       );
     } catch (e) {
@@ -811,7 +838,7 @@ class _ProfileState extends State<_Profile> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Could not update username.', style: TextStyle(color: Colors.red)),
-          backgroundColor: Colors.grey[900],
+          backgroundColor: Colors.grey[900],    // grey900
         ),
       );
     }
@@ -893,11 +920,11 @@ class _ProfileState extends State<_Profile> {
               ),
               Container(
                 padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  color: _neonGreen,
+                decoration: BoxDecoration(
+                  color: secondaryColor,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.edit, size: 14, color: Colors.black),
+                child: Icon(Icons.edit, size: 14, color: primaryColor),
               ),
             ],
           ),
@@ -912,8 +939,8 @@ class _ProfileState extends State<_Profile> {
               Flexible(
                 child: Text(
                   displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: textColor,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                   ),
@@ -922,7 +949,7 @@ class _ProfileState extends State<_Profile> {
               ),              const SizedBox(width: 8),
               GestureDetector(
                 onTap: _showEditUsernameDialog,
-                child: const Icon(Icons.edit, color: _neonGreen, size: 20),
+                child: Icon(Icons.edit, color: secondaryColor, size: 20),
               ),
             ],
           ),

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'fitness_page.dart' show FitnessPageState;
+import 'package:namer_app/main.dart' as m;
 
 const Color _neonGreen = Color(0xFF00FF66);
+
+Color primaryColor = m.primaryColor;
+Color secondaryColor = m.secondaryColor;
+Color textColor = m.textColor;
 
 void showQuickAddSheet(
   BuildContext context, {
@@ -13,9 +18,9 @@ void showQuickAddSheet(
     backgroundColor: Colors.transparent,
     builder: (ctx) => Container(
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: primaryColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border.all(color: _neonGreen, width: 1.5),
+        border: Border.all(color: secondaryColor, width: 1.5),
       ),
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       child: Column(
@@ -27,18 +32,18 @@ void showQuickAddSheet(
             height: 4,
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
-              color: _neonGreen.withOpacity(0.4),
+              color: secondaryColor.withOpacity(0.4),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           Text(
             'QUICK ADD',
             style: TextStyle(
-              color: _neonGreen,
+              color: secondaryColor,
               fontSize: 13,
               fontWeight: FontWeight.bold,
               letterSpacing: 2,
-              shadows: [Shadow(color: _neonGreen, blurRadius: 8)],
+              shadows: [Shadow(color: secondaryColor, blurRadius: 8)],
             ),
           ),
           const SizedBox(height: 20),
@@ -80,16 +85,16 @@ void showQuickAddSheet(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.grey[900],
+                color: Colors.grey[900],        // grey900
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: _neonGreen.withOpacity(0.4),
+                  color: secondaryColor.withOpacity(0.4),
                   width: 1.2,
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.fitness_center, color: _neonGreen, size: 28),
+                  Icon(Icons.fitness_center, color: secondaryColor, size: 28),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -98,7 +103,7 @@ void showQuickAddSheet(
                         Text(
                           'Trainer',
                           style: TextStyle(
-                            color: _neonGreen,
+                            color: secondaryColor,
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             shadows: [],
@@ -108,7 +113,7 @@ void showQuickAddSheet(
                         Text(
                           'Add ingredients, events & tasks, or ask fitness and nutrition questions',
                           style: TextStyle(
-                            color: _neonGreen.withOpacity(0.6),
+                            color: secondaryColor.withOpacity(0.6),
                             fontSize: 11,
                             shadows: [],
                           ),
@@ -118,7 +123,7 @@ void showQuickAddSheet(
                   ),
                   Icon(
                     Icons.arrow_forward_ios,
-                    color: _neonGreen.withOpacity(0.4),
+                    color: secondaryColor.withOpacity(0.4),
                     size: 16,
                   ),
                 ],
@@ -150,20 +155,20 @@ class _QuickAddButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 24),
           decoration: BoxDecoration(
-            color: Colors.grey[900],
+            color: Colors.grey[900],        // grey900
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _neonGreen.withOpacity(0.4), width: 1.2),
+            border: Border.all(color: secondaryColor.withOpacity(0.4), width: 1.2),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: _neonGreen, size: 30),
+              Icon(icon, color: secondaryColor, size: 30),
               const SizedBox(height: 8),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: _neonGreen,
+                  color: secondaryColor,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   shadows: [],

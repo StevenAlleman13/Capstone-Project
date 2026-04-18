@@ -18,7 +18,35 @@ import 'screens/settings_page.dart' as settings;
 import 'screens/quick_add.dart' as quick_add;
 import 'package:hive_flutter/hive_flutter.dart';
 
-const Color _neonGreen = Color(0xFF00FF66);
+// const Color _neonGreen = Color(0xFF00FF66);
+
+// default colors
+Color primaryColor = Color(0xFF000000);
+Color secondaryColor = Color(0xFF00FF66);
+Color textColor = Color(0xFFFFFFFF);
+Color accent1 = Color(0xFF212121);
+Color accent2 = Color(0xFF424242);
+Color accent3 = Color(0xFF616161);
+Color accent4 = Color(0xFF9E9E9E);
+
+// dark mode
+Color primaryColorDark = Color(0xFF000000);
+Color secondaryColorDark = Color(0xFF00FF66);
+Color textColorDark = Color(0xFFFFFFFF);
+Color primaryAccent1Dark = Color(0xFF212121);   // grey900
+Color primaryAccent2Dark = Color(0xFF424242);   // grey800
+Color primaryAccent3Dark = Color(0xFF616161);   // grey700
+Color primaryAccent4Dark = Color(0xFF9E9E9E);   // grey500
+
+
+// light mode
+Color primaryColorLight = Color(0xFFEFEFEF);
+Color secondaryColorLight = Color(0xFF0066FF);    // blue just to differentiate it from dark mode a bit for now
+Color textColorLight = Color(0xFF000000);
+Color primaryAccent1Light = Color(0xFF9E9E9E);  // grey500
+Color primaryAccent2Light = Color(0xFF616161);  // grey700
+Color primaryAccent3Light = Color(0xFF424242);  // grey800
+Color primaryAccent4Light = Color(0xFF212121);  // grey900
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,47 +82,47 @@ class MyApp extends StatelessWidget {
         title: 'Namer App',
         theme: ThemeData(
           useMaterial3: true,
-          scaffoldBackgroundColor: Colors.black,
+          scaffoldBackgroundColor: primaryColor,
           colorScheme: ColorScheme.dark(
-            primary: Colors.black,
-            onPrimary: _neonGreen,
-            secondary: _neonGreen,
-            onSecondary: Colors.black,
-            surface: Colors.black,
-            onSurface: _neonGreen,
+            primary: primaryColor,
+            onPrimary: secondaryColor,
+            secondary: secondaryColor,
+            onSecondary: primaryColor,
+            surface: primaryColor,
+            onSurface: secondaryColor,
             error: Colors.red,
-            onError: Colors.white,
+            onError: textColor,
           ),
           textTheme: TextTheme(
             titleLarge: TextStyle(
-              color: Colors.white,
+              color: textColor,
               shadows: [],
               fontSize: 20,
             ),
             displayMedium: TextStyle(
-              color: _neonGreen,
-              shadows: [Shadow(color: _neonGreen, blurRadius: 16.0)],
+              color: secondaryColor,
+              shadows: [Shadow(color: secondaryColor, blurRadius: 16.0)],
               fontSize: 24,
             ),
             bodyMedium: TextStyle(
-              color: _neonGreen,
-              shadows: [Shadow(color: _neonGreen, blurRadius: 8.0)],
+              color: secondaryColor,
+              shadows: [Shadow(color: secondaryColor, blurRadius: 8.0)],
             ),
           ),
-          iconTheme: IconThemeData(color: _neonGreen),
+          iconTheme: IconThemeData(color: secondaryColor),
           appBarTheme: AppBarTheme(
-            backgroundColor: Colors.black,
-            foregroundColor: _neonGreen,
+            backgroundColor: primaryColor,
+            foregroundColor: secondaryColor,
             elevation: 0,
           ),
           cardTheme: CardThemeData(
-            color: Colors.black,
+            color: primaryColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           ),
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey[900],
-              foregroundColor: _neonGreen,
+              backgroundColor: accent1,    // grey900 instance
+              foregroundColor: secondaryColor,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
             ),
           ),
@@ -175,8 +203,8 @@ class _AuthGateState extends State<AuthGate> {
   @override
   Widget build(BuildContext context) {
     if (_hasSession == null) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
+      return Scaffold(
+        backgroundColor: primaryColor,
         body: SizedBox.shrink(),
       );
     }
@@ -266,7 +294,7 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: (selectedIndex == 0 || selectedIndex == 1 || selectedIndex == 2)
           ? null
           : AppBar(
-              backgroundColor: Colors.black,
+              backgroundColor: primaryColor,
               elevation: 0,
               centerTitle: false,
               title: Text(
@@ -287,10 +315,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       if (selectedIndex == 1)
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey[900],
+                            color: accent1,
                             border: Border(
                               top: BorderSide(
-                                color: _neonGreen.withOpacity(0.3),
+                                color: secondaryColor.withOpacity(0.3),
                                 width: 1,
                               ),
                             ),
@@ -313,7 +341,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                     child: Text(
                                       'Today',
                                       style: TextStyle(
-                                        color: _neonGreen,
+                                        color: secondaryColor,
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -332,7 +360,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                     },
                                     icon: Icon(
                                       Icons.add_circle,
-                                      color: _neonGreen,
+                                      color: secondaryColor,
                                       size: 32,
                                     ),
                                   ),
@@ -342,7 +370,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           ),
                         ),
                       Container(
-                        color: Colors.grey[800],
+                        color: Colors.grey[800],    // grey800?
                         padding: const EdgeInsets.only(top: 6, bottom: 8),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -378,17 +406,17 @@ class _MyHomePageState extends State<MyHomePage> {
                                 height: 50,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: _neonGreen,
+                                  color: secondaryColor,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: _neonGreen.withOpacity(0.4),
+                                      color: secondaryColor.withOpacity(0.4),
                                       blurRadius: 12,
                                     ),
                                   ],
                                 ),
-                                child: const Icon(
+                                child: Icon(
                                   Icons.add,
-                                  color: Colors.black,
+                                  color: primaryColor,
                                   size: 36,
                                 ),
                               ),
@@ -422,11 +450,11 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: NavigationRail(
                     extended: constraints.maxWidth >= 600,
                     backgroundColor: Colors.grey[800],
-                    selectedIconTheme: IconThemeData(color: _neonGreen),
-                    unselectedIconTheme: IconThemeData(color: Colors.grey[500]),
-                    selectedLabelTextStyle: TextStyle(color: _neonGreen),
+                    selectedIconTheme: IconThemeData(color: secondaryColor),
+                    unselectedIconTheme: IconThemeData(color: accent4),
+                    selectedLabelTextStyle: TextStyle(color: secondaryColor),
                     unselectedLabelTextStyle: TextStyle(
-                      color: Colors.grey[500],
+                      color: accent4,
                     ),
                     destinations: [
                       NavigationRailDestination(
@@ -438,7 +466,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         label: Text('Journal'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.add_circle, color: _neonGreen),
+                        icon: Icon(Icons.add_circle, color: secondaryColor),
                         label: Text(''),
                       ),
                       NavigationRailDestination(
@@ -581,7 +609,7 @@ class _NavBarIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isSelected ? _neonGreen : Colors.grey[500]!;
+    final color = isSelected ? secondaryColor : accent4;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,

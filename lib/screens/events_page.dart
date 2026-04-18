@@ -8,6 +8,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:namer_app/main.dart' as m;
+
+Color primaryColor = m.primaryColor;
+Color secondaryColor = m.secondaryColor;
+Color textColor = m.textColor;
 
 class EventsPage extends StatefulWidget {
   final VoidCallback? onViewModeChanged;
@@ -772,20 +777,20 @@ class _CustomCalendarState extends State<_CustomCalendar> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.chevron_left, color: Colors.white),
+                icon: Icon(Icons.chevron_left, color: textColor),
                 onPressed: _previousMonth,
               ),
               Text(
                 '${_getMonthName(_displayedMonth.month)} ${_displayedMonth.year}',
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: textColor,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   shadows: [],
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.chevron_right, color: Colors.white),
+                icon: Icon(Icons.chevron_right, color: textColor),
                 onPressed: _nextMonth,
               ),
             ],
@@ -844,15 +849,15 @@ class _CustomCalendarState extends State<_CustomCalendar> {
                 
                 return InkWell(
                   onTap: isOutOfRange ? null : () => widget.onDateChanged(date),
-                  splashColor: Colors.white.withOpacity(0.1),
-                  highlightColor: Colors.white.withOpacity(0.05),
+                  splashColor: textColor.withOpacity(0.1),
+                  highlightColor: textColor.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(50),
                   child: Container(
                     decoration: BoxDecoration(
                       color: isSelected 
-                          ? Colors.white.withOpacity(0.2)
+                          ? textColor.withOpacity(0.2)
                           : isToday
-                              ? Colors.white.withOpacity(0.1)
+                              ? textColor.withOpacity(0.1)
                               : Colors.transparent,
                       shape: BoxShape.circle,
                     ),
@@ -863,8 +868,8 @@ class _CustomCalendarState extends State<_CustomCalendar> {
                           color: isOutOfRange
                               ? Colors.grey[700]
                               : isSelected
-                                  ? Colors.white
-                                  : Colors.white,
+                                  ? textColor
+                                  : textColor,
                           fontSize: 18,
                           fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
                           shadows: [],
@@ -960,10 +965,10 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black,
+          color: primaryColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
-            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+            top: BorderSide(color: secondaryColor.withOpacity(0.3), width: 1),
           ),
         ),
         child: SafeArea(
@@ -979,15 +984,15 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                        child: Text('Cancel', style: TextStyle(color: secondaryColor, fontSize: 16, shadows: [])),
                       ),
                       const Spacer(),
-                      const Text('New', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      Text('New', style: TextStyle(color: secondaryColor, fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
                       const Spacer(),
                       TextButton(
                         onPressed: _onAdd,
                         child: Text('Add', style: TextStyle(
-                          color: (_titleCtl.text.trim().isEmpty || (_tab == 0 && !_isTimeValid)) ? Colors.grey[700] : const Color(0xFF39FF14),
+                          color: (_titleCtl.text.trim().isEmpty || (_tab == 0 && !_isTimeValid)) ? Colors.grey[700] : secondaryColor,
                           fontSize: 16, fontWeight: FontWeight.w600, shadows: [],
                         )),
                       ),
@@ -1003,7 +1008,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                     decoration: BoxDecoration(
                       color: Colors.grey[900],
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+                      border: Border.all(color: secondaryColor.withOpacity(0.2)),
                     ),
                     child: Row(
                       children: [
@@ -1035,14 +1040,14 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
           alignment: Alignment.center,
           margin: const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            color: selected ? const Color(0xFF39FF14).withOpacity(0.15) : Colors.transparent,
+            color: selected ? secondaryColor.withOpacity(0.15) : Colors.transparent,
             borderRadius: BorderRadius.circular(7),
-            border: selected ? Border.all(color: const Color(0xFF39FF14).withOpacity(0.4)) : null,
+            border: selected ? Border.all(color: secondaryColor.withOpacity(0.4)) : null,
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? const Color(0xFF39FF14) : Colors.grey[500],
+              color: selected ? secondaryColor : Colors.grey[500],
               fontSize: 14,
               fontWeight: FontWeight.w500,
               shadows: [],
@@ -1144,10 +1149,10 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
           ]),
           const SizedBox(height: 16),
           _card(children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Center(
-                child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+                child: Text('Repeat', style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
               ),
             ),
             const Divider(height: 1, color: Colors.white12),
@@ -1173,7 +1178,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            const Icon(Icons.location_on, color: Color(0xFF39FF14), size: 20),
+            Icon(Icons.location_on, color: secondaryColor, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -1181,7 +1186,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                     ? 'Add Location'
                     : '${_pickedLocation!.latitude.toStringAsFixed(5)}, ${_pickedLocation!.longitude.toStringAsFixed(5)}',
                 style: TextStyle(
-                  color: _pickedLocation == null ? Colors.grey[500] : Colors.white,
+                  color: _pickedLocation == null ? Colors.grey[500] : textColor,
                   fontSize: 16,
                   shadows: const [],
                 ),
@@ -1211,13 +1216,13 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
             child: Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                color: sel ? secondaryColor : Colors.grey[900],
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+                border: Border.all(color: secondaryColor.withOpacity(sel ? 0.6 : 0.2)),
               ),
               alignment: Alignment.center,
               child: Text(dayLabels[i], style: TextStyle(
-                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: const [],
+                color: sel ? primaryColor : Colors.grey[500], fontWeight: FontWeight.w600, shadows: const [],
               )),
             ),
           );
@@ -1238,7 +1243,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text(label, style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
           const Spacer(),
           _pillButton(
             _formatDate(date),
@@ -1262,13 +1267,13 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isExpanded ? const Color(0xFF39FF14).withOpacity(0.15) : Colors.grey[900],
+                  color: isExpanded ? secondaryColor.withOpacity(0.15) : Colors.grey[900],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF39FF14).withOpacity(isExpanded ? 0.4 : 0.2)),
+                  border: Border.all(color: secondaryColor.withOpacity(isExpanded ? 0.4 : 0.2)),
                 ),
                 child: Text(
                   widget.formatTime(time),
-                  style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: []),
+                  style: TextStyle(color: secondaryColor, fontSize: 14, shadows: []),
                 ),
               ),
             ),
@@ -1294,9 +1299,9 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
               height: 38,
               margin: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
-                color: const Color(0xFF39FF14).withOpacity(0.06),
+                color: secondaryColor.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.25), width: 1),
+                border: Border.all(color: secondaryColor.withOpacity(0.25), width: 1),
               ),
             ),
             Row(
@@ -1320,13 +1325,13 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                     },
                     childDelegate: ListWheelChildBuilderDelegate(
                       builder: (ctx, idx) => Center(
-                        child: Text('${idx + 1}', style: const TextStyle(color: Colors.white, fontSize: 20, shadows: [])),
+                        child: Text('${idx + 1}', style: TextStyle(color: textColor, fontSize: 20, shadows: [])),
                       ),
                       childCount: 12,
                     ),
                   ),
                 ),
-                const Text(':', style: TextStyle(color: Colors.white, fontSize: 20, shadows: [])),
+                Text(':', style: TextStyle(color: textColor, fontSize: 20, shadows: [])),
                 // Minute wheel (00-59)
                 SizedBox(
                   width: 56,
@@ -1340,7 +1345,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                     },
                     childDelegate: ListWheelChildBuilderDelegate(
                       builder: (ctx, idx) => Center(
-                        child: Text(idx.toString().padLeft(2, '0'), style: const TextStyle(color: Colors.white, fontSize: 20, shadows: [])),
+                        child: Text(idx.toString().padLeft(2, '0'), style: TextStyle(color: textColor, fontSize: 20, shadows: [])),
                       ),
                       childCount: 60,
                     ),
@@ -1364,9 +1369,9 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                       if (!isAm) h24 += 12;
                       onChanged(TimeOfDay(hour: h24, minute: current.minute));
                     },
-                    children: const [
-                      Center(child: Text('AM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
-                      Center(child: Text('PM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
+                    children: [
+                      Center(child: Text('AM', style: TextStyle(color: textColor, fontSize: 20, shadows: []))),
+                      Center(child: Text('PM', style: TextStyle(color: textColor, fontSize: 20, shadows: []))),
                     ],
                   ),
                 ),
@@ -1396,10 +1401,10 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
           const SizedBox(height: 16),
           // 
           _card(children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Center(
-                child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+                child: Text('Repeat', style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
               ),
             ),
             const Divider(height: 1, color: Colors.white12),
@@ -1417,7 +1422,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       decoration: BoxDecoration(
         color: const Color(0xFF121212),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+        border: Border.all(color: secondaryColor.withOpacity(0.15)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -1442,12 +1447,12 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text(label, style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
           const Spacer(),
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: const Color(0xFF39FF14),
+            activeThumbColor: secondaryColor,
           ),
         ],
       ),
@@ -1460,11 +1465,11 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.grey[900],
+          color: Colors.grey[900],      // grey900 instance
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+          border: Border.all(color: secondaryColor.withOpacity(0.2)),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+        child: Text(text, style: TextStyle(color: secondaryColor, fontSize: 14, shadows: [])),
       ),
     );
   }
@@ -1475,7 +1480,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          const Text('End Date', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text('End Date', style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
           const Spacer(),
           if (_taskEndDate != null)
             GestureDetector(
@@ -1487,7 +1492,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                 child: Text(
                   'Clear',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 14,
                     decoration: TextDecoration.underline,
                     shadows: [],
@@ -1526,13 +1531,13 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
             child: Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                color: sel ? secondaryColor : Colors.grey[900],   // grey900 instance
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+                border: Border.all(color: secondaryColor.withOpacity(sel ? 0.6 : 0.2)),
               ),
               alignment: Alignment.center,
               child: Text(dayLabels[i], style: TextStyle(
-                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: [],
+                color: sel ? primaryColor : Colors.grey[500], fontWeight: FontWeight.w600, shadows: [],
               )),
             ),
           );
@@ -1658,7 +1663,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
             return Container(
               height: MediaQuery.of(context).size.height * 0.65,
               decoration: const BoxDecoration(
-                color: Color(0xFF121212),
+                color: Color(0xFF121212),             // black2
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
@@ -1668,7 +1673,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                     width: 40,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: Colors.grey[700],
+                      color: Colors.grey[700],      // grey700 instance
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -1703,10 +1708,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black,
+          color: primaryColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
-            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+            top: BorderSide(color: secondaryColor.withOpacity(0.3), width: 1),
           ),
         ),
         child: SafeArea(
@@ -1722,10 +1727,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                        child: Text('Cancel', style: TextStyle(color: secondaryColor, fontSize: 16, shadows: [])),
                       ),
                       const Spacer(),
-                      const Text('Edit Task', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      Text('Edit Task', style: TextStyle(color: secondaryColor, fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
                       const Spacer(),
                       TextButton(
                         onPressed: canSave
@@ -1746,7 +1751,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                         child: Text(
                           'Save',
                           style: TextStyle(
-                            color: canSave ? const Color(0xFF39FF14) : Colors.grey[700],
+                            color: canSave ? secondaryColor : Colors.grey[700],   // grey700 instance
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             shadows: [],
@@ -1772,10 +1777,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                       ]),
                       const SizedBox(height: 16),
                       _card(children: [
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                           child: Center(
-                            child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+                            child: Text('Repeat', style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
                           ),
                         ),
                         const Divider(height: 1, color: Colors.white12),
@@ -1796,9 +1801,9 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
   Widget _card({required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: const Color(0xFF121212),       // black2 instance
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+        border: Border.all(color: secondaryColor.withOpacity(0.15)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -1807,10 +1812,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
   Widget _textField(TextEditingController ctl, String hint) {
     return TextField(
       controller: ctl,
-      style: const TextStyle(color: Colors.white, fontSize: 16, shadows: []),
+      style: TextStyle(color: textColor, fontSize: 16, shadows: []),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[500], shadows: []),
+        hintStyle: TextStyle(color: Colors.grey[500], shadows: []),     // grey500 instance
         border: InputBorder.none,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
@@ -1824,11 +1829,11 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.grey[900],
+          color: Colors.grey[900],      // grey900 instance
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+          border: Border.all(color: secondaryColor.withOpacity(0.2)),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+        child: Text(text, style: TextStyle(color: secondaryColor, fontSize: 14, shadows: [])),
       ),
     );
   }
@@ -1838,7 +1843,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          const Text('End Date', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text('End Date', style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
           const Spacer(),
           if (_taskEndDate != null)
             GestureDetector(
@@ -1850,7 +1855,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                 child: Text(
                   'Clear',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 14,
                     decoration: TextDecoration.underline,
                     shadows: [],
@@ -1889,13 +1894,13 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
             child: Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                color: sel ? secondaryColor : Colors.grey[900],     // grey900 instance
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+                border: Border.all(color: secondaryColor.withOpacity(sel ? 0.6 : 0.2)),
               ),
               alignment: Alignment.center,
               child: Text(dayLabels[i], style: TextStyle(
-                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: [],
+                color: sel ? primaryColor : Colors.grey[500], fontWeight: FontWeight.w600, shadows: [],     // grey500 instance
               )),
             ),
           );
@@ -2002,7 +2007,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
             return Container(
               height: MediaQuery.of(context).size.height * 0.65,
               decoration: const BoxDecoration(
-                color: Color(0xFF121212),
+                color: Color(0xFF121212),     // black2 instance
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               child: Column(
@@ -2012,7 +2017,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                     width: 40,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: Colors.grey[700],
+                      color: Colors.grey[700],    // grey700 instance
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -2056,10 +2061,10 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       padding: EdgeInsets.only(bottom: bottomInset),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black,
+          color: primaryColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
-            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+            top: BorderSide(color: secondaryColor.withOpacity(0.3), width: 1),
           ),
         ),
         child: SafeArea(
@@ -2075,10 +2080,10 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                        child: Text('Cancel', style: TextStyle(color: secondaryColor, fontSize: 16, shadows: [])),
                       ),
                       const Spacer(),
-                      const Text('Edit Event', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      Text('Edit Event', style: TextStyle(color: secondaryColor, fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
                       const Spacer(),
                       TextButton(
                         onPressed: canSave
@@ -2099,7 +2104,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                         child: Text(
                           'Save',
                           style: TextStyle(
-                            color: canSave ? const Color(0xFF39FF14) : Colors.grey[700],
+                            color: canSave ? secondaryColor : Colors.grey[700],   // grey700 instance
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             shadows: [],
@@ -2160,9 +2165,9 @@ class _EditEventSheetState extends State<_EditEventSheet> {
   Widget _card({required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF121212),
+        color: const Color(0xFF121212),     // black2 instance
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+        border: Border.all(color: secondaryColor.withOpacity(0.15)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -2171,10 +2176,10 @@ class _EditEventSheetState extends State<_EditEventSheet> {
   Widget _textField(TextEditingController ctl, String hint) {
     return TextField(
       controller: ctl,
-      style: const TextStyle(color: Colors.white, fontSize: 16, shadows: []),
+      style: TextStyle(color: textColor, fontSize: 16, shadows: []),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey[500], shadows: []),
+        hintStyle: TextStyle(color: Colors.grey[500], shadows: []),       // grey500 instance
         border: InputBorder.none,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
@@ -2187,12 +2192,12 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text(label, style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
           const Spacer(),
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: const Color(0xFF39FF14),
+            activeThumbColor: secondaryColor,
           ),
         ],
       ),
@@ -2205,11 +2210,11 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.grey[900],
+          color: Colors.grey[900],      // grey900 instance
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+          border: Border.all(color: secondaryColor.withOpacity(0.2)),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+        child: Text(text, style: TextStyle(color: secondaryColor, fontSize: 14, shadows: [])),
       ),
     );
   }
@@ -2226,7 +2231,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text(label, style: TextStyle(color: textColor, fontSize: 16, shadows: [])),
           const Spacer(),
           _pillButton(
             _formatDate(date),
@@ -2250,13 +2255,13 @@ class _EditEventSheetState extends State<_EditEventSheet> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isExpanded ? const Color(0xFF39FF14).withOpacity(0.15) : Colors.grey[900],
+                  color: isExpanded ? secondaryColor.withOpacity(0.15) : Colors.grey[900],    // grey900 instance
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF39FF14).withOpacity(isExpanded ? 0.4 : 0.2)),
+                  border: Border.all(color: secondaryColor.withOpacity(isExpanded ? 0.4 : 0.2)),
                 ),
                 child: Text(
                   widget.formatTime(time),
-                  style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: []),
+                  style: TextStyle(color: secondaryColor, fontSize: 14, shadows: []),
                 ),
               ),
             ),
@@ -2270,7 +2275,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
     final isPm = current.period == DayPeriod.pm;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: const Color(0xFF1E1E1E),
+      color: const Color(0xFF1E1E1E),       // black3
       child: Column(
         children: [
           Row(
@@ -2296,13 +2301,13 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                     builder: (context, index) {
                       final val = (index % 12) + 1;
                       return Center(
-                        child: Text('$val', style: const TextStyle(color: Colors.white, fontSize: 24, shadows: [])),
+                        child: Text('$val', style: TextStyle(color: textColor, fontSize: 24, shadows: [])),
                       );
                     },
                   ),
                 ),
               ),
-              const Text(':', style: TextStyle(color: Colors.white, fontSize: 28, shadows: [])),
+              Text(':', style: TextStyle(color: textColor, fontSize: 28, shadows: [])),
               // Minute picker
               SizedBox(
                 width: 80,
@@ -2319,7 +2324,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                       final val = index % 60;
                       return Center(
                         child: Text(val.toString().padLeft(2, '0'),
-                            style: const TextStyle(color: Colors.white, fontSize: 24, shadows: [])),
+                            style: TextStyle(color: textColor, fontSize: 24, shadows: [])),
                       );
                     },
                   ),
@@ -2339,9 +2344,9 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                     if (!isAm) h24 += 12;
                     onChanged(TimeOfDay(hour: h24, minute: current.minute));
                   },
-                  children: const [
-                    Center(child: Text('AM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
-                    Center(child: Text('PM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
+                  children: [
+                    Center(child: Text('AM', style: TextStyle(color: textColor, fontSize: 20, shadows: []))),
+                    Center(child: Text('PM', style: TextStyle(color: textColor, fontSize: 20, shadows: []))),
                   ],
                 ),
               ),
@@ -2409,8 +2414,8 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
   Widget build(BuildContext context) {
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Colors.black,
+      decoration: BoxDecoration(
+        color: primaryColor,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: Column(
@@ -2422,17 +2427,17 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                  child: Text('Cancel', style: TextStyle(color: secondaryColor, fontSize: 16, shadows: [])),
                 ),
                 const Spacer(),
-                const Text('Pick Location', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                Text('Pick Location', style: TextStyle(color: secondaryColor, fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
                 const Spacer(),
                 TextButton(
                   onPressed: _pinned == null ? null : () => Navigator.pop(context, _pinned),
                   child: Text(
                     'Confirm',
                     style: TextStyle(
-                      color: _pinned == null ? Colors.grey[700] : const Color(0xFF39FF14),
+                      color: _pinned == null ? Colors.grey[700] : secondaryColor,       // grey700 instance
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       shadows: const [],
@@ -2442,11 +2447,11 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFF39FF14)),
+          Divider(height: 1, color: secondaryColor),
           // Map
           Expanded(
             child: _loadingLocation
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF39FF14)))
+                ? Center(child: CircularProgressIndicator(color: secondaryColor))
                 : FlutterMap(
                     mapController: _mapController,
                     options: MapOptions(
@@ -2466,7 +2471,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                               point: _pinned!,
                               width: 40,
                               height: 40,
-                              child: const Icon(Icons.location_on, color: Color(0xFF39FF14), size: 40),
+                              child: Icon(Icons.location_on, color: secondaryColor, size: 40),
                             ),
                           ],
                         ),
@@ -2475,7 +2480,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
           ),
           if (_pinned != null)
             Container(
-              color: Colors.black,
+              color: primaryColor,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 '${_pinned!.latitude.toStringAsFixed(5)}, ${_pinned!.longitude.toStringAsFixed(5)}',

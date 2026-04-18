@@ -5,6 +5,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:namer_app/main.dart' as m;
+
+Color primaryColor = m.primaryColor;
+Color secondaryColor = m.secondaryColor;
+Color textColor = m.textColor;
 
 const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 18.0;
@@ -336,7 +341,7 @@ class FitnessPageState extends State<FitnessPage> {
   void _showGoalReachedBanner() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
         duration: Duration(seconds: 4),
         shape: RoundedRectangleBorder(
           side: BorderSide(color: _neonGreen, width: 1.5),
@@ -393,20 +398,20 @@ class FitnessPageState extends State<FitnessPage> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.black,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: _neonGreen, width: 1.5),
+          side: BorderSide(color: secondaryColor, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: Text('Set Goal Weight', style: TextStyle(color: _neonGreen)),
+        title: Text('Set Goal Weight', style: TextStyle(color: secondaryColor)),
         content: TextField(
           controller: _goalController,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
-          style: TextStyle(color: _neonGreen),
+          style: TextStyle(color: secondaryColor),
           decoration: _inputDecoration('Goal weight'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+            child: Text('Cancel', style: TextStyle(color: secondaryColor)),
           ),
           TextButton(
             onPressed: () {
@@ -415,7 +420,7 @@ class FitnessPageState extends State<FitnessPage> {
             },
             child: Text(
               'Set',
-              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+              style: TextStyle(color: secondaryColor, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -427,19 +432,19 @@ class FitnessPageState extends State<FitnessPage> {
     return (await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: Colors.black,
+            backgroundColor: primaryColor,
             title: Text(
               'Clear Graph Data',
-              style: TextStyle(color: _neonGreen),
+              style: TextStyle(color: secondaryColor),
             ),
             content: Text(
               'This will permanently delete all your saved weight entries.',
-              style: TextStyle(color: _neonGreen.withOpacity(0.9)),
+              style: TextStyle(color: secondaryColor.withOpacity(0.9)),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+                child: Text('Cancel', style: TextStyle(color: secondaryColor)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
@@ -571,7 +576,7 @@ class FitnessPageState extends State<FitnessPage> {
           SnackBar(
             content: Text(
               'Could not save macro goals.',
-              style: TextStyle(color: _neonGreen),
+              style: TextStyle(color: secondaryColor),
             ),
           ),
         );
@@ -596,12 +601,12 @@ class FitnessPageState extends State<FitnessPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: _neonGreen, width: 1.5),
+          side: BorderSide(color: secondaryColor, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: Text('Set Macro Goals', style: TextStyle(color: _neonGreen)),
+        title: Text('Set Macro Goals', style: TextStyle(color: secondaryColor)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -609,7 +614,7 @@ class FitnessPageState extends State<FitnessPage> {
               Text(
                 'Enter your daily targets below.',
                 style: TextStyle(
-                  color: _neonGreen.withOpacity(0.7),
+                  color: secondaryColor.withOpacity(0.7),
                   fontSize: 12,
                 ),
               ),
@@ -617,28 +622,28 @@ class FitnessPageState extends State<FitnessPage> {
               TextField(
                 controller: calCtrl,
                 keyboardType: TextInputType.number,
-                style: TextStyle(color: _neonGreen),
+                style: TextStyle(color: secondaryColor),
                 decoration: _inputDecoration('Calories (e.g. 2000)'),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: carbsCtrl,
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
-                style: TextStyle(color: _neonGreen),
+                style: TextStyle(color: secondaryColor),
                 decoration: _inputDecoration('Carbs in grams (e.g. 250)'),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: fatCtrl,
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
-                style: TextStyle(color: _neonGreen),
+                style: TextStyle(color: secondaryColor),
                 decoration: _inputDecoration('Fat in grams (e.g. 65)'),
               ),
               SizedBox(height: 10),
               TextField(
                 controller: proteinCtrl,
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
-                style: TextStyle(color: _neonGreen),
+                style: TextStyle(color: secondaryColor),
                 decoration: _inputDecoration('Protein in grams (e.g. 50)'),
               ),
             ],
@@ -647,7 +652,7 @@ class FitnessPageState extends State<FitnessPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+            child: Text('Cancel', style: TextStyle(color: secondaryColor)),
           ),
           TextButton(
             onPressed: () {
@@ -666,7 +671,7 @@ class FitnessPageState extends State<FitnessPage> {
             },
             child: Text(
               'Save',
-              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+              style: TextStyle(color: secondaryColor, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -730,7 +735,7 @@ class FitnessPageState extends State<FitnessPage> {
           SnackBar(
             content: Text(
               'Could not remove entry.',
-              style: TextStyle(color: _neonGreen),
+              style: TextStyle(color: secondaryColor),
             ),
           ),
         );
@@ -789,7 +794,7 @@ class FitnessPageState extends State<FitnessPage> {
           SnackBar(
             content: Text(
               'Could not load options.',
-              style: TextStyle(color: _neonGreen),
+              style: TextStyle(color: secondaryColor),
             ),
           ),
         );
@@ -801,13 +806,13 @@ class FitnessPageState extends State<FitnessPage> {
 
     await showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.black,
+      backgroundColor: primaryColor,
       isScrollControlled: true,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(_cornerRadius),
         ),
-        side: BorderSide(color: _neonGreen, width: 1.5),
+        side: BorderSide(color: secondaryColor, width: 1.5),
       ),
       builder: (ctx) => _EatBottomSheet(
         options: options,
@@ -827,10 +832,10 @@ class FitnessPageState extends State<FitnessPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              backgroundColor: Colors.black,
+              backgroundColor: primaryColor,
               content: Text(
                 '${option.name} has no nutrition data. Please sync it on the Health tab first.',
-                style: TextStyle(color: _neonGreen),
+                style: TextStyle(color: secondaryColor),
               ),
             ),
           );
@@ -849,7 +854,7 @@ class FitnessPageState extends State<FitnessPage> {
             SnackBar(
               content: Text(
                 'Could not fetch recipe nutrition.',
-                style: TextStyle(color: _neonGreen),
+                style: TextStyle(color: secondaryColor),
               ),
             ),
           );
@@ -882,7 +887,7 @@ class FitnessPageState extends State<FitnessPage> {
           SnackBar(
             content: Text(
               'Could not log food.',
-              style: TextStyle(color: _neonGreen),
+              style: TextStyle(color: secondaryColor),
             ),
           ),
         );
@@ -934,7 +939,7 @@ class FitnessPageState extends State<FitnessPage> {
         SnackBar(
           content: Text(
             'Nothing logged today.',
-            style: TextStyle(color: _neonGreen),
+            style: TextStyle(color: secondaryColor),
           ),
         ),
       );
@@ -949,7 +954,7 @@ class FitnessPageState extends State<FitnessPage> {
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(_cornerRadius),
         ),
-        side: BorderSide(color: _neonGreen, width: 1.5),
+        side: BorderSide(color: secondaryColor, width: 1.5),
       ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
@@ -962,7 +967,7 @@ class FitnessPageState extends State<FitnessPage> {
               child: Text(
                 'Remove Logged Item',
                 style: TextStyle(
-                  color: _neonGreen,
+                  color: secondaryColor,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -974,18 +979,18 @@ class FitnessPageState extends State<FitnessPage> {
                 padding: EdgeInsets.all(12),
                 itemCount: _todayLogs.length,
                 separatorBuilder: (_, __) =>
-                    Divider(color: _neonGreen.withOpacity(0.2)),
+                    Divider(color: secondaryColor.withOpacity(0.2)),
                 itemBuilder: (context, i) {
                   final log = _todayLogs[i];
                   return ListTile(
                     title: Text(
                       log.itemName,
-                      style: TextStyle(color: _neonGreen),
+                      style: TextStyle(color: secondaryColor),
                     ),
                     subtitle: Text(
                       '${log.calories.toStringAsFixed(1)} cal • ${log.servings.toStringAsFixed(1)} serving(s)',
                       style: TextStyle(
-                        color: _neonGreen.withOpacity(0.7),
+                        color: secondaryColor.withOpacity(0.7),
                         fontSize: 12,
                       ),
                     ),
@@ -1024,8 +1029,8 @@ class FitnessPageState extends State<FitnessPage> {
         OutlinedButton(
           onPressed: _showSetMacroGoalsDialog,
           style: OutlinedButton.styleFrom(
-            side: BorderSide(color: _neonGreen, width: 1.5),
-            foregroundColor: _neonGreen,
+            side: BorderSide(color: secondaryColor, width: 1.5),
+            foregroundColor: secondaryColor,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(_cornerRadius),
             ),
@@ -1036,7 +1041,7 @@ class FitnessPageState extends State<FitnessPage> {
           SizedBox(height: 8),
           Text(
             'Set your goals above, showing defaults for now.',
-            style: TextStyle(color: _neonGreen.withOpacity(0.5), fontSize: 11),
+            style: TextStyle(color: secondaryColor.withOpacity(0.5), fontSize: 11),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1086,8 +1091,8 @@ class FitnessPageState extends State<FitnessPage> {
                   icon: Icon(Icons.add, size: 18),
                   label: Text('Eat'),
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: _neonGreen, width: 1.5),
-                    foregroundColor: _neonGreen,
+                    side: BorderSide(color: secondaryColor, width: 1.5),
+                    foregroundColor: secondaryColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(_cornerRadius),
                     ),
@@ -1151,7 +1156,7 @@ class FitnessPageState extends State<FitnessPage> {
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
                           ),
-                          style: TextStyle(color: _neonGreen),
+                          style: TextStyle(color: secondaryColor),
                           decoration: _inputDecoration("Today's weight"),
                         ),
                       ),
@@ -1176,7 +1181,7 @@ class FitnessPageState extends State<FitnessPage> {
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
                           ),
-                          style: TextStyle(color: _neonGreen),
+                          style: TextStyle(color: secondaryColor),
                           decoration: _inputDecoration('Graph Min'),
                         ),
                       ),
@@ -1187,7 +1192,7 @@ class FitnessPageState extends State<FitnessPage> {
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
                           ),
-                          style: TextStyle(color: _neonGreen),
+                          style: TextStyle(color: secondaryColor),
                           decoration: _inputDecoration('Graph Max'),
                         ),
                       ),
@@ -1209,7 +1214,7 @@ class FitnessPageState extends State<FitnessPage> {
                     child: Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(_cornerRadius),
-                        border: Border.all(color: _neonGreen, width: 1.5),
+                        border: Border.all(color: secondaryColor, width: 1.5),
                       ),
                       child: _loading
                           ? Center(
@@ -1238,8 +1243,8 @@ class FitnessPageState extends State<FitnessPage> {
                         child: OutlinedButton(
                           onPressed: _loading ? null : _showSetGoalDialog,
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: _neonGreen, width: 1.5),
-                            foregroundColor: _neonGreen,
+                            side: BorderSide(color: secondaryColor, width: 1.5),
+                            foregroundColor: secondaryColor,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
                                 _cornerRadius,
@@ -1258,8 +1263,8 @@ class FitnessPageState extends State<FitnessPage> {
                         child: OutlinedButton(
                           onPressed: _loading ? null : _clearGraphData,
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: _neonGreen, width: 1.5),
-                            foregroundColor: _neonGreen,
+                            side: BorderSide(color: secondaryColor, width: 1.5),
+                            foregroundColor: secondaryColor,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
                                 _cornerRadius,
@@ -1343,14 +1348,14 @@ class FitnessPageState extends State<FitnessPage> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: _neonGreen, width: 1.5),
+          side: BorderSide(color: secondaryColor, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: const Text(
+        title: Text(        // this was previous 'const text', leaving this comment here incase it causes problems
           'Save Conversation',
-          style: TextStyle(color: _neonGreen),
+          style: TextStyle(color: secondaryColor),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1368,16 +1373,16 @@ class FitnessPageState extends State<FitnessPage> {
             TextField(
               controller: ctrl,
               autofocus: true,
-              style: const TextStyle(color: _neonGreen),
+              style: TextStyle(color: secondaryColor),    // previous a const text instance
               decoration: InputDecoration(
                 hintText: 'Name this conversation…',
-                hintStyle: TextStyle(color: _neonGreen.withOpacity(0.5)),
+                hintStyle: TextStyle(color: secondaryColor.withOpacity(0.5)),
                 enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: _neonGreen),
+                  borderSide: BorderSide(color: secondaryColor),
                   borderRadius: BorderRadius.circular(_cornerRadius),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: _neonGreen, width: 2),
+                  borderSide: BorderSide(color: secondaryColor, width: 2),
                   borderRadius: BorderRadius.circular(_cornerRadius),
                 ),
               ),
@@ -1395,9 +1400,9 @@ class FitnessPageState extends State<FitnessPage> {
               if (name.isEmpty) return;
               Navigator.pop(ctx, name);
             },
-            child: const Text(
+            child: Text(
               'Save',
-              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+              style: TextStyle(color: secondaryColor, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -1433,15 +1438,15 @@ class FitnessPageState extends State<FitnessPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Colors.black,
+            backgroundColor: primaryColor,
             shape: RoundedRectangleBorder(
-              side: BorderSide(color: _neonGreen, width: 1.5),
+              side: BorderSide(color: secondaryColor, width: 1.5),
               borderRadius: BorderRadius.circular(12),
             ),
             behavior: SnackBarBehavior.floating,
             content: Text(
               'Conversation saved as "$name"',
-              style: const TextStyle(color: _neonGreen),
+              style: TextStyle(color: secondaryColor),
             ),
           ),
         );
@@ -1500,14 +1505,14 @@ class FitnessPageState extends State<FitnessPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: Colors.black,
+          backgroundColor: primaryColor,
           shape: RoundedRectangleBorder(
-            side: BorderSide(color: _neonGreen, width: 1.5),
+            side: BorderSide(color: secondaryColor, width: 1.5),
             borderRadius: BorderRadius.circular(_cornerRadius),
           ),
-          title: const Text(
+          title: Text(
             'Resume Conversation?',
-            style: TextStyle(color: _neonGreen),
+            style: TextStyle(color: secondaryColor),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1534,8 +1539,8 @@ class FitnessPageState extends State<FitnessPage> {
               OutlinedButton(
                 onPressed: () => Navigator.pop(ctx, 'save'),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: _neonGreen, width: 1.5),
-                  foregroundColor: _neonGreen,
+                  side: BorderSide(color: secondaryColor, width: 1.5),
+                  foregroundColor: secondaryColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(_cornerRadius),
                   ),
@@ -1566,16 +1571,16 @@ class FitnessPageState extends State<FitnessPage> {
               OutlinedButton(
                 onPressed: () => Navigator.pop(ctx, 'cancel'),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: _neonGreen, width: 1.5),
-                  foregroundColor: _neonGreen,
+                  side: BorderSide(color: secondaryColor, width: 1.5),
+                  foregroundColor: secondaryColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(_cornerRadius),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: const Text(
+                child: Text(
                   'Cancel',
-                  style: TextStyle(fontSize: 14, color: _neonGreen),
+                  style: TextStyle(fontSize: 14, color: secondaryColor),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1585,15 +1590,15 @@ class FitnessPageState extends State<FitnessPage> {
                     value: dontShowAgain,
                     onChanged: (v) =>
                         setDialogState(() => dontShowAgain = v ?? false),
-                    activeColor: _neonGreen,
-                    checkColor: Colors.black,
-                    side: BorderSide(color: _neonGreen),
+                    activeColor: secondaryColor,
+                    checkColor: primaryColor,
+                    side: BorderSide(color: secondaryColor),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       "Don't show this again",
-                      style: TextStyle(color: _neonGreen, fontSize: 12),
+                      style: TextStyle(color: secondaryColor, fontSize: 12),
                     ),
                   ),
                 ],
@@ -2205,7 +2210,7 @@ class FitnessPageState extends State<FitnessPage> {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(_cornerRadius),
-              border: Border.all(color: _neonGreen, width: 2),
+              border: Border.all(color: secondaryColor, width: 2),
               color: Colors.black,
             ),
             padding: const EdgeInsets.all(12),
@@ -2217,16 +2222,16 @@ class FitnessPageState extends State<FitnessPage> {
                       child: OutlinedButton(
                         onPressed: _showSaveConversationDialog,
                         style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: _neonGreen, width: 1.5),
-                          foregroundColor: _neonGreen,
+                          side: BorderSide(color: secondaryColor, width: 1.5),
+                          foregroundColor: secondaryColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(_cornerRadius),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 8),
                         ),
-                        child: const Text(
+                        child: Text(
                           'Save',
-                          style: TextStyle(fontSize: 13, color: _neonGreen),
+                          style: TextStyle(fontSize: 13, color: secondaryColor),
                         ),
                       ),
                     ),
@@ -2237,16 +2242,16 @@ class FitnessPageState extends State<FitnessPage> {
                         onPressed: () =>
                             setState(() => _sidebarOpen = !_sidebarOpen),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: _neonGreen, width: 1.5),
-                          foregroundColor: _neonGreen,
+                          side: BorderSide(color: secondaryColor, width: 1.5),
+                          foregroundColor: secondaryColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(_cornerRadius),
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 8),
                         ),
-                        child: const Text(
+                        child: Text(
                           'View Saved Conversations',
-                          style: TextStyle(fontSize: 13, color: _neonGreen),
+                          style: TextStyle(fontSize: 13, color: secondaryColor),
                         ),
                       ),
                     ),
@@ -2277,16 +2282,16 @@ class FitnessPageState extends State<FitnessPage> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: isUser
-                                  ? Colors.grey.shade900
-                                  : Colors.black,
+                                  ? Colors.grey.shade900      // grey900 instance
+                                  : primaryColor,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: _neonGreen.withOpacity(0.8),
+                                color: secondaryColor.withOpacity(0.8),
                                 width: 1.5,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: _neonGreen.withOpacity(0.12),
+                                  color: secondaryColor.withOpacity(0.12),
                                   blurRadius: 10,
                                   spreadRadius: 1,
                                 ),
@@ -2294,8 +2299,8 @@ class FitnessPageState extends State<FitnessPage> {
                             ),
                             child: Text(
                               m.text,
-                              style: const TextStyle(
-                                color: _neonGreen,
+                              style: TextStyle(
+                                color: secondaryColor,
                                 height: 1.25,
                               ),
                             ),
@@ -2315,23 +2320,23 @@ class FitnessPageState extends State<FitnessPage> {
                         maxLines: 4,
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _sendTrainer(),
-                        style: const TextStyle(color: _neonGreen),
+                        style: TextStyle(color: secondaryColor),
                         decoration: InputDecoration(
                           hintText: 'Ask about workouts, diet plans, macros…',
                           hintStyle: TextStyle(
-                            color: _neonGreen.withOpacity(0.55),
+                            color: secondaryColor.withOpacity(0.55),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: _neonGreen,
+                            borderSide: BorderSide(
+                              color: secondaryColor,
                               width: 1.5,
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: _neonGreen,
+                            borderSide: BorderSide(
+                              color: secondaryColor,
                               width: 2,
                             ),
                           ),
@@ -2352,7 +2357,7 @@ class FitnessPageState extends State<FitnessPage> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.send, color: _neonGreen),
+                          : Icon(Icons.send, color: secondaryColor),
                     ),
                   ],
                 ),
@@ -2367,15 +2372,15 @@ class FitnessPageState extends State<FitnessPage> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () => setState(() => _sidebarOpen = false),
-                      child: Container(color: Colors.black.withOpacity(0.4)),
+                      child: Container(color: primaryColor.withOpacity(0.4)),
                     ),
                   ),
                   Container(
                     width: 220,
                     decoration: BoxDecoration(
-                      color: Colors.black,
+                      color: primaryColor,
                       border: Border(
-                        left: BorderSide(color: _neonGreen, width: 1.5),
+                        left: BorderSide(color: secondaryColor, width: 1.5),
                       ),
                     ),
                     child: Column(
@@ -2385,19 +2390,19 @@ class FitnessPageState extends State<FitnessPage> {
                           padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
                           child: Row(
                             children: [
-                              const Text(
+                              Text(
                                 'Saved',
                                 style: TextStyle(
-                                  color: _neonGreen,
+                                  color: secondaryColor,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
                                 ),
                               ),
                               const Spacer(),
                               IconButton(
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.close,
-                                  color: _neonGreen,
+                                  color: secondaryColor,
                                   size: 18,
                                 ),
                                 onPressed: () =>
@@ -2408,7 +2413,7 @@ class FitnessPageState extends State<FitnessPage> {
                             ],
                           ),
                         ),
-                        const Divider(color: _neonGreen, height: 1),
+                        Divider(color: secondaryColor, height: 1),
                         Expanded(
                           child: _archivedLoading
                               ? const Center(
@@ -2426,7 +2431,7 @@ class FitnessPageState extends State<FitnessPage> {
                                   child: Text(
                                     'No saved conversations yet.',
                                     style: TextStyle(
-                                      color: _neonGreen.withOpacity(0.5),
+                                      color: secondaryColor.withOpacity(0.5),
                                       fontSize: 12,
                                     ),
                                   ),
@@ -2437,7 +2442,7 @@ class FitnessPageState extends State<FitnessPage> {
                                   ),
                                   itemCount: _archivedConversations.length,
                                   separatorBuilder: (_, __) => Divider(
-                                    color: _neonGreen.withOpacity(0.15),
+                                    color: secondaryColor.withOpacity(0.15),
                                     height: 1,
                                   ),
                                   itemBuilder: (ctx, i) {
@@ -2451,8 +2456,8 @@ class FitnessPageState extends State<FitnessPage> {
                                           ),
                                       title: Text(
                                         conv.name,
-                                        style: const TextStyle(
-                                          color: _neonGreen,
+                                        style: TextStyle(
+                                          color: secondaryColor,
                                           fontSize: 13,
                                         ),
                                         maxLines: 1,
@@ -2461,7 +2466,7 @@ class FitnessPageState extends State<FitnessPage> {
                                       subtitle: Text(
                                         conv.formattedDate,
                                         style: TextStyle(
-                                          color: _neonGreen.withOpacity(0.5),
+                                          color: secondaryColor.withOpacity(0.5),
                                           fontSize: 11,
                                         ),
                                       ),
@@ -2499,9 +2504,9 @@ class FitnessPageState extends State<FitnessPage> {
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.black,
+                  color: primaryColor,
                   borderRadius: BorderRadius.circular(_cornerRadius),
-                  border: Border.all(color: _neonGreen, width: 2),
+                  border: Border.all(color: secondaryColor, width: 2),
                 ),
                 child: Column(
                   children: [
@@ -2512,8 +2517,8 @@ class FitnessPageState extends State<FitnessPage> {
                           Expanded(
                             child: Text(
                               _viewingConversation!.name,
-                              style: const TextStyle(
-                                color: _neonGreen,
+                              style: TextStyle(
+                                color: secondaryColor,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -2528,7 +2533,7 @@ class FitnessPageState extends State<FitnessPage> {
                                 color: _neonGreen,
                                 width: 1.5,
                               ),
-                              foregroundColor: _neonGreen,
+                              foregroundColor: secondaryColor,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(
                                   _cornerRadius,
@@ -2550,9 +2555,9 @@ class FitnessPageState extends State<FitnessPage> {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.close,
-                              color: _neonGreen,
+                              color: secondaryColor,
                               size: 18,
                             ),
                             onPressed: () =>
@@ -2563,7 +2568,7 @@ class FitnessPageState extends State<FitnessPage> {
                         ],
                       ),
                     ),
-                    const Divider(color: _neonGreen, height: 1),
+                    Divider(color: secondaryColor, height: 1),
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.all(12),
@@ -2582,18 +2587,18 @@ class FitnessPageState extends State<FitnessPage> {
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: isUser
-                                      ? Colors.grey.shade900
-                                      : Colors.black,
+                                      ? Colors.grey.shade900    // grey 900 instance
+                                      : primaryColor,
                                   borderRadius: BorderRadius.circular(14),
                                   border: Border.all(
-                                    color: _neonGreen.withOpacity(0.6),
+                                    color: secondaryColor.withOpacity(0.6),
                                     width: 1.2,
                                   ),
                                 ),
                                 child: Text(
                                   m.text,
                                   style: TextStyle(
-                                    color: _neonGreen.withOpacity(0.9),
+                                    color: secondaryColor.withOpacity(0.9),
                                     height: 1.25,
                                     fontSize: 13,
                                   ),
@@ -2617,23 +2622,23 @@ class FitnessPageState extends State<FitnessPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: _neonGreen, width: 1.5),
+          side: BorderSide(color: secondaryColor, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: const Text(
+        title: Text(
           'Delete Conversation',
-          style: TextStyle(color: _neonGreen),
+          style: TextStyle(color: secondaryColor),
         ),
         content: Text(
           'Delete "${conv.name}"? This cannot be undone.',
-          style: TextStyle(color: _neonGreen.withOpacity(0.8)),
+          style: TextStyle(color: secondaryColor.withOpacity(0.8)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: _neonGreen)),
+            child: Text('Cancel', style: TextStyle(color: secondaryColor)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -2664,8 +2669,8 @@ class FitnessPageState extends State<FitnessPage> {
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_cornerRadius),
-        border: Border.all(color: _neonGreen, width: 2),
-        color: Colors.black,
+        border: Border.all(color: secondaryColor, width: 2),
+        color: primaryColor,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2680,7 +2685,7 @@ class FitnessPageState extends State<FitnessPage> {
               padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(
                 children: [
-                  Icon(icon, color: _neonGreen, size: 20),
+                  Icon(icon, color: secondaryColor, size: 20),
                   SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -2690,14 +2695,14 @@ class FitnessPageState extends State<FitnessPage> {
                           title,
                           style: Theme.of(
                             context,
-                          ).textTheme.titleLarge?.copyWith(color: Colors.white),
+                          ).textTheme.titleLarge?.copyWith(color: textColor),
                         ),
                         if (!expanded && subtitle != null) ...[
                           SizedBox(height: 2),
                           Text(
                             subtitle,
                             style: TextStyle(
-                              color: _neonGreen.withOpacity(0.8),
+                              color: secondaryColor.withOpacity(0.8),
                               fontSize: 11,
                             ),
                           ),
@@ -2707,7 +2712,7 @@ class FitnessPageState extends State<FitnessPage> {
                   ),
                   Icon(
                     expanded ? Icons.remove : Icons.add,
-                    color: _neonGreen,
+                    color: secondaryColor,
                     size: 22,
                   ),
                 ],
@@ -2724,7 +2729,7 @@ class FitnessPageState extends State<FitnessPage> {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: _neonGreen.withOpacity(0.8),
+                        color: secondaryColor.withOpacity(0.8),
                         fontSize: 12,
                       ),
                     ),
@@ -2742,13 +2747,13 @@ class FitnessPageState extends State<FitnessPage> {
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: _neonGreen),
+      labelStyle: TextStyle(color: secondaryColor),
       enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: _neonGreen),
+        borderSide: BorderSide(color: secondaryColor),
         borderRadius: BorderRadius.circular(_cornerRadius),
       ),
       focusedBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: _neonGreen, width: 2),
+        borderSide: BorderSide(color: secondaryColor, width: 2),
         borderRadius: BorderRadius.circular(_cornerRadius),
       ),
     );
@@ -2857,7 +2862,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
             child: Text(
               'What did you eat?',
               style: TextStyle(
-                color: _neonGreen,
+                color: secondaryColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -2874,7 +2879,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                     child: Text(
                       'INGREDIENTS',
                       style: TextStyle(
-                        color: _neonGreen.withOpacity(0.6),
+                        color: secondaryColor.withOpacity(0.6),
                         fontSize: 11,
                         letterSpacing: 1.2,
                       ),
@@ -2888,7 +2893,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                     child: Text(
                       'FAVORITED RECIPES',
                       style: TextStyle(
-                        color: _neonGreen.withOpacity(0.6),
+                        color: secondaryColor.withOpacity(0.6),
                         fontSize: 11,
                         letterSpacing: 1.2,
                       ),
@@ -2901,7 +2906,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                     padding: EdgeInsets.all(24),
                     child: Text(
                       'No ingredients or favorited recipes found.\nAdd ingredients on the Health tab or favorite some recipes.',
-                      style: TextStyle(color: _neonGreen.withOpacity(0.7)),
+                      style: TextStyle(color: secondaryColor.withOpacity(0.7)),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -2913,9 +2918,9 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
               padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: _neonGreen.withOpacity(0.3)),
+                  top: BorderSide(color: secondaryColor.withOpacity(0.3)),
                 ),
-                color: Colors.black,
+                color: primaryColor,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2924,7 +2929,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                   Text(
                     _selected!.name,
                     style: TextStyle(
-                      color: _neonGreen,
+                      color: secondaryColor,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -2937,19 +2942,19 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
                           ),
-                          style: TextStyle(color: _neonGreen),
+                          style: TextStyle(color: secondaryColor),
                           decoration: InputDecoration(
                             labelText: 'Amount',
-                            labelStyle: TextStyle(color: _neonGreen),
+                            labelStyle: TextStyle(color: secondaryColor),
                             enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(color: _neonGreen),
+                              borderSide: BorderSide(color: secondaryColor),
                               borderRadius: BorderRadius.circular(
                                 _cornerRadius,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderSide: BorderSide(
-                                color: _neonGreen,
+                                color: secondaryColor,
                                 width: 2,
                               ),
                               borderRadius: BorderRadius.circular(
@@ -2962,9 +2967,9 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                       SizedBox(width: 10),
                       DropdownButton<String>(
                         value: _unit,
-                        dropdownColor: Colors.black,
-                        style: TextStyle(color: _neonGreen),
-                        underline: Container(height: 1, color: _neonGreen),
+                        dropdownColor: primaryColor,
+                        style: TextStyle(color: secondaryColor),
+                        underline: Container(height: 1, color: secondaryColor),
                         items: ['serving', 'grams', 'cups']
                             .map(
                               (u) => DropdownMenuItem(value: u, child: Text(u)),
@@ -2978,8 +2983,8 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                   SizedBox(height: 10),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _neonGreen,
-                      foregroundColor: Colors.black,
+                      backgroundColor: secondaryColor,
+                      foregroundColor: primaryColor,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(_cornerRadius),
                       ),
@@ -3000,7 +3005,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                             height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.black,
+                              color: primaryColor,
                             ),
                           )
                         : Text(
@@ -3029,17 +3034,17 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected
-                ? _neonGreen
-                : _neonGreen.withOpacity(noNutrition ? 0.2 : 0.45),
+                ? secondaryColor
+                : secondaryColor.withOpacity(noNutrition ? 0.2 : 0.45),
             width: isSelected ? 2 : 1,
           ),
-          color: isSelected ? _neonGreen.withOpacity(0.08) : Colors.transparent,
+          color: isSelected ? secondaryColor.withOpacity(0.08) : Colors.transparent,
         ),
         child: Row(
           children: [
             Icon(
               opt.type == 'ingredient' ? Icons.restaurant : Icons.menu_book,
-              color: noNutrition ? _neonGreen.withOpacity(0.3) : _neonGreen,
+              color: noNutrition ? secondaryColor.withOpacity(0.3) : secondaryColor,
               size: 18,
             ),
             SizedBox(width: 10),
@@ -3051,8 +3056,8 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                     opt.name,
                     style: TextStyle(
                       color: noNutrition
-                          ? _neonGreen.withOpacity(0.35)
-                          : _neonGreen,
+                          ? secondaryColor.withOpacity(0.35)
+                          : secondaryColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -3068,7 +3073,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                     Text(
                       '${opt.calories!.toStringAsFixed(0)} cal, ${opt.carbs!.toStringAsFixed(1)}g carbs, ${opt.protein!.toStringAsFixed(1)}g protein',
                       style: TextStyle(
-                        color: _neonGreen.withOpacity(0.65),
+                        color: secondaryColor.withOpacity(0.65),
                         fontSize: 11,
                       ),
                     )
@@ -3076,7 +3081,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
                     Text(
                       'Tap to log, nutrition fetched from Spoonacular',
                       style: TextStyle(
-                        color: _neonGreen.withOpacity(0.65),
+                        color: secondaryColor.withOpacity(0.65),
                         fontSize: 11,
                       ),
                     ),
@@ -3084,7 +3089,7 @@ class _EatBottomSheetState extends State<_EatBottomSheet> {
               ),
             ),
             if (isSelected)
-              Icon(Icons.check_circle, color: _neonGreen, size: 18),
+              Icon(Icons.check_circle, color: secondaryColor, size: 18),
           ],
         ),
       ),
@@ -3129,7 +3134,7 @@ class _MacroBar extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: _neonGreen,
+            color: secondaryColor,
             fontSize: 12,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.5,
@@ -3151,8 +3156,8 @@ class _MacroBar extends StatelessWidget {
                     height: 20,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: _neonGreen, width: 1.5),
-                      color: Colors.black,
+                      border: Border.all(color: secondaryColor, width: 1.5),
+                      color: primaryColor,
                     ),
                   ),
                   if (fillWidth > 0)
@@ -3162,11 +3167,11 @@ class _MacroBar extends StatelessWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(999),
                         color: overGoal
-                            ? _neonGreen.withOpacity(0.5)
-                            : _neonGreen,
+                            ? secondaryColor.withOpacity(0.5)
+                            : secondaryColor,
                         boxShadow: [
                           BoxShadow(
-                            color: _neonGreen.withOpacity(0.4),
+                            color: secondaryColor.withOpacity(0.4),
                             blurRadius: 6,
                           ),
                         ],
@@ -3179,7 +3184,7 @@ class _MacroBar extends StatelessWidget {
                       width: 2,
                       height: 24,
                       color: overGoal
-                          ? Colors.amber.withOpacity(0.6)
+                          ? Colors.amber.withOpacity(0.6)         // goal marker color. better to leave as is
                           : Colors.amber,
                     ),
                   ),
@@ -3189,7 +3194,7 @@ class _MacroBar extends StatelessWidget {
                     child: Text(
                       valueLabel,
                       style: TextStyle(
-                        color: _neonGreen,
+                        color: secondaryColor,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -3236,7 +3241,7 @@ class _WeightGraphPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final borderPaint = Paint()
-      ..color = _neonGreen
+      ..color = secondaryColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -3278,7 +3283,7 @@ class _WeightGraphPainter extends CustomPainter {
 
     if (points.length == 1) {
       final p = _mapPoint(points.first, plotRect, minVal, maxVal, 0, 1);
-      final dotPaint = Paint()..color = _neonGreen;
+      final dotPaint = Paint()..color = secondaryColor;
       canvas.drawCircle(p, 3, dotPaint);
       return;
     }
@@ -3301,13 +3306,13 @@ class _WeightGraphPainter extends CustomPainter {
     }
 
     final linePaint = Paint()
-      ..color = _neonGreen
+      ..color = secondaryColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
     canvas.drawPath(path, linePaint);
 
-    final dotPaint = Paint()..color = _neonGreen;
+    final dotPaint = Paint()..color = secondaryColor;
     for (int i = 0; i < points.length; i++) {
       final p = _mapPoint(
         points[i],
@@ -3363,7 +3368,7 @@ class _WeightGraphPainter extends CustomPainter {
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'No data yet',
-        style: TextStyle(color: _neonGreen, fontSize: 14),
+        style: TextStyle(color: secondaryColor, fontSize: 14),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -3381,7 +3386,7 @@ class _WeightGraphPainter extends CustomPainter {
     double minVal,
     double maxVal,
   ) {
-    final labelStyle = TextStyle(color: _neonGreen, fontSize: 11);
+    final labelStyle = TextStyle(color: secondaryColor, fontSize: 11);
 
     for (int i = 0; i < 5; i++) {
       final t = i / 4.0;
@@ -3402,7 +3407,7 @@ class _WeightGraphPainter extends CustomPainter {
 
   void _drawGridLines(Canvas canvas, Rect plotRect) {
     final gridPaint = Paint()
-      ..color = _neonGreen.withOpacity(0.25)
+      ..color = secondaryColor.withOpacity(0.25)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -3420,7 +3425,7 @@ class _WeightGraphPainter extends CustomPainter {
   void _drawXAxisLabels(Canvas canvas, Rect plotRect, List<_WeightPoint> pts) {
     if (pts.isEmpty) return;
 
-    final labelStyle = TextStyle(color: _neonGreen, fontSize: 10);
+    final labelStyle = TextStyle(color: secondaryColor, fontSize: 10);
     final labelCount = min(5, pts.length);
     final lastIdx = pts.length - 1;
     final indices = <int>{};
@@ -3522,12 +3527,12 @@ class _TypingBubbleState extends State<_TypingBubble>
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: primaryColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _neonGreen.withOpacity(0.8), width: 1.5),
+        border: Border.all(color: secondaryColor.withOpacity(0.8), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: _neonGreen.withOpacity(0.12),
+            color: secondaryColor.withOpacity(0.12),
             blurRadius: 10,
             spreadRadius: 1,
           ),
@@ -3556,11 +3561,11 @@ class _TypingBubbleState extends State<_TypingBubble>
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: _neonGreen,
+                        color: secondaryColor,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: _neonGreen.withOpacity(0.6),
+                            color: secondaryColor.withOpacity(0.6),
                             blurRadius: 6,
                           ),
                         ],

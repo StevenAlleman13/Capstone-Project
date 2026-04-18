@@ -7,10 +7,15 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:namer_app/main.dart' as m;
 
 const _permissionChannel = MethodChannel('lockin/permissions');
 const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 18.0;
+
+Color primaryColor = m.primaryColor;
+Color secondaryColor = m.secondaryColor;
+Color textColor = m.textColor;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ENTRY POINT
@@ -387,7 +392,7 @@ class _ProfileWidget extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
-        color: Colors.black,
+        color: primaryColor,
       ),      child: Row(
         children: [
           // Left: Profile avatar
@@ -470,14 +475,14 @@ class _ActivityRingsWidget extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
-        color: Colors.black,
+        color: primaryColor,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ProgressBarItem(value: eventRing, label: 'Events', color: const Color(0xFF00FF66)),
+          _ProgressBarItem(value: eventRing, label: 'Events', color: secondaryColor),
           const SizedBox(height: 12),
-          _ProgressBarItem(value: taskRing, label: 'Tasks', color: const Color(0xFF00FF66)),
+          _ProgressBarItem(value: taskRing, label: 'Tasks', color: const Color(0xFF00FF66)), // keeping this the same despite sharing the neon green color since its one of the progress bars
           const SizedBox(height: 12),
           _ProgressBarItem(value: macroRing, label: 'Macros', color: const Color(0xFFFF9500)),
           const SizedBox(height: 12),
@@ -521,7 +526,7 @@ class _ProgressBarItem extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: color.withOpacity(0.5), width: 1),
-              color: Colors.black,
+              color: primaryColor,
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(999),
@@ -772,29 +777,29 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.black,
+        backgroundColor: primaryColor,
         shape: RoundedRectangleBorder(
-          side: const BorderSide(color: _neonGreen, width: 1.5),
+          side: BorderSide(color: secondaryColor, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: const Text('Add Task',
-            style: TextStyle(color: _neonGreen, shadows: [])),        content: Form(
+        title: Text('Add Task',
+            style: TextStyle(color: secondaryColor, shadows: [])),        content: Form(
           key: formKey,
           child: TextFormField(
             controller: nameCtrl,
             autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            cursorColor: Colors.white,
+            style: TextStyle(color: textColor),
+            cursorColor: textColor,
             decoration: InputDecoration(
               hintText: 'Task name',
-              hintStyle: const TextStyle(color: Colors.white38),
+              hintStyle: const TextStyle(color: Colors.white38),      // white38
               enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: _neonGreen),
+                borderSide: BorderSide(color: secondaryColor),
                 borderRadius: BorderRadius.circular(10),
               ),
               focusedBorder: OutlineInputBorder(
                 borderSide:
-                    const BorderSide(color: _neonGreen, width: 2),
+                    BorderSide(color: secondaryColor, width: 2),
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
@@ -805,17 +810,17 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel',
-                style: TextStyle(color: _neonGreen, shadows: [])),
+            child: Text('Cancel',
+                style: TextStyle(color: secondaryColor, shadows: [])),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _neonGreen),
+            style: FilledButton.styleFrom(backgroundColor: secondaryColor),
             onPressed: () {
               if (formKey.currentState?.validate() != true) return;
               Navigator.pop(ctx, nameCtrl.text.trim());
             },
-            child: const Text('Add',
-                style: TextStyle(color: Colors.black, shadows: [])),
+            child: Text('Add',
+                style: TextStyle(color: primaryColor, shadows: [])),
           ),
         ],
       ),
@@ -866,7 +871,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
-        color: Colors.black,
+        color: primaryColor,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -882,7 +887,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                   child: Text(
                     'DAILY TASKS',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
+                      color: textColor,
                     ),
                   ),
                 ),
@@ -1024,7 +1029,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                     item['name'] as String,
                     style: TextStyle(
                       color: isCompleted 
-                          ? (isChallenge ? Colors.white54 : Colors.white54)
+                          ? (isChallenge ? Colors.white54 : Colors.white54)     // white54
                           : (isChallenge ? challengeColor : Colors.white),
                       fontSize: 14,
                       decoration: isCompleted ? TextDecoration.lineThrough : null,
@@ -1086,7 +1091,7 @@ class _ScreenTimeWidget extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
-        color: Colors.black,
+        color: primaryColor,
       ),
       child: SingleChildScrollView(
         child: Column(
@@ -1098,7 +1103,7 @@ class _ScreenTimeWidget extends StatelessWidget {
                 child: Text(
                   'REMAINING SCREEN TIME',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
+                    color: textColor,
                   ),
                 ),
               ),
@@ -1112,8 +1117,8 @@ class _ScreenTimeWidget extends StatelessWidget {
                 ),
                 child: Text(
                   diffLabel,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: textColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     shadows: [],
@@ -1132,9 +1137,9 @@ class _ScreenTimeWidget extends StatelessWidget {
               ),
             )
           else if (permissionDenied) ...[
-            const Text('Permission Required',
+            Text('Permission Required',
                 style:
-                    TextStyle(color: Colors.white, fontSize: 13, shadows: [])),
+                    TextStyle(color: textColor, fontSize: 13, shadows: [])),
             const SizedBox(height: 8),
             OutlinedButton(
               onPressed: onEnablePermission,
@@ -1165,7 +1170,7 @@ class _ScreenTimeWidget extends StatelessWidget {
                   child: Text(
                     '${fmtDuration(usedToday)} / ${fmtDuration(limit)}',
                     style: const TextStyle(
-                        color: Colors.white54, fontSize: 12, shadows: []),
+                        color: Colors.white54, fontSize: 12, shadows: []),    // white54
                   ),
                 ),
               ],
@@ -1201,7 +1206,7 @@ class _NeonProgressBar extends StatelessWidget {
         boxShadow: [
           BoxShadow(color: neon.withOpacity(0.18), blurRadius: 14)
         ],
-        color: Colors.black,
+        color: primaryColor,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(999),

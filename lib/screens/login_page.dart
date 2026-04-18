@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+// import 'package:namer_app/main.dart' as m;
 
 const Color _neonGreen = Color(0xFF00FF66);
+
+// I don't believe theme applying to the login page would make sense but leaving this here for convenience
+// Color primaryColor = m.primaryColor;
+// Color secondaryColor = m.secondaryColor;
+// Color textColor = m.textColor;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
