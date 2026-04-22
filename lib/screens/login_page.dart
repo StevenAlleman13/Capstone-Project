@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 
@@ -80,23 +81,34 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _signInWithGoogle() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() => _error = null);
 
     try {
-      await _supabase.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'com.example.flutter_application_1://login-callback',
-        authScreenLaunchMode: LaunchMode.externalApplication,
+      const webClientId =
+          '866492092188-8d97rmk8g7lq1srrojif283gr4okv732.apps.googleusercontent.com';
+
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(serverClientId: webClientId);
+
+      final googleUser = await googleSignIn.authenticate();
+
+      final scopes = ['email', 'profile'];
+      final authorization =
+          await googleUser.authorizationClient.authorizationForScopes(scopes) ??
+          await googleUser.authorizationClient.authorizeScopes(scopes);
+
+      final idToken = googleUser.authentication.idToken;
+      if (idToken == null) throw AuthException('No ID Token found.');
+
+      await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: authorization.accessToken,
       );
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = 'Unexpected error: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
