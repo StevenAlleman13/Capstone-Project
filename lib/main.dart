@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:app_links/app_links.dart';
 
 import 'screens/login_page.dart';
 import 'screens/dashboard_page.dart' as dash;
@@ -117,28 +116,31 @@ class AuthGate extends StatefulWidget {
   State<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<AuthGate> {
+class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
   StreamSubscription<AuthState>? _authSub;
   bool? _hasSession;
-
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _bootstrapAuthState();
-    _handleIncomingLinks();
   }
 
-  void _handleIncomingLinks() async {
-    final appLinks = AppLinks();
-    try {
-      final initialUri = await appLinks.getInitialLink();
-      if (initialUri != null) {
-        await Supabase.instance.client.auth.getSessionFromUrl(initialUri);
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null && mounted) {
+        setState(() => _hasSession = true);
       }
-    } catch (_) {}
-    appLinks.uriLinkStream.listen((uri) {
-      Supabase.instance.client.auth.getSessionFromUrl(uri);
-    });
+    }
   }
 
   Future<void> _bootstrapAuthState() async {
@@ -164,12 +166,6 @@ class _AuthGateState extends State<AuthGate> {
     setState(() {
       _hasSession = session != null;
     });
-  }
-
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
   }
 
   @override
