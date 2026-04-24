@@ -21,6 +21,35 @@ class _LoginPageState extends State<LoginPage> {
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
+  Future<void> _forgotPassword() async {
+    if (_email.trim().isEmpty || !_email.contains('@')) {
+      setState(
+        () =>
+            _error = 'Enter your email above first, then tap Forgot Password.',
+      );
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await _supabase.auth.resetPasswordForEmail(_email.trim());
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pushNamed('/reset-password', arguments: _email.trim());
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Unexpected error: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -208,7 +237,6 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
 
-                          // 1) Sign in
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
@@ -225,9 +253,37 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
 
+                          const SizedBox(height: 1),
+
+                          Align(
+                            alignment: Alignment.center,
+                            child: TextButton(
+                              onPressed: _loading ? null : _forgotPassword,
+                              child: const Text(
+                                'Forgot Password?',
+                                style: TextStyle(
+                                  color: _neonGreen,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 1),
+
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _loading ? null : _signUp,
+                              child: const Text(
+                                'Create account',
+                                style: TextStyle(color: _neonGreen),
+                              ),
+                            ),
+                          ),
+
                           const SizedBox(height: 10),
 
-                          // 2) Sign in with Google
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
@@ -242,20 +298,6 @@ class _LoginPageState extends State<LoginPage> {
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // 3) Create account (under Google)
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _loading ? null : _signUp,
-                              child: const Text(
-                                'Create account',
-                                style: TextStyle(color: _neonGreen),
                               ),
                             ),
                           ),
