@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/login_page.dart';
+import 'screens/reset_password_page.dart';
 import 'screens/dashboard_page.dart' as dash;
 import 'screens/health_page.dart' as health;
 import 'screens/fitness_page.dart' show FitnessPage, FitnessPageState;
@@ -103,6 +104,10 @@ class MyApp extends StatelessWidget {
           '/login': (context) => const LoginPage(),
           '/home': (context) => const MyHomePage(),
           '/settings': (context) => const settings.SettingsPage(),
+          '/reset-password': (context) {
+            final email = ModalRoute.of(context)!.settings.arguments as String;
+            return ResetPasswordPage(email: email);
+          },
         },
       ),
     );
