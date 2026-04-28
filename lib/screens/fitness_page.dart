@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 18.0;
@@ -18,7 +17,6 @@ class FitnessPage extends StatefulWidget {
 }
 
 class FitnessPageState extends State<FitnessPage> {
-  // remove underscore
   final _weightController = TextEditingController();
   final _minController = TextEditingController();
   final _maxController = TextEditingController();
@@ -44,7 +42,7 @@ class FitnessPageState extends State<FitnessPage> {
     _TrainerMsg(
       role: _TrainerRole.model,
       text:
-          "Hi, I'm your personal fitness trainer! I can answer fitness and nutrition questions, build diet and workout plans, and directly add ingredients, events, and tasks for you. What can I help you with?",
+          "Hi, I'm your personal fitness trainer! I can answer any questions you have about fitness and nutrition. I can also make diet and workout regimens to follow based on your goals.",
     ),
   ];
 
@@ -90,24 +88,6 @@ class FitnessPageState extends State<FitnessPage> {
     ]);
   }
 
-  String _generateUuid() => const Uuid().v4();
-
-  String _to12Hr(String time) {
-    try {
-      final parts = time.split(':');
-      int hour = int.parse(parts[0]);
-      final minute = parts[1].padLeft(2, '0');
-      final ampm = hour >= 12 ? 'PM' : 'AM';
-      if (hour == 0)
-        hour = 12;
-      else if (hour > 12)
-        hour -= 12;
-      return '$hour:$minute $ampm';
-    } catch (_) {
-      return time;
-    }
-  }
-
   Future<void> _loadUserSettings() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -134,8 +114,9 @@ class FitnessPageState extends State<FitnessPage> {
         'user_id': user.id,
         'suppress_resume_warning': suppressResumeWarning,
       }, onConflict: 'user_id');
-      if (mounted)
+      if (mounted) {
         setState(() => _suppressResumeWarning = suppressResumeWarning);
+      }
     } catch (_) {}
   }
 
@@ -148,6 +129,10 @@ class FitnessPageState extends State<FitnessPage> {
     _trainerCtrl.dispose();
     _trainerScroll.dispose();
     super.dispose();
+  }
+
+  void expandTrainer() {
+    setState(() => _trainerExpanded = true);
   }
 
   String _todayKey() {
@@ -305,13 +290,11 @@ class FitnessPageState extends State<FitnessPage> {
     final weight = double.tryParse(_weightController.text.trim());
     if (weight == null) return;
 
-    final dateKey = _todayKey();
-    try {
+    final dateKey = _todayKey();    try {
       await _client.from('weight_entries').upsert({
         'user_id': user.id,
         'entry_date': dateKey,
-        'weight': weight,
-      }, onConflict: 'user_id,entry_date');
+        'weight': weight,      }, onConflict: 'user_id,entry_date');
 
       if (mounted) {
         setState(() {
@@ -861,8 +844,7 @@ class FitnessPageState extends State<FitnessPage> {
       carbs = (nutrition['carbs'] as double) / perServing * servings;
       fat = (nutrition['fat'] as double) / perServing * servings;
       protein = (nutrition['protein'] as double) / perServing * servings;
-    }
-    try {
+    }    try {
       await _client.from('daily_macro_logs').insert({
         'user_id': user.id,
         'log_date': _todayKey(),
@@ -872,8 +854,7 @@ class FitnessPageState extends State<FitnessPage> {
         'carbs': carbs,
         'fat': fat,
         'protein': protein,
-        'servings': servings,
-      });
+        'servings': servings,      });
 
       await _loadTodayLogs();
     } catch (e) {
@@ -1726,85 +1707,6 @@ class FitnessPageState extends State<FitnessPage> {
             ],
           },
         },
-        {
-          'name': 'log_ingredient',
-          'description':
-              'Add an ingredient to the users pantry on the Health tab. Ask for name, amount, and unit (g or cups) before calling.',
-          'parameters': {
-            'type': 'OBJECT',
-            'properties': {
-              'name': {'type': 'STRING', 'description': 'Ingredient name.'},
-              'amount': {
-                'type': 'NUMBER',
-                'description': 'Serving amount, default 100.',
-              },
-              'unit': {
-                'type': 'STRING',
-                'description': 'Unit: g or cups. Default g.',
-              },
-            },
-            'required': ['name'],
-          },
-        },
-        {
-          'name': 'add_event',
-          'description':
-              'Add an event to the users Events tab. Ask for title and date before calling. All other fields are optional.',
-          'parameters': {
-            'type': 'OBJECT',
-            'properties': {
-              'title': {'type': 'STRING', 'description': 'Event title.'},
-              'date': {
-                'type': 'STRING',
-                'description': 'Date in YYYY-MM-DD format.',
-              },
-              'description': {
-                'type': 'STRING',
-                'description': 'Optional description.',
-              },
-              'start_time': {
-                'type': 'STRING',
-                'description': 'Optional start time, e.g. 09:00.',
-              },
-              'end_time': {
-                'type': 'STRING',
-                'description': 'Optional end time, e.g. 10:00.',
-              },
-              'all_day': {
-                'type': 'BOOLEAN',
-                'description': 'Whether this is an all-day event.',
-              },
-            },
-            'required': ['title', 'date'],
-          },
-        },
-        {
-          'name': 'add_task',
-          'description':
-              'Add a task to the users Events tab. '
-              'First ask the user for the task name if not provided. '
-              'Then ask if they want it to repeat on specific days. '
-              'If they say no or want it as a one-time task, pass an empty list for days. '
-              'Only pass day names if the user explicitly wants repetition.',
-          'parameters': {
-            'type': 'OBJECT',
-            'properties': {
-              'name': {'type': 'STRING', 'description': 'Task name.'},
-              'days': {
-                'type': 'ARRAY',
-                'items': {'type': 'STRING'},
-                'description':
-                    'Days to repeat e.g. ["Monday", "Wednesday"]. Pass empty list [] if the task should not repeat.',
-              },
-              'end_date': {
-                'type': 'STRING',
-                'description':
-                    'Optional end date YYYY-MM-DD. Omit if indefinite.',
-              },
-            },
-            'required': ['name', 'days'],
-          },
-        },
       ],
     },
   ];
@@ -1894,15 +1796,13 @@ class FitnessPageState extends State<FitnessPage> {
     if (user == null) return {'error': 'User not signed in.'};
 
     try {
-      switch (name) {
-        case 'log_weight_entry':
+      switch (name) {        case 'log_weight_entry':
           final weight = (args['weight'] as num).toDouble();
           final dateKey = _todayKey();
           await _client.from('weight_entries').upsert({
             'user_id': user.id,
             'entry_date': dateKey,
-            'weight': weight,
-          }, onConflict: 'user_id,entry_date');
+            'weight': weight,          }, onConflict: 'user_id,entry_date');
           if (mounted) {
             setState(() => _weightsByDay[dateKey] = weight);
             if (_goalWeight != null && weight <= _goalWeight!) {
@@ -1935,13 +1835,14 @@ class FitnessPageState extends State<FitnessPage> {
             'fat_goal': fat,
             'protein_goal': protein,
           }, onConflict: 'user_id');
-          if (mounted)
+          if (mounted) {
             setState(() {
               _goalCalories = cal;
               _goalCarbs = carbs;
               _goalFat = fat;
               _goalProtein = protein;
             });
+          }
           return {
             'success': true,
             'calorie_goal': cal,
@@ -1949,138 +1850,7 @@ class FitnessPageState extends State<FitnessPage> {
             'fat_goal': fat,
             'protein_goal': protein,
           };
-        case 'log_ingredient':
-          final ingName = args['name'].toString();
-          final amount = (args['amount'] as num?)?.toDouble() ?? 100.0;
-          final unit = (args['unit'] ?? 'g').toString();
 
-          try {
-            await _client.from('ingredients').insert({
-              'user_id': user.id,
-              'name': ingName,
-              'serving_amount': amount,
-              'serving_unit': unit,
-            });
-          } catch (_) {
-            await _client.from('ingredients').insert({
-              'user_id': user.id,
-              'name': ingName,
-            });
-          }
-
-          try {
-            const spoonApiKeys = [
-              'd9928e2e194e429bb0f8ff330651ad89',
-              '160eeec24f1f43d5b642881f1be44243',
-            ];
-            final amountG = unit == 'cups' ? amount * 240 : amount;
-
-            int? spoonId;
-            String? imageUrl;
-            for (final key in spoonApiKeys) {
-              final searchUri = Uri.parse(
-                'https://api.spoonacular.com/food/ingredients/search'
-                '?query=${Uri.encodeQueryComponent(ingName)}&number=1&apiKey=$key',
-              );
-              final searchResp = await http.get(searchUri);
-              if (searchResp.statusCode == 200) {
-                final searchData =
-                    jsonDecode(searchResp.body) as Map<String, dynamic>;
-                final results = (searchData['results'] as List?) ?? [];
-                if (results.isNotEmpty) {
-                  spoonId = results.first['id'] as int?;
-                  final img = results.first['image']?.toString() ?? '';
-                  if (img.isNotEmpty) {
-                    imageUrl =
-                        'https://img.spoonacular.com/ingredients_100x100/$img';
-                  }
-                  break;
-                }
-              }
-            }
-
-            if (spoonId != null) {
-              // Fetch nutrition info
-              for (final key in spoonApiKeys) {
-                final infoUri = Uri.parse(
-                  'https://api.spoonacular.com/food/ingredients/$spoonId/information'
-                  '?amount=${amountG.toStringAsFixed(1)}&unit=grams&includeNutrition=true&apiKey=$key',
-                );
-                final infoResp = await http.get(infoUri);
-                if (infoResp.statusCode == 200) {
-                  final infoData =
-                      jsonDecode(infoResp.body) as Map<String, dynamic>;
-                  final nutrients =
-                      ((infoData['nutrition']?['nutrients'] as List?) ?? [])
-                          .cast<Map<String, dynamic>>();
-
-                  num? pick(String n) {
-                    for (final x in nutrients) {
-                      if ((x['name'] ?? '').toString().toLowerCase() ==
-                          n.toLowerCase()) {
-                        final amt = x['amount'];
-                        return amt is num ? amt : num.tryParse(amt.toString());
-                      }
-                    }
-                    return null;
-                  }
-
-                  await _client
-                      .from('ingredients')
-                      .update({
-                        'spoonacular_id': spoonId,
-                        if (imageUrl != null) 'image_url': imageUrl,
-                        if (pick('Calories') != null)
-                          'calories': pick('Calories')!.toDouble(),
-                        if (pick('Carbohydrates') != null)
-                          'carbs_g': pick('Carbohydrates')!.toDouble(),
-                        if (pick('Protein') != null)
-                          'protein_g': pick('Protein')!.toDouble(),
-                        if (pick('Fat') != null)
-                          'fat_g': pick('Fat')!.toDouble(),
-                        if (pick('Fiber') != null)
-                          'fiber_g': pick('Fiber')!.toDouble(),
-                        if (pick('Sugar') != null)
-                          'sugar_g': pick('Sugar')!.toDouble(),
-                        if (pick('Sodium') != null)
-                          'sodium_mg': pick('Sodium')!.toDouble(),
-                        'last_nutrition_sync': DateTime.now().toIso8601String(),
-                      })
-                      .eq('user_id', user.id)
-                      .eq('name', ingName);
-                  break;
-                }
-              }
-            }
-          } catch (_) {}
-
-          return {'success': true, 'added_ingredient': ingName};
-        case 'add_event':
-          final eventId = _generateUuid();
-          await _client.from('user_events').insert({
-            'id': eventId,
-            'user_id': user.id,
-            'title': args['title'].toString(),
-            'date': '${args['date']}T00:00:00.000',
-            'description': (args['description'] ?? '').toString(),
-            'start_time': _to12Hr((args['start_time'] ?? '00:00').toString()),
-            'end_time': _to12Hr((args['end_time'] ?? '23:59').toString()),
-            'all_day': args['all_day'] ?? false,
-            'days': [],
-          });
-          return {'success': true, 'added_event': args['title']};
-
-        case 'add_task':
-          final taskId = _generateUuid();
-          await _client.from('user_tasks').insert({
-            'id': taskId,
-            'user_id': user.id,
-            'name': args['name'].toString(),
-            'days': args['days'] ?? [],
-            'end_date': args['end_date'],
-            'completed_dates': [],
-          });
-          return {'success': true, 'added_task': args['name']};
         default:
           return {'error': 'Unknown tool: $name'};
       }
@@ -2101,9 +1871,7 @@ class FitnessPageState extends State<FitnessPage> {
     final userContext = await _buildUserContext();
 
     final systemText =
-        'You are a personal fitness, nutrition, and lifestyle coach with access to the users real data. '
-        'You can also add ingredients to their Health tab pantry and add events or tasks to their Events tab. '
-        'Always ask for required fields (ingredient name, or event title + date) before calling those tools. '
+        'You are a personal fitness and nutrition coach with access to the users real data. '
         'Be consice, use short sentences or bullet points to get the point across. '
         'Do not repeat what the user said back to them. '
         'Maximum of 3 to 5 bullet points per response unless the user explicitly asks for a full plan. '
@@ -2648,10 +2416,6 @@ class FitnessPageState extends State<FitnessPage> {
     if (ok == true) await _deleteArchivedConversation(conv.id);
   }
 
-  void expandTrainer() {
-    setState(() => _trainerExpanded = true);
-  }
-
   Widget _collapsibleCard({
     required String title,
     required IconData icon,
@@ -2687,8 +2451,7 @@ class FitnessPageState extends State<FitnessPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          title,
-                          style: Theme.of(
+                          title,                          style: Theme.of(
                             context,
                           ).textTheme.titleLarge?.copyWith(color: Colors.white),
                         ),
@@ -2706,7 +2469,7 @@ class FitnessPageState extends State<FitnessPage> {
                     ),
                   ),
                   Icon(
-                    expanded ? Icons.remove : Icons.add,
+                    expanded ? Icons.expand_more : Icons.chevron_right,
                     color: _neonGreen,
                     size: 22,
                   ),

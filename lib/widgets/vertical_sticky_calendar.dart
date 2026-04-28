@@ -19,7 +19,10 @@ class VerticalStickyCalendar extends StatefulWidget {
   final void Function(Map<String, dynamic>, int)? onTaskEdit;
   final Future<void> Function(Map<String, dynamic>, int)? onTaskDelete;
   final void Function(Map<String, dynamic>, int)? onTaskComplete;
+  final void Function(Map<String, dynamic>, int)? onTaskUncomplete;
   final void Function(bool isWeekView)? onViewModeChanged;
+  final VoidCallback? onAddEvent;
+  final VoidCallback? onAddTask;
 
   const VerticalStickyCalendar({
     super.key,
@@ -38,7 +41,10 @@ class VerticalStickyCalendar extends StatefulWidget {
     this.onTaskEdit,
     this.onTaskDelete,
     this.onTaskComplete,
+    this.onTaskUncomplete,
     this.onViewModeChanged,
+    this.onAddEvent,
+    this.onAddTask,
   });
 
   @override
@@ -354,7 +360,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                             ),
                           ),
                           Icon(
-                            _workoutsExpanded ? Icons.remove : Icons.add,
+                            _workoutsExpanded ? Icons.expand_more : Icons.chevron_right,
                             color: neon,
                             size: 22,
                           ),
@@ -670,36 +676,51 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  InkWell(
-                    onTap: () => setState(() => _eventsExpanded = !_eventsExpanded),
-                    borderRadius: BorderRadius.vertical(
-                      top: const Radius.circular(18),
-                      bottom: _eventsExpanded ? Radius.zero : const Radius.circular(18),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.event, color: neon, size: 20),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Events',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                shadows: [],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => _eventsExpanded = !_eventsExpanded),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.event, color: neon, size: 20),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Events',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      shadows: [],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                          Icon(
-                            _eventsExpanded ? Icons.remove : Icons.add,
+                        ),
+                        IconButton(
+                          onPressed: widget.onAddEvent,
+                          icon: const Icon(Icons.add, color: neon, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          splashRadius: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => setState(() => _eventsExpanded = !_eventsExpanded),
+                          child: Icon(
+                            _eventsExpanded ? Icons.expand_more : Icons.chevron_right,
                             color: neon,
                             size: 22,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   if (_eventsExpanded)
@@ -722,36 +743,51 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  InkWell(
-                    onTap: () => setState(() => _tasksExpanded = !_tasksExpanded),
-                    borderRadius: BorderRadius.vertical(
-                      top: const Radius.circular(18),
-                      bottom: _tasksExpanded ? Radius.zero : const Radius.circular(18),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.task_alt, color: neon, size: 20),
-                          const SizedBox(width: 10),
-                          const Expanded(
-                            child: Text(
-                              'Tasks',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                shadows: [],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => _tasksExpanded = !_tasksExpanded),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.task_alt, color: neon, size: 20),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Tasks',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      shadows: [],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                          Icon(
-                            _tasksExpanded ? Icons.remove : Icons.add,
+                        ),
+                        IconButton(
+                          onPressed: widget.onAddTask,
+                          icon: const Icon(Icons.add, color: neon, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          splashRadius: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => setState(() => _tasksExpanded = !_tasksExpanded),
+                          child: Icon(
+                            _tasksExpanded ? Icons.expand_more : Icons.chevron_right,
                             color: neon,
                             size: 22,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   if (_tasksExpanded)
@@ -895,6 +931,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                 onEdit: () => widget.onTaskEdit?.call(entry.value, entry.key),
                 onDelete: () async => await widget.onTaskDelete?.call(entry.value, entry.key),
                 onComplete: () => widget.onTaskComplete?.call(entry.value, entry.key),
+                onUncomplete: () {},
               )),
           if (completedTasks.isNotEmpty) const SizedBox(height: 8),
         ],
@@ -915,6 +952,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                 onEdit: () {},
                 onDelete: () async => await widget.onTaskDelete?.call(entry.value, entry.key),
                 onComplete: () {},
+                onUncomplete: () => widget.onTaskUncomplete?.call(entry.value, entry.key),
               )),
         ],
       ],
@@ -1110,6 +1148,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                             onEdit: () { widget.onTaskEdit?.call(task, index); },
                             onDelete: () async { await widget.onTaskDelete?.call(task, index); },
                             onComplete: () { widget.onTaskComplete?.call(task, index); },
+                            onUncomplete: () {},
                           );
                         }),
                         if (completedTasks.isNotEmpty) const SizedBox(height: 16),
@@ -1140,6 +1179,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                             onEdit: () {},
                             onDelete: () async { await widget.onTaskDelete?.call(task, index); },
                             onComplete: () {},
+                            onUncomplete: () { widget.onTaskUncomplete?.call(task, index); },
                           );
                         }),
                       ],
@@ -1357,6 +1397,7 @@ class _TaskDismissibleOverlay extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback onComplete;
+  final VoidCallback onUncomplete;
   final VoidCallback onLongPress;
   final bool isJiggling;
 
@@ -1367,6 +1408,7 @@ class _TaskDismissibleOverlay extends StatefulWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onComplete,
+    required this.onUncomplete,
     required this.onLongPress,
     required this.isJiggling,
   });
@@ -1440,8 +1482,42 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                 ),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  GestureDetector(
+                    onTap: widget.isJiggling
+                        ? null
+                        : widget.isCompleted
+                            ? widget.onUncomplete
+                            : widget.onComplete,
+                    child: widget.isCompleted
+                        ? Container(
+                            width: 24,
+                            height: 24,
+                            margin: const EdgeInsets.only(right: 10),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF00FF66),
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.black,
+                              size: 16,
+                            ),
+                          )
+                        : Container(
+                            width: 24,
+                            height: 24,
+                            margin: const EdgeInsets.only(right: 10),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF00FF66),
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                  ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1452,6 +1528,8 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                             color: widget.isCompleted ? Colors.grey[600] : Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
+                            decoration: widget.isCompleted ? TextDecoration.lineThrough : null,
+                            decorationColor: Colors.grey[600],
                             shadows: const [],
                           ),
                         ),
@@ -1467,42 +1545,6 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                       ],
                     ),
                   ),
-                  if (!widget.isCompleted && !widget.isJiggling)
-                    GestureDetector(
-                      onTap: widget.onComplete,
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        margin: const EdgeInsets.only(left: 12, top: 2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF00FF66),
-                            width: 2,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Color(0xFF00FF66),
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  if (widget.isCompleted)
-                    Container(
-                      width: 24,
-                      height: 24,
-                      margin: const EdgeInsets.only(left: 12, top: 2),
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF00FF66),
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        color: Colors.black,
-                        size: 16,
-                      ),
-                    ),
                 ],
               ),
             ),

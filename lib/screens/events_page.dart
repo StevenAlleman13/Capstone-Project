@@ -201,7 +201,30 @@ class EventsPageState extends State<EventsPage> {
     } catch (e) {
       print('Error fetching tasks from Supabase: $e');
     }
-  }  void _markTaskAsCompleted(int idx) async {
+  }  void _markTaskAsUncompleted(int idx) async {
+    if (idx >= 0 && idx < _tasks.length) {
+      final todayStr = _selectedDay.toIso8601String().substring(0, 10);
+      final List completedDates = List<String>.from(
+        _tasks[idx]['completedDates'] ?? [],
+      );
+      completedDates.remove(todayStr);
+      _tasks[idx]['completedDates'] = completedDates;
+      setState(() {});
+      final taskId = _tasks[idx]['id'];
+      if (taskId != null) {
+        try {
+          await Supabase.instance.client
+              .from('user_tasks')
+              .update({'completed_dates': completedDates})
+              .eq('id', taskId);
+        } catch (e) {
+          print('Error uncompleting task in Supabase: $e');
+        }
+      }
+    }
+  }
+
+  void _markTaskAsCompleted(int idx) async {
     if (idx >= 0 && idx < _tasks.length) {
       final todayStr = _selectedDay.toIso8601String().substring(0, 10);
       if (_tasks[idx]['completedDates'] == null) {
@@ -429,17 +452,25 @@ class EventsPageState extends State<EventsPage> {
   }
 
   void addEventOrTask() {
-    _showAddSheet();
+    _showAddSheet(initialTab: 0);
   }
 
-  void _showAddSheet() {
+  void addEvent() {
+    _showAddSheet(initialTab: 0);
+  }
+
+  void addTask() {
+    _showAddSheet(initialTab: 1);
+  }
+
+  void _showAddSheet({int initialTab = 0}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _AddEventTaskSheet(
+      builder: (context) => AddEventTaskSheet(
         selectedDay: _selectedDay,
-        initialTab: 0,
+        initialTab: initialTab,
         onEventAdded: (event) async {
           final id = Uuid().v4();
           final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -520,13 +551,7 @@ class EventsPageState extends State<EventsPage> {
     );
   }
 
-  String formatTime(TimeOfDay? t) {
-    if (t == null) return '--:--';
-    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
-    final m = t.minute.toString().padLeft(2, '0');
-    final ampm = t.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$h:$m $ampm';
-  }
+  String formatTime(TimeOfDay? t) => eventsFormatTime(t);
 
   // Update event completion logic and sync with Supabase
   void _checkAndMoveCompletedEvents() async {
@@ -692,6 +717,12 @@ class EventsPageState extends State<EventsPage> {
                   final realIndex = _tasks.indexOf(task);
                   if (realIndex != -1) _markTaskAsCompleted(realIndex);
                 },
+                onTaskUncomplete: (task, index) {
+                  final realIndex = _tasks.indexOf(task);
+                  if (realIndex != -1) _markTaskAsUncompleted(realIndex);
+                },
+                onAddEvent: addEvent,
+                onAddTask: addTask,
               ),
             ),
         ],
@@ -890,16 +921,24 @@ class _CustomCalendarState extends State<_CustomCalendar> {
   }
 }
 
+String eventsFormatTime(TimeOfDay? t) {
+  if (t == null) return '--:--';
+  final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+  final m = t.minute.toString().padLeft(2, '0');
+  final ampm = t.period == DayPeriod.am ? 'AM' : 'PM';
+  return '$h:$m $ampm';
+}
+
 // ─── Unified Add Event / Task Bottom Sheet ───────────────────────────────────
 
-class _AddEventTaskSheet extends StatefulWidget {
+class AddEventTaskSheet extends StatefulWidget {
   final DateTime selectedDay;
   final int initialTab;
   final Function(Map<String, dynamic>) onEventAdded;
   final Function(Map<String, dynamic>) onTaskAdded;
   final String Function(TimeOfDay?) formatTime;
 
-  const _AddEventTaskSheet({
+  const AddEventTaskSheet({
     required this.selectedDay,
     required this.initialTab,
     required this.onEventAdded,
@@ -908,10 +947,10 @@ class _AddEventTaskSheet extends StatefulWidget {
   });
 
   @override
-  State<_AddEventTaskSheet> createState() => _AddEventTaskSheetState();
+  State<AddEventTaskSheet> createState() => _AddEventTaskSheetState();
 }
 
-class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
+class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
   late int _tab; // 0 = Event, 1 = Task
   final _titleCtl = TextEditingController();
   // Event fields
@@ -982,7 +1021,7 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                         child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
                       ),
                       const Spacer(),
-                      const Text('New', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      Text(_tab == 0 ? 'New Event' : 'New Task', style: const TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
                       const Spacer(),
                       TextButton(
                         onPressed: _onAdd,
@@ -995,57 +1034,12 @@ class _AddEventTaskSheetState extends State<_AddEventTaskSheet> {
                   ),
                 ),
 
-                // ── Event / Task toggle ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
-                  child: Container(
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[900],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
-                    ),
-                    child: Row(
-                      children: [
-                        _tabButton('Event', 0),
-                        _tabButton('Task', 1),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
 
                 // ── Form body ──
                 _tab == 0 ? _buildEventForm() : _buildTaskForm(),
                 const SizedBox(height: 24),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _tabButton(String label, int index) {
-    final selected = _tab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _tab = index),
-        child: Container(
-          alignment: Alignment.center,
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0xFF39FF14).withOpacity(0.15) : Colors.transparent,
-            borderRadius: BorderRadius.circular(7),
-            border: selected ? Border.all(color: const Color(0xFF39FF14).withOpacity(0.4)) : null,
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? const Color(0xFF39FF14) : Colors.grey[500],
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              shadows: [],
             ),
           ),
         ),
