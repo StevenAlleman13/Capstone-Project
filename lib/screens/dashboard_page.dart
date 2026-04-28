@@ -7,9 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'events_page.dart' as events;
 
 const _permissionChannel = MethodChannel('lockin/permissions');
-const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 18.0;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -762,92 +762,41 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     } catch (_) {}
   }
 
-  Future<void> _addTask() async {
+  void _addTask() {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    final nameCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final result = await showDialog<String>(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.black,
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(color: _neonGreen, width: 1.5),
-          borderRadius: BorderRadius.circular(_cornerRadius),
-        ),
-        title: const Text('Add Task',
-            style: TextStyle(color: _neonGreen, shadows: [])),        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: nameCtrl,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            cursorColor: Colors.white,
-            decoration: InputDecoration(
-              hintText: 'Task name',
-              hintStyle: const TextStyle(color: Colors.white38),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: _neonGreen),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide:
-                    const BorderSide(color: _neonGreen, width: 2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            validator: (v) =>
-                (v ?? '').trim().isEmpty ? 'Enter a task name' : null,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel',
-                style: TextStyle(color: _neonGreen, shadows: [])),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _neonGreen),
-            onPressed: () {
-              if (formKey.currentState?.validate() != true) return;
-              Navigator.pop(ctx, nameCtrl.text.trim());
-            },
-            child: const Text('Add',
-                style: TextStyle(color: Colors.black, shadows: [])),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => events.AddEventTaskSheet(
+        selectedDay: DateTime.now(),
+        initialTab: 1,
+        onEventAdded: (_) {},
+        onTaskAdded: (task) async {
+          final id = const Uuid().v4();
+          try {
+            await _supabase.from('user_tasks').insert({
+              'id': id,
+              'name': task['name'],
+              'days': task['days'] ?? [],
+              'end_date': task['end_date'],
+              'completed_dates': [],
+              'user_id': user.id,
+            });
+            setState(() => _loadTasks());
+            widget.onTasksChanged();
+          } catch (_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save task.')),
+            );
+          }
+        },
+        formatTime: events.eventsFormatTime,
       ),
     );
-
-    if (result == null || result.isEmpty) return;
-
-    final id = const Uuid().v4();
-    final newTask = {
-      'id': id,
-      'name': result,
-      'days': <String>[],
-      'end_date': null,
-      'completed_dates': <String>[],
-      'user_id': user.id,
-    };
-
-    setState(() => _tasks.add(newTask));    try {
-      await _supabase.from('user_tasks').insert({
-        'id': id,
-        'name': result,
-        'days': [],
-        'end_date': null,
-        'completed_dates': [],        'user_id': user.id,
-      });
-      widget.onTasksChanged();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save task.')),
-      );
-    }
   }  @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;

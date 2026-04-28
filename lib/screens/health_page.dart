@@ -1592,7 +1592,7 @@ class _CollapsibleSection extends StatelessWidget {
                   ),
                   if (expanded && rightAction != null) rightAction!,
                   Icon(
-                    expanded ? Icons.remove : Icons.add,
+                    expanded ? Icons.expand_more : Icons.chevron_right,
                     color: neon,
                     size: 22,
                   ),

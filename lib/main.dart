@@ -81,6 +81,9 @@ class MyApp extends StatelessWidget {
               shadows: [Shadow(color: _neonGreen, blurRadius: 8.0)],
             ),
           ),
+          textSelectionTheme: const TextSelectionThemeData(
+            cursorColor: _neonGreen,
+          ),
           iconTheme: IconThemeData(color: _neonGreen),
           appBarTheme: AppBarTheme(
             backgroundColor: Colors.black,
@@ -232,34 +235,28 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     var colorScheme = Theme.of(context).colorScheme;
-    Widget page;
-    switch (selectedIndex) {
-      case 0:
-        page = const dash.DashboardPage();
-      case 1:
-        page = EventsPage(
-          key: eventsPageKey,
-          onViewModeChanged: () {
-            setState(() {}); // Rebuild to update button bar
-          },
-        );
-      case 2:
-        // Plus button - does nothing rn
-        page = const dash.DashboardPage();
-      case 3:
-        page = const health.HealthPage();
-      case 4:
-        page = FitnessPage(key: fitnessPageKey);
-      default:
-        throw UnimplementedError('no widget for $selectedIndex');
-    }    final pageTitles = ['Dashboard', 'Journal', '', 'Health', 'Fitness'];
+    final pageTitles = ['Dashboard', 'Journal', '', 'Health', 'Fitness'];
     final pageTitle = (selectedIndex >= 0 && selectedIndex < pageTitles.length)
         ? pageTitles[selectedIndex]
         : '';
 
     var mainArea = ColoredBox(
       color: colorScheme.surfaceContainerHighest,
-      child: page,
+      child: IndexedStack(
+        index: selectedIndex,
+        children: [
+          const dash.DashboardPage(),
+          EventsPage(
+            key: eventsPageKey,
+            onViewModeChanged: () {
+              setState(() {});
+            },
+          ),
+          const SizedBox.shrink(), // index 2 — plus button, not a real tab
+          const health.HealthPage(),
+          FitnessPage(key: fitnessPageKey),
+        ],
+      ),
     );
 
     // Hide AppBar on Dashboard (0), Events (1), and Plus (2)
@@ -300,46 +297,27 @@ class _MyHomePageState extends State<MyHomePage> {
                             vertical: 4,
                             horizontal: 16,
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              // Today button - simple text
-                              Expanded(
-                                child: Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: TextButton(
-                                    onPressed: () {
-                                      eventsPageKey.currentState?.jumpToToday();
-                                    },
-                                    child: Text(
-                                      'Today',
-                                      style: TextStyle(
-                                        color: _neonGreen,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
+                          child: Center(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                eventsPageKey.currentState?.jumpToToday();
+                              },
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: _neonGreen, width: 1.5),
+                                foregroundColor: _neonGreen,
+                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
                               ),
-                              // Add button - just plus icon
-                              Expanded(
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: IconButton(
-                                    onPressed: () {
-                                      eventsPageKey.currentState
-                                          ?.addEventOrTask();
-                                    },
-                                    icon: Icon(
-                                      Icons.add_circle,
-                                      color: _neonGreen,
-                                      size: 32,
-                                    ),
-                                  ),
+                              child: const Text(
+                                'Today',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       Container(
@@ -595,7 +573,7 @@ class _NavBarIcon extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               label,
-              style: TextStyle(color: color, fontSize: 11),
+              style: TextStyle(color: color, fontSize: 11, shadows: const []),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
