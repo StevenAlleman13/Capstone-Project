@@ -14,10 +14,11 @@ class FitnessPage extends StatefulWidget {
   const FitnessPage({super.key});
 
   @override
-  State<FitnessPage> createState() => _FitnessPageState();
+  State<FitnessPage> createState() => FitnessPageState();
 }
 
-class _FitnessPageState extends State<FitnessPage> {
+class FitnessPageState extends State<FitnessPage> {
+  // remove underscore
   final _weightController = TextEditingController();
   final _minController = TextEditingController();
   final _maxController = TextEditingController();
@@ -43,7 +44,7 @@ class _FitnessPageState extends State<FitnessPage> {
     _TrainerMsg(
       role: _TrainerRole.model,
       text:
-          "Hi, I'm your personal fitness trainer! I can answer any questions you have about fitness and nutrition. I can also make diet and workout regimens to follow based on your goals.",
+          "Hi, I'm your personal fitness trainer! I can answer fitness and nutrition questions, build diet and workout plans, and directly add ingredients, events, and tasks for you. What can I help you with?",
     ),
   ];
 
@@ -1136,6 +1137,8 @@ class _FitnessPageState extends State<FitnessPage> {
               title: 'Weight Tracker',
               icon: Icons.show_chart,
               subtitle: _statusText,
+              infoText:
+                  'Use this to log your daily weight and set a goal weight to achieve. Set your goal weight using the Set Goal button. Also customize the minimun and maximun amount shown on the graph by setting the graph min and graph max.',
               expanded: _weightExpanded,
               onToggle: () =>
                   setState(() => _weightExpanded = !_weightExpanded),
@@ -1277,6 +1280,8 @@ class _FitnessPageState extends State<FitnessPage> {
             _collapsibleCard(
               title: 'Macronutrients',
               icon: Icons.restaurant,
+              infoText:
+                  'Track your macronutrients throughout the day by using the Eat button to consume an ingredient or recipe you have logged on the Health tab. Eaten items can be removed by using the Remove button. You may also set and update goals for each macronutrient based on your preferred diet plan by entering them after using the Update Macro Goals button. Feel free to ask the trainer if you are unsure about which diet plan is best for your goals.',
               expanded: _macrosExpanded,
               onToggle: () =>
                   setState(() => _macrosExpanded = !_macrosExpanded),
@@ -2647,10 +2652,15 @@ class _FitnessPageState extends State<FitnessPage> {
     if (ok == true) await _deleteArchivedConversation(conv.id);
   }
 
+  void expandTrainer() {
+    setState(() => _trainerExpanded = true);
+  }
+
   Widget _collapsibleCard({
     required String title,
     required IconData icon,
     String? subtitle,
+    String? infoText,
     required bool expanded,
     required VoidCallback onToggle,
     required Widget child,
@@ -2700,6 +2710,10 @@ class _FitnessPageState extends State<FitnessPage> {
                       ],
                     ),
                   ),
+                  if (infoText != null) ...[
+                    _InfoButton(infoText: infoText, iconColor: _neonGreen),
+                    SizedBox(width: 4),
+                  ],
                   Icon(
                     expanded ? Icons.remove : Icons.add,
                     color: _neonGreen,
@@ -3616,4 +3630,61 @@ class _TrainerMsg {
   final _TrainerRole role;
   final String text;
   _TrainerMsg({required this.role, required this.text});
+}
+
+class _InfoButton extends StatelessWidget {
+  final String? infoText;
+  final Color iconColor;
+  const _InfoButton({required this.infoText, required this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        final overlay = Overlay.of(context);
+        final renderBox = context.findRenderObject() as RenderBox;
+        final position = renderBox.localToGlobal(Offset.zero);
+
+        late OverlayEntry entry;
+        entry = OverlayEntry(
+          builder: (ctx) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => entry.remove(),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: MediaQuery.of(ctx).size.width - position.dx - 24,
+                  top: position.dy + 28,
+                  width: 220,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: iconColor, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: iconColor.withOpacity(0.2),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        infoText ?? '',
+                        style: TextStyle(color: iconColor, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        overlay.insert(entry);
+      },
+      child: Icon(Icons.help, color: iconColor, size: 20),
+    );
+  }
 }
