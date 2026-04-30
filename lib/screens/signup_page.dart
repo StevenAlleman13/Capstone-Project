@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const Color _neonGreen = Color(0xFF00FF66);
-
-class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+class SignUpPage extends StatefulWidget {
+  const SignUpPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<SignUpPage> createState() => _SignUpPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
   String _email = '';
   String _password = '';
@@ -20,36 +18,7 @@ class _LoginPageState extends State<LoginPage> {
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
-  Future<void> _forgotPassword() async {
-    if (_email.trim().isEmpty || !_email.contains('@')) {
-      setState(
-        () =>
-            _error = 'Enter your email above first, then tap Forgot Password.',
-      );
-      return;
-    }
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      await _supabase.auth.resetPasswordForEmail(_email.trim());
-      if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushNamed('/reset-password', arguments: _email.trim());
-    } on AuthException catch (e) {
-      setState(() => _error = e.message);
-    } catch (e) {
-      setState(() => _error = 'Unexpected error: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _submit() async {
+  Future<void> _signUp() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -58,18 +27,28 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await _supabase.auth.signInWithPassword(
+      final res = await _supabase.auth.signUp(
         email: _email.trim(),
         password: _password,
       );
 
+      final session = res.session;
       if (!mounted) return;
-      Navigator.of(context).pushReplacementNamed('/home');
+
+      if (session != null) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else {
+        setState(() {
+          _error =
+              'Account created. Check your email to confirm before signing in.';
+        });
+      }
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = 'Unexpected error: $e');
-    } finally {      if (mounted) setState(() => _loading = false);
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -83,11 +62,12 @@ class _LoginPageState extends State<LoginPage> {
       }
     });
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sign In'),
+        title: const Text('Create Account'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -97,32 +77,7 @@ class _LoginPageState extends State<LoginPage> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            const SizedBox(height: 18),
-
-            // LOCKIN Title
-            Center(
-              child: Text(
-                'LOCK IN',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                  color: _neonGreen,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 3.0,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Gameboy Logo
-            Center(
-              child: Image.asset(
-                'assets/images/gameboy_lock.png',
-                width: 150,
-                fit: BoxFit.contain,
-              ),
-            ),
-
-            const SizedBox(height: 24),
+            const SizedBox(height: 40),
 
             Center(
               child: Card(
@@ -135,6 +90,11 @@ class _LoginPageState extends State<LoginPage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          Text(
+                            'Create Account',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 24),
                           TextFormField(
                             decoration: const InputDecoration(
                               labelText: 'Email',
@@ -175,19 +135,11 @@ class _LoginPageState extends State<LoginPage> {
                                 style: const TextStyle(color: Colors.red),
                                 textAlign: TextAlign.center,
                               ),
-                            ),                          SizedBox(
+                            ),
+                          SizedBox(
                             width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: _loading ? null : _submit,
-                              style: OutlinedButton.styleFrom(
-                                side: BorderSide(
-                                  color: _neonGreen.withOpacity(0.65),
-                                ),
-                                foregroundColor: _neonGreen,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                              ),
+                            child: ElevatedButton(
+                              onPressed: _loading ? null : _signUp,
                               child: _loading
                                   ? const SizedBox(
                                       height: 16,
@@ -196,21 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : const Text('Sign in'),
-                            ),
-                          ),                          const SizedBox(height: 1),
-
-                          Align(
-                            alignment: Alignment.center,
-                            child: TextButton(
-                              onPressed: _loading ? null : _forgotPassword,
-                              child: const Text(
-                                'Forgot Password?',
-                                style: TextStyle(
-                                  color: _neonGreen,
-                                  fontSize: 13,
-                                ),
-                              ),
+                                  : const Text('Create Account'),
                             ),
                           ),
                         ],

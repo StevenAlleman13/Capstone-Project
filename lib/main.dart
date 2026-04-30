@@ -9,6 +9,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/login_page.dart';
+import 'screens/welcome_page.dart';
+import 'screens/signup_page.dart';
 import 'screens/reset_password_page.dart';
 import 'screens/dashboard_page.dart' as dash;
 import 'screens/health_page.dart' as health;
@@ -102,9 +104,9 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const AuthGate(),
-        routes: {
+        home: const AuthGate(),        routes: {
           '/login': (context) => const LoginPage(),
+          '/signup': (context) => const SignUpPage(),
           '/home': (context) => const MyHomePage(),
           '/settings': (context) => const settings.SettingsPage(),
           '/reset-password': (context) {
@@ -175,7 +177,6 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       _hasSession = session != null;
     });
   }
-
   @override
   Widget build(BuildContext context) {
     if (_hasSession == null) {
@@ -189,7 +190,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       return const MyHomePage();
     }
 
-    return const LoginPage();
+    return const WelcomePage();
   }
 }
 
