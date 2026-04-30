@@ -290,11 +290,13 @@ class FitnessPageState extends State<FitnessPage> {
     final weight = double.tryParse(_weightController.text.trim());
     if (weight == null) return;
 
-    final dateKey = _todayKey();    try {
+    final dateKey = _todayKey();
+    try {
       await _client.from('weight_entries').upsert({
         'user_id': user.id,
         'entry_date': dateKey,
-        'weight': weight,      }, onConflict: 'user_id,entry_date');
+        'weight': weight,
+      }, onConflict: 'user_id,entry_date');
 
       if (mounted) {
         setState(() {
@@ -844,7 +846,8 @@ class FitnessPageState extends State<FitnessPage> {
       carbs = (nutrition['carbs'] as double) / perServing * servings;
       fat = (nutrition['fat'] as double) / perServing * servings;
       protein = (nutrition['protein'] as double) / perServing * servings;
-    }    try {
+    }
+    try {
       await _client.from('daily_macro_logs').insert({
         'user_id': user.id,
         'log_date': _todayKey(),
@@ -854,7 +857,8 @@ class FitnessPageState extends State<FitnessPage> {
         'carbs': carbs,
         'fat': fat,
         'protein': protein,
-        'servings': servings,      });
+        'servings': servings,
+      });
 
       await _loadTodayLogs();
     } catch (e) {
@@ -1800,13 +1804,15 @@ class FitnessPageState extends State<FitnessPage> {
     if (user == null) return {'error': 'User not signed in.'};
 
     try {
-      switch (name) {        case 'log_weight_entry':
+      switch (name) {
+        case 'log_weight_entry':
           final weight = (args['weight'] as num).toDouble();
           final dateKey = _todayKey();
           await _client.from('weight_entries').upsert({
             'user_id': user.id,
             'entry_date': dateKey,
-            'weight': weight,          }, onConflict: 'user_id,entry_date');
+            'weight': weight,
+          }, onConflict: 'user_id,entry_date');
           if (mounted) {
             setState(() => _weightsByDay[dateKey] = weight);
             if (_goalWeight != null && weight <= _goalWeight!) {
@@ -2420,10 +2426,6 @@ class FitnessPageState extends State<FitnessPage> {
     if (ok == true) await _deleteArchivedConversation(conv.id);
   }
 
-  void expandTrainer() {
-    setState(() => _trainerExpanded = true);
-  }
-
   Widget _collapsibleCard({
     required String title,
     required IconData icon,
@@ -2460,7 +2462,8 @@ class FitnessPageState extends State<FitnessPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          title,                          style: Theme.of(
+                          title,
+                          style: Theme.of(
                             context,
                           ).textTheme.titleLarge?.copyWith(color: Colors.white),
                         ),
