@@ -45,6 +45,7 @@ class HealthPageState extends State<HealthPage> {
     super.initState();
     _bootstrap();
   }
+
   Future<void> _bootstrap() async {
     await _loadFavorites();
     await _loadIngredients();
@@ -107,10 +108,11 @@ class HealthPageState extends State<HealthPage> {
       return;
     }
 
-    try {      if (mounted) setState(() => _loadingIngredients = true);
+    try {
+      if (mounted) setState(() => _loadingIngredients = true);
 
       // Try to fetch with serving columns first; fall back without them if the
-      // migration hasn't been run yet 
+      // migration hasn't been run yet
       List<dynamic> rows;
       try {
         rows = await _supabase
@@ -132,7 +134,8 @@ class HealthPageState extends State<HealthPage> {
             )
             .eq('user_id', user.id)
             .order('created_at');
-      }      final list = rows
+      }
+      final list = rows
           .map((r) => IngredientRow.fromMap(r as Map<String, dynamic>))
           .where((x) => x.name.trim().isNotEmpty)
           .toList();
@@ -172,6 +175,7 @@ class HealthPageState extends State<HealthPage> {
     }
     return true;
   }
+
   Future<void> _addIngredientDialog() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -187,130 +191,147 @@ class HealthPageState extends State<HealthPage> {
     final formKey = GlobalKey<FormState>();
     String selectedUnit = 'g';
 
-    final result = await showDialog<({String name, double amount, String unit})>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDState) => AlertDialog(
-          backgroundColor: Colors.black,
-          title: const Text('Add Ingredient'),
-          content: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [                // ── Name ──
-                TextFormField(
-                  controller: nameCtrl,
-                  autofocus: true,
-                  style: const TextStyle(color: Colors.white),
-                  cursorColor: Colors.white,
-                  decoration: const InputDecoration(
-                    labelText: 'Ingredient',
-                    hintText: 'e.g., bananas',
-                    hintStyle: TextStyle(color: Colors.white54),
-                  ),
-                  validator: (v) {
-                    final s = (v ?? '').trim();
-                    if (s.isEmpty) return 'Enter an ingredient';
-                    if (s.length > 40) return 'Keep it short';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 14),
-                // ── Amount + unit row ──
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [                    Expanded(
-                      child: TextFormField(
-                        controller: amountCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        style: const TextStyle(color: Colors.white),
-                        cursorColor: Colors.white,
-                        decoration: const InputDecoration(
-                          labelText: 'Amount',
-                          hintText: '100',
-                          hintStyle: TextStyle(color: Colors.white54),
-                        ),
-                        validator: (v) {
-                          final d = double.tryParse((v ?? '').trim());
-                          if (d == null || d <= 0) return 'Enter a valid amount';
-                          return null;
-                        },
+    final result =
+        await showDialog<({String name, double amount, String unit})>(
+          context: context,
+          builder: (context) => StatefulBuilder(
+            builder: (context, setDState) => AlertDialog(
+              backgroundColor: Colors.black,
+              title: const Text('Add Ingredient'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── Name ──
+                    TextFormField(
+                      controller: nameCtrl,
+                      autofocus: true,
+                      style: const TextStyle(color: Colors.white),
+                      cursorColor: Colors.white,
+                      decoration: const InputDecoration(
+                        labelText: 'Ingredient',
+                        hintText: 'e.g., bananas',
+                        hintStyle: TextStyle(color: Colors.white54),
                       ),
+                      validator: (v) {
+                        final s = (v ?? '').trim();
+                        if (s.isEmpty) return 'Enter an ingredient';
+                        if (s.length > 40) return 'Keep it short';
+                        return null;
+                      },
                     ),
-                    const SizedBox(width: 12),
-                    // Unit toggle chips
-                    Column(
+                    const SizedBox(height: 14),
+                    // ── Amount + unit row ──
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Unit',
-                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: amountCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            style: const TextStyle(color: Colors.white),
+                            cursorColor: Colors.white,
+                            decoration: const InputDecoration(
+                              labelText: 'Amount',
+                              hintText: '100',
+                              hintStyle: TextStyle(color: Colors.white54),
+                            ),
+                            validator: (v) {
+                              final d = double.tryParse((v ?? '').trim());
+                              if (d == null || d <= 0)
+                                return 'Enter a valid amount';
+                              return null;
+                            },
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: ['g', 'cups'].map((unit) {
-                            final sel = selectedUnit == unit;
-                            final neon = Theme.of(context).colorScheme.secondary;
-                            return GestureDetector(
-                              onTap: () => setDState(() => selectedUnit = unit),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                margin: const EdgeInsets.only(right: 6),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: sel ? neon : Colors.grey.shade700,
-                                    width: sel ? 1.8 : 1.0,
-                                  ),
-                                  color: sel
-                                      ? neon.withOpacity(0.12)
-                                      : Colors.transparent,
-                                ),
-                                child: Text(
-                                  unit,
-                                  style: TextStyle(
-                                    color: sel ? neon : Colors.grey,
-                                    fontWeight: sel
-                                        ? FontWeight.w700
-                                        : FontWeight.normal,
-                                    fontSize: 13,
-                                    shadows: [],
-                                  ),
-                                ),
+                        const SizedBox(width: 12),
+                        // Unit toggle chips
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Unit',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
                               ),
-                            );
-                          }).toList(),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: ['g', 'cups'].map((unit) {
+                                final sel = selectedUnit == unit;
+                                final neon = Theme.of(
+                                  context,
+                                ).colorScheme.secondary;
+                                return GestureDetector(
+                                  onTap: () =>
+                                      setDState(() => selectedUnit = unit),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 160),
+                                    margin: const EdgeInsets.only(right: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: sel
+                                            ? neon
+                                            : Colors.grey.shade700,
+                                        width: sel ? 1.8 : 1.0,
+                                      ),
+                                      color: sel
+                                          ? neon.withOpacity(0.12)
+                                          : Colors.transparent,
+                                    ),
+                                    child: Text(
+                                      unit,
+                                      style: TextStyle(
+                                        color: sel ? neon : Colors.grey,
+                                        fontWeight: sel
+                                            ? FontWeight.w700
+                                            : FontWeight.normal,
+                                        fontSize: 13,
+                                        shadows: [],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ],
                 ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    if (formKey.currentState?.validate() != true) return;
+                    Navigator.pop(context, (
+                      name: nameCtrl.text.trim(),
+                      amount: double.parse(amountCtrl.text.trim()),
+                      unit: selectedUnit,
+                    ));
+                  },
+                  child: const Text('Add'),
+                ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() != true) return;
-                Navigator.pop(context, (
-                  name: nameCtrl.text.trim(),
-                  amount: double.parse(amountCtrl.text.trim()),
-                  unit: selectedUnit,
-                ));
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-      ),
-    );    if (result == null) return;    try {
+        );
+    if (result == null) return;
+    try {
       await _supabase.from('ingredients').insert({
         'user_id': user.id,
         'name': result.name,
@@ -328,7 +349,9 @@ class HealthPageState extends State<HealthPage> {
     await _loadIngredients();
     await _syncIngredientNutrition(result.name, result.amount, result.unit);
     await _loadIngredients();
-  }Future<void> _removeIngredient(String name) async {
+  }
+
+  Future<void> _removeIngredient(String name) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
@@ -343,11 +366,9 @@ class HealthPageState extends State<HealthPage> {
 
   Future<void> _openBarcodeScanner() async {
     if (!mounted) return;
-    
+
     final scannedBarcode = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (context) => const _BarcodeScannerPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const _BarcodeScannerPage()),
     );
 
     if (scannedBarcode == null || scannedBarcode.isEmpty) return;
@@ -356,6 +377,7 @@ class HealthPageState extends State<HealthPage> {
     await _syncIngredientNutritionByName(scannedBarcode);
     await _loadIngredients();
   }
+
   Future<void> _syncIngredientNutrition(
     String name,
     double amount,
@@ -371,7 +393,10 @@ class HealthPageState extends State<HealthPage> {
       final found = await _spoonSearchIngredient(name);
       if (found == null) return;
 
-      final info = await _spoonIngredientInformation(found.id, amountG: amountG);
+      final info = await _spoonIngredientInformation(
+        found.id,
+        amountG: amountG,
+      );
       if (info == null) return;
 
       await _supabase
@@ -441,6 +466,7 @@ class HealthPageState extends State<HealthPage> {
       if (mounted) setState(() => _loadingFacts = false);
     }
   }
+
   List<String> _buildFactsFromIngredients(List<IngredientRow> items) {
     final facts = <String>[];
 
@@ -470,9 +496,7 @@ class HealthPageState extends State<HealthPage> {
           '${_title(ing.name)}: nutrition not synced yet — tap refresh to load.',
         );
       } else {
-        facts.add(
-          '${_title(ing.name)} ($servingLabel): ${parts.join(' • ')}.',
-        );
+        facts.add('${_title(ing.name)} ($servingLabel): ${parts.join(' • ')}.');
       }
     }
 
@@ -528,12 +552,15 @@ class HealthPageState extends State<HealthPage> {
         return;
       }
 
-      final list = jsonDecode(resp.body) as List<dynamic>;      final cards = list.map((e) {
+      final list = jsonDecode(resp.body) as List<dynamic>;
+      final cards = list.map((e) {
         final m = e as Map<String, dynamic>;
         final id = (m['id'] ?? 0) as int;
         final title = (m['title'] ?? 'Recipe').toString();
         final image = (m['image'] ?? '').toString();
-        final have = (m['usedIngredients'] as List?) ?? const [];   /* usedIngredients is from the API - cant change */
+        final have =
+            (m['usedIngredients'] as List?) ??
+            const []; /* usedIngredients is from the API - cant change */
         final missed = (m['missedIngredients'] as List?) ?? const [];
 
         final missingNames = missed
@@ -565,6 +592,7 @@ class HealthPageState extends State<HealthPage> {
       if (mounted) setState(() => _loadingRecipes = false);
     }
   }
+
   /* -------------------------- FAVORITES -------------------------- */
   Future<void> _loadFavorites() async {
     final user = _supabase.auth.currentUser;
@@ -580,7 +608,7 @@ class HealthPageState extends State<HealthPage> {
 
       final ids = <int>{};
       final cards = <RecipeCardUi>[];
-      
+
       for (final r in (rows as List)) {
         final v = r['recipe_id'];
         final recipeId = v is int ? v : (v is num ? v.toInt() : null);
@@ -588,7 +616,7 @@ class HealthPageState extends State<HealthPage> {
           ids.add(recipeId);
           final title = (r['title'] ?? 'Recipe').toString();
           final image = (r['image_url'] ?? '').toString();
-          
+
           // Parse ingredients from JSON
           List<String> ingredients = const [];
           try {
@@ -601,15 +629,17 @@ class HealthPageState extends State<HealthPage> {
             // If parsing fails, just use empty list
             ingredients = const [];
           }
-          
-          cards.add(RecipeCardUi(
-            recipeId: recipeId,
-            title: title,
-            imageUrl: image,
-            subtitle: 'Favorite',
-            missingIngredients: ingredients,
-            isFavorite: true,
-          ));
+
+          cards.add(
+            RecipeCardUi(
+              recipeId: recipeId,
+              title: title,
+              imageUrl: image,
+              subtitle: 'Favorite',
+              missingIngredients: ingredients,
+              isFavorite: true,
+            ),
+          );
         }
       }
 
@@ -622,6 +652,7 @@ class HealthPageState extends State<HealthPage> {
       if (mounted) setState(() => _loadingFavorites = false);
     }
   }
+
   Future<void> _toggleFavorite(RecipeCardUi recipe) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
@@ -640,7 +671,7 @@ class HealthPageState extends State<HealthPage> {
       } else {
         // Serialize all ingredients (both missing and used)
         final ingredientsJson = jsonEncode(recipe.missingIngredients);
-        
+
         await _supabase.from('favorite_recipes').insert({
           'user_id': user.id,
           'recipe_id': id,
@@ -649,7 +680,8 @@ class HealthPageState extends State<HealthPage> {
           'ingredients': ingredientsJson,
         });
         _favoriteRecipeIds.add(id);
-      }      if (!mounted) return;
+      }
+      if (!mounted) return;
       setState(() {
         // Update suggested recipes list
         _recipeCards = _recipeCards
@@ -659,7 +691,7 @@ class HealthPageState extends State<HealthPage> {
                   : r,
             )
             .toList();
-        
+
         // Update favorite recipes list - remove if unfavorited, add if favorited
         if (isFav) {
           // Removed from favorites - filter it out
@@ -669,9 +701,7 @@ class HealthPageState extends State<HealthPage> {
         } else {
           // Added to favorites - update the card to mark as favorite
           _favoriteRecipeCards = _favoriteRecipeCards
-              .map(
-                (r) => r.recipeId == id ? r.copyWith(isFavorite: true) : r,
-              )
+              .map((r) => r.recipeId == id ? r.copyWith(isFavorite: true) : r)
               .toList();
         }
       });
@@ -695,7 +725,8 @@ class HealthPageState extends State<HealthPage> {
         backgroundColor: Colors.black,
         title: const Text('Add Recipe'),
         content: Form(
-          key: formKey,          child: TextFormField(
+          key: formKey,
+          child: TextFormField(
             controller: controller,
             autofocus: true,
             style: const TextStyle(color: Colors.white),
@@ -781,6 +812,7 @@ class HealthPageState extends State<HealthPage> {
       ).showSnackBar(SnackBar(content: Text('Add recipe error: $e')));
     }
   }
+
   /* -------------------------- UI -------------------------- */
   @override
   Widget build(BuildContext context) {
@@ -790,143 +822,161 @@ class HealthPageState extends State<HealthPage> {
       body: MouseRegion(
         cursor: SystemMouseCursors.basic,
         child: ListView(
-        padding: const EdgeInsets.all(16),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _CollapsibleSection(
-            title: 'Ingredients',
-            icon: Icons.restaurant,
-            expanded: _ingredientsExpanded,
-            onToggle: () =>
-                setState(() => _ingredientsExpanded = !_ingredientsExpanded),
-            rightAction: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.qr_code_scanner, size: 22),
-                  tooltip: 'Scan barcode',
-                  onPressed: _openBarcodeScanner,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add, size: 22),
-                  tooltip: 'Add ingredient',
-                  onPressed: _addIngredientDialog,
-                ),
-              ],
-            ),
-            child: _loadingIngredients
-                ? const _EmptyHint(text: 'Loading ingredients...')
-                : ingredients.isEmpty
-                ? const _EmptyHint(text: 'Tap + to add ingredients.')
-                : _IngredientCards(
-                    items: ingredients,
-                    onRemove: (name) => _removeIngredient(name),
+          padding: const EdgeInsets.all(16),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            _CollapsibleSection(
+              title: 'Ingredients',
+              icon: Icons.restaurant,
+              infoText:
+                  'Add ingredients using the plus button on the top right. You may view the ingredients added once they are logged and also remove them with the X icon on the top right of each ingredient shown.',
+              expanded: _ingredientsExpanded,
+              onToggle: () =>
+                  setState(() => _ingredientsExpanded = !_ingredientsExpanded),
+              rightAction: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: _openBarcodeScanner,
+                    child: const Icon(Icons.qr_code_scanner, size: 22),
                   ),
-          ),
-          const SizedBox(height: 14),
-
-          _CollapsibleSection(
-            title: 'Health Facts',
-            icon: Icons.health_and_safety,
-            expanded: _healthFactsExpanded,
-            onToggle: () =>
-                setState(() => _healthFactsExpanded = !_healthFactsExpanded),
-            rightAction: IconButton(
-              icon: const Icon(Icons.refresh, size: 20),
-              tooltip: 'Refresh facts',
-              onPressed: _loadHealthFacts,
-            ),
-            child: ingredients.isEmpty
-                ? const _EmptyHint(
-                    text: 'Add ingredients to generate health facts.',
-                  )
-                : _loadingFacts
-                ? const _EmptyHint(text: 'Loading facts...')                : _healthFacts.isEmpty
-                ? const _EmptyHint(text: 'No facts yet. Tap refresh.')
-                : _HealthFactsPager(facts: _healthFacts),
-          ),
-          const SizedBox(height: 14),          _CollapsibleSection(
-            title: 'Recipes',
-            icon: Icons.menu_book,
-            expanded: _recipesExpanded,
-            onToggle: () =>
-                setState(() => _recipesExpanded = !_recipesExpanded),
-            rightAction: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add, size: 22),
-                  tooltip: 'Add recipe',
-                  onPressed: _addRecipeDialog,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, size: 20),
-                  tooltip: 'Refresh recipes',
-                  onPressed: () {
-                    _lastRecipeIngredientKey = null;
-                    _loadRecipes();
-                  },
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_favoriteRecipeCards.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),                    child: SegmentedButton<bool>(
-                      onSelectionChanged: (Set<bool> newSelection) {
-                        final isFavoritesSelected = newSelection.first;
-                        setState(() => _showingFavorites = isFavoritesSelected);
-                        
-                        // Reload favorites when switching to Favorites tab
-                        if (isFavoritesSelected) {
-                          _loadFavorites();
-                        }
-                      },
-                      selected: <bool>{_showingFavorites},
-                      segments: const <ButtonSegment<bool>>[
-                        ButtonSegment<bool>(
-                          value: false,
-                          label: Text('Suggested'),
-                        ),
-                        ButtonSegment<bool>(
-                          value: true,
-                          label: Text('Favorites'),
-                        ),
-                      ],
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: _addIngredientDialog,
+                    child: const Icon(Icons.add, size: 22),
+                  ),
+                ],
+              ),
+              child: _loadingIngredients
+                  ? const _EmptyHint(text: 'Loading ingredients...')
+                  : ingredients.isEmpty
+                  ? const _EmptyHint(text: 'Tap + to add ingredients.')
+                  : _IngredientCards(
+                      items: ingredients,
+                      onRemove: (name) => _removeIngredient(name),
                     ),
+            ),
+            const SizedBox(height: 14),
+
+            _CollapsibleSection(
+              title: 'Health Facts',
+              icon: Icons.health_and_safety,
+              infoText:
+                  'View health facts from your logged ingredients. Use the refresh button on the top right to display new facts.',
+              expanded: _healthFactsExpanded,
+              onToggle: () =>
+                  setState(() => _healthFactsExpanded = !_healthFactsExpanded),
+              rightAction: GestureDetector(
+                onTap: _loadHealthFacts,
+                child: const Icon(Icons.refresh, size: 20),
+              ),
+              child: ingredients.isEmpty
+                  ? const _EmptyHint(
+                      text: 'Add ingredients to generate health facts.',
+                    )
+                  : _loadingFacts
+                  ? const _EmptyHint(text: 'Loading facts...')
+                  : _healthFacts.isEmpty
+                  ? const _EmptyHint(text: 'No facts yet. Tap refresh.')
+                  : _HealthFactsPager(facts: _healthFacts),
+            ),
+            const SizedBox(height: 14),
+            _CollapsibleSection(
+              title: 'Recipes',
+              icon: Icons.menu_book,
+              infoText:
+                  'View recipes to make based on the ingredients you currently have. Add recipes not shown by using the + button on the top right or use the refresh button on the top right to generate new recipies. You can also favorite recipies by using the heart button on the top right of each recipe shown.',
+              expanded: _recipesExpanded,
+              onToggle: () =>
+                  setState(() => _recipesExpanded = !_recipesExpanded),
+              rightAction: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: _addRecipeDialog,
+                    child: const Icon(Icons.add, size: 22),
                   ),
-                if (ingredients.isEmpty)
-                  const _EmptyHint(text: 'Add ingredients to get recipes.')
-                else if (_loadingRecipes || _loadingFavorites)
-                  const _EmptyHint(text: 'Loading recipes...')
-                else if ((_showingFavorites ? _favoriteRecipeCards : _recipeCards).isEmpty)
-                  _EmptyHint(
-                    text: _showingFavorites
-                        ? 'No favorite recipes yet.'
-                        : 'No recipes found.',
-                  )
-                else
-                  SizedBox(
-                    height: 280,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: (_showingFavorites ? _favoriteRecipeCards : _recipeCards).length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 12),
-                      itemBuilder: (context, i) => _RecipeCard(
-                        recipe: (_showingFavorites ? _favoriteRecipeCards : _recipeCards)[i],
-                        onTap: widget.onRecipeTap,
-                        onFavorite: _toggleFavorite,
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () {
+                      _lastRecipeIngredientKey = null;
+                      _loadRecipes();
+                    },
+                    child: const Icon(Icons.refresh, size: 20),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_favoriteRecipeCards.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: SegmentedButton<bool>(
+                        onSelectionChanged: (Set<bool> newSelection) {
+                          final isFavoritesSelected = newSelection.first;
+                          setState(
+                            () => _showingFavorites = isFavoritesSelected,
+                          );
+
+                          // Reload favorites when switching to Favorites tab
+                          if (isFavoritesSelected) {
+                            _loadFavorites();
+                          }
+                        },
+                        selected: <bool>{_showingFavorites},
+                        segments: const <ButtonSegment<bool>>[
+                          ButtonSegment<bool>(
+                            value: false,
+                            label: Text('Suggested'),
+                          ),
+                          ButtonSegment<bool>(
+                            value: true,
+                            label: Text('Favorites'),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-              ],
+                  if (ingredients.isEmpty)
+                    const _EmptyHint(text: 'Add ingredients to get recipes.')
+                  else if (_loadingRecipes || _loadingFavorites)
+                    const _EmptyHint(text: 'Loading recipes...')
+                  else if ((_showingFavorites
+                          ? _favoriteRecipeCards
+                          : _recipeCards)
+                      .isEmpty)
+                    _EmptyHint(
+                      text: _showingFavorites
+                          ? 'No favorite recipes yet.'
+                          : 'No recipes found.',
+                    )
+                  else
+                    SizedBox(
+                      height: 280,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount:
+                            (_showingFavorites
+                                    ? _favoriteRecipeCards
+                                    : _recipeCards)
+                                .length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (context, i) => _RecipeCard(
+                          recipe: (_showingFavorites
+                              ? _favoriteRecipeCards
+                              : _recipeCards)[i],
+                          onTap: widget.onRecipeTap,
+                          onFavorite: _toggleFavorite,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -955,8 +1005,11 @@ class HealthPageState extends State<HealthPage> {
 
     return _SpoonIngredientSearchResult(id: id, name: name, image: image);
   }
-  Future<_SpoonIngredientInfo?> _spoonIngredientInformation(int id,
-      {double amountG = 100}) async {
+
+  Future<_SpoonIngredientInfo?> _spoonIngredientInformation(
+    int id, {
+    double amountG = 100,
+  }) async {
     final uri = Uri.parse(
       'https://api.spoonacular.com/food/ingredients/$id/information'
       '?amount=${amountG.toStringAsFixed(1)}&unit=grams&includeNutrition=true',
@@ -1274,7 +1327,11 @@ class _IngredientCard extends StatelessWidget {
               if (onRemove != null)
                 GestureDetector(
                   onTap: onRemove,
-                  child: Icon(Icons.close, size: 16, color: neon.withOpacity(0.7)),
+                  child: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: neon.withOpacity(0.7),
+                  ),
                 ),
             ],
           ),
@@ -1330,7 +1387,8 @@ class _NeonBullet extends StatelessWidget {
     final neon = Theme.of(context).colorScheme.secondary;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: neon, width: 1.5),
         boxShadow: [BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6)],
@@ -1342,7 +1400,8 @@ class _NeonBullet extends StatelessWidget {
           Container(
             margin: const EdgeInsets.only(top: 6),
             width: 10,
-            height: 10,            decoration: BoxDecoration(
+            height: 10,
+            decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(4),
               border: Border.all(color: neon, width: 1),
               boxShadow: [
@@ -1350,7 +1409,8 @@ class _NeonBullet extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),          Expanded(child: Text(text)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text)),
         ],
       ),
     );
@@ -1440,13 +1500,13 @@ class _RecipeCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         onTap: onTap == null ? null : () => onTap!(recipe),
         child: Container(
-          width: 240,          decoration: BoxDecoration(
+          width: 240,
+          decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: neon, width: 1.5),
-            boxShadow: [
-              BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6),
-            ],
-          ),          clipBehavior: Clip.antiAlias,
+            boxShadow: [BoxShadow(color: neon.withOpacity(0.4), blurRadius: 6)],
+          ),
+          clipBehavior: Clip.antiAlias,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -1549,6 +1609,7 @@ class _CollapsibleSection extends StatelessWidget {
   final Widget? rightAction;
   final bool expanded;
   final VoidCallback onToggle;
+  final String? infoText;
 
   const _CollapsibleSection({
     required this.title,
@@ -1557,11 +1618,13 @@ class _CollapsibleSection extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     this.rightAction,
+    this.infoText,
   });
 
   @override
   Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;    return Container(
+    final neon = Theme.of(context).colorScheme.secondary;
+    return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -1585,12 +1648,20 @@ class _CollapsibleSection extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      title,                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                      ),
+                      title,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(color: Colors.white),
                     ),
                   ),
-                  if (expanded && rightAction != null) rightAction!,
+                  if (expanded && rightAction != null) ...[
+                    rightAction!,
+                    const SizedBox(width: 4),
+                  ],
+                  if (infoText != null) ...[
+                    _InfoButton(infoText: infoText, iconColor: neon),
+                    const SizedBox(width: 4),
+                  ],
                   Icon(
                     expanded ? Icons.expand_more : Icons.chevron_right,
                     color: neon,
@@ -1629,6 +1700,65 @@ class _EmptyHint extends StatelessWidget {
   }
 }
 
+/* -------------------------- INFO BUTTON -------------------------- */
+
+class _InfoButton extends StatelessWidget {
+  final String? infoText;
+  final Color iconColor;
+  const _InfoButton({required this.infoText, required this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        final overlay = Overlay.of(context);
+        final renderBox = context.findRenderObject() as RenderBox;
+        final position = renderBox.localToGlobal(Offset.zero);
+
+        late OverlayEntry entry;
+        entry = OverlayEntry(
+          builder: (ctx) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => entry.remove(),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: MediaQuery.of(ctx).size.width - position.dx - 24,
+                  top: position.dy + 28,
+                  width: 220,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: iconColor, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: iconColor.withOpacity(0.2),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        infoText ?? '',
+                        style: TextStyle(color: iconColor, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        overlay.insert(entry);
+      },
+      child: Icon(Icons.help, color: iconColor, size: 20),
+    );
+  }
+}
+
 /* -------------------------- BARCODE SCANNER -------------------------- */
 
 class _BarcodeScannerPage extends StatefulWidget {
@@ -1652,7 +1782,9 @@ class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
       body: MobileScanner(
         onDetect: (BarcodeCapture capture) {
           if (_scanned) return;
-          final Barcode? barcode = capture.barcodes.isNotEmpty ? capture.barcodes.first : null;
+          final Barcode? barcode = capture.barcodes.isNotEmpty
+              ? capture.barcodes.first
+              : null;
           final String? code = barcode?.rawValue;
           if (code != null && code.isNotEmpty) {
             _scanned = true;
