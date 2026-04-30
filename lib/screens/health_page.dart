@@ -26,15 +26,13 @@ class HealthPageState extends State<HealthPage> {
   bool _loadingIngredients = true;
 
   List<String> _healthFacts = const [];
-  bool _loadingFacts = false;
-  List<RecipeCardUi> _recipeCards = const [];
+  bool _loadingFacts = false;  List<RecipeCardUi> _recipeCards = const [];
   bool _loadingRecipes = false;
 
   Set<int> _favoriteRecipeIds = <int>{};
   bool _loadingFavorites = false;
   List<RecipeCardUi> _favoriteRecipeCards = const [];
   bool _showingFavorites = false;
-  List<String> _cachedTrivia = const [];
   String? _lastRecipeIngredientKey;
   bool _ingredientsExpanded = false;
   bool _healthFactsExpanded = false;
@@ -398,40 +396,29 @@ class HealthPageState extends State<HealthPage> {
       _syncIngredientNutrition(name, 100, 'g');
 
   /* -------------------------- HEALTH FACTS -------------------------- */
-
   void _buildAndSetHealthFacts(List<IngredientRow> items) {
     if (!mounted) return;
     final facts = _buildFactsFromIngredients(items);
-    final merged = [
-      ...facts,
-      ..._cachedTrivia,
-    ].where((s) => s.trim().isNotEmpty).toList();
-    setState(() => _healthFacts = merged);
+    setState(() => _healthFacts = facts);
   }
-
   Future<void> _loadHealthFacts() async {
-    if (_ingredients.isEmpty) {
-      if (!mounted) return;
-      setState(() => _healthFacts = const []);
-      return;
-    }
-
     try {
       if (mounted) setState(() => _loadingFacts = true);
 
-      final ingredientFacts = _buildFactsFromIngredients(_ingredients);
+      final ingredientFacts = _ingredients.isNotEmpty 
+          ? _buildFactsFromIngredients(_ingredients)
+          : <String>[];
+      
+      final triviaFacts = _getHealthTrivia();
 
-      if (_cachedTrivia.isEmpty) {
-        _cachedTrivia = await _spoonRandomTrivia(count: 2);
+      final allFacts = [...ingredientFacts, ...triviaFacts];
+      if (allFacts.length > 12) {
+        allFacts.shuffle();
+        allFacts.removeRange(12, allFacts.length);
       }
 
-      final merged = <String>[
-        ...ingredientFacts,
-        ..._cachedTrivia,
-      ].where((s) => s.trim().isNotEmpty).toList();
-
       if (!mounted) return;
-      setState(() => _healthFacts = merged);
+      setState(() => _healthFacts = allFacts);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -482,11 +469,31 @@ class HealthPageState extends State<HealthPage> {
 
   String _fmt0(num? v) => v == null ? '' : v.toStringAsFixed(0);
   String _fmt1(num? v) => v == null ? '' : v.toStringAsFixed(1);
-
   String _title(String s) {
     final t = s.trim();
     if (t.isEmpty) return t;
     return t[0].toUpperCase() + t.substring(1);
+  }
+
+  List<String> _getHealthTrivia() {
+    return [
+      'Drink at least 8 glasses of water daily to stay hydrated.',
+      'Aim for 150 minutes of moderate cardio exercise per week.',
+      'Include protein in every meal to help build and repair muscle.',
+      'Eat a variety of colorful vegetables to get different nutrients.',
+      'Limit added sugars to less than 10% of your daily calories.',
+      'Get 7-9 hours of quality sleep each night for optimal recovery.',
+      'Fiber helps with digestion and keeps you feeling full longer.',
+      'Omega-3 fatty acids support heart and brain health.',
+      'Start your day with a healthy breakfast to boost metabolism.',
+      'Eat slowly and mindfully to improve digestion and satiety.',
+      'Whole grains are better than refined grains for sustained energy.',
+      'Include healthy fats like avocado, nuts, and olive oil in your diet.',
+      'Reduce sodium intake to help maintain healthy blood pressure.',
+      'Fresh fruits and vegetables are more nutritious than canned versions.',
+      'Combine carbs with protein for stable blood sugar levels.',
+      'Regular exercise improves mood, energy, and overall health.',
+    ];
   }
 
   /* -------------------------- RECIPES -------------------------- */
@@ -792,13 +799,13 @@ class HealthPageState extends State<HealthPage> {
         child: ListView(
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
-        children: [
-          _CollapsibleSection(
+        children: [          _CollapsibleSection(
             title: 'Ingredients',
             icon: Icons.restaurant,
             expanded: _ingredientsExpanded,
             onToggle: () =>
                 setState(() => _ingredientsExpanded = !_ingredientsExpanded),
+            infoNote: 'Track ingredients and use them to track macros, get health facts, and recipes based on your ingredients. Manually add them or add them with the AI trainer.',
             rightAction: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -823,14 +830,13 @@ class HealthPageState extends State<HealthPage> {
                     onRemove: (name) => _removeIngredient(name),
                   ),
           ),
-          const SizedBox(height: 14),
-
-          _CollapsibleSection(
+          const SizedBox(height: 14),          _CollapsibleSection(
             title: 'Health Facts',
             icon: Icons.health_and_safety,
             expanded: _healthFactsExpanded,
             onToggle: () =>
                 setState(() => _healthFactsExpanded = !_healthFactsExpanded),
+            infoNote: 'Useful health facts based on the ingredients you inserted.',
             rightAction: IconButton(
               icon: const Icon(Icons.refresh, size: 20),
               tooltip: 'Refresh facts',
@@ -993,24 +999,7 @@ class HealthPageState extends State<HealthPage> {
       fatG: pick('Fat'),
       fiberG: pick('Fiber'),
       sugarG: pick('Sugar'),
-      sodiumMg: pick('Sodium'),
-    );
-  }
-
-  Future<List<String>> _spoonRandomTrivia({int count = 2}) async {
-    final facts = <String>[];
-
-    for (int i = 0; i < count; i++) {
-      final uri = Uri.parse('https://api.spoonacular.com/food/trivia/random');
-      final resp = await _spoonGet(uri);
-      if (resp == null) continue;
-
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final text = (data['text'] ?? '').toString().trim();
-      if (text.isNotEmpty) facts.add(text);
-    }
-
-    return facts;
+      sodiumMg: pick('Sodium'),    );
   }
 
   Future<List<RecipeCardUi>> _spoonRecipeSearch(String query) async {
@@ -1549,6 +1538,7 @@ class _CollapsibleSection extends StatelessWidget {
   final Widget? rightAction;
   final bool expanded;
   final VoidCallback onToggle;
+  final String? infoNote;
 
   const _CollapsibleSection({
     required this.title,
@@ -1557,9 +1547,8 @@ class _CollapsibleSection extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     this.rightAction,
-  });
-
-  @override
+    this.infoNote,
+  });  @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;    return Container(
       width: double.infinity,
@@ -1591,6 +1580,10 @@ class _CollapsibleSection extends StatelessWidget {
                     ),
                   ),
                   if (expanded && rightAction != null) rightAction!,
+                  if (infoNote != null) ...[
+                    _InfoButton(infoText: infoNote, iconColor: neon),
+                    const SizedBox(width: 4),
+                  ],
                   Icon(
                     expanded ? Icons.expand_more : Icons.chevron_right,
                     color: neon,
@@ -1625,6 +1618,63 @@ class _EmptyHint extends StatelessWidget {
           context,
         ).textTheme.bodyMedium?.copyWith(color: Colors.white.withOpacity(0.85)),
       ),
+    );
+  }
+}
+
+class _InfoButton extends StatelessWidget {
+  final String? infoText;
+  final Color iconColor;
+  const _InfoButton({required this.infoText, required this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        final overlay = Overlay.of(context);
+        final renderBox = context.findRenderObject() as RenderBox;
+        final position = renderBox.localToGlobal(Offset.zero);
+
+        late OverlayEntry entry;
+        entry = OverlayEntry(
+          builder: (ctx) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => entry.remove(),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: MediaQuery.of(ctx).size.width - position.dx - 24,
+                  top: position.dy + 28,
+                  width: 220,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: iconColor, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: iconColor.withOpacity(0.2),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        infoText ?? '',
+                        style: TextStyle(color: iconColor, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        overlay.insert(entry);
+      },
+      child: Icon(Icons.help, color: iconColor, size: 20),
     );
   }
 }
