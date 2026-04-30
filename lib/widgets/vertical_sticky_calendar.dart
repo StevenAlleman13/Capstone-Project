@@ -1517,21 +1517,44 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                               ),
                             ),
                           ),
-                  ),
-                  Expanded(
+                  ),                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.task['name'] ?? 'Unnamed Task',
-                          style: TextStyle(
-                            color: widget.isCompleted ? Colors.grey[600] : Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            decoration: widget.isCompleted ? TextDecoration.lineThrough : null,
-                            decorationColor: Colors.grey[600],
-                            shadows: const [],
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                widget.task['name'] ?? 'Unnamed Task',
+                                style: TextStyle(
+                                  color: widget.isCompleted ? Colors.grey[600] : Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  decoration: widget.isCompleted ? TextDecoration.lineThrough : null,
+                                  decorationColor: Colors.grey[600],
+                                  shadows: const [],
+                                ),
+                              ),
+                            ),
+                            if ((widget.task['is_challenge'] as bool?) ?? false)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00FF66),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Challenge',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    shadows: [],
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         if ((widget.task['days'] as List?)?.isNotEmpty ?? false)
                           Text(

@@ -26,15 +26,13 @@ class HealthPageState extends State<HealthPage> {
   bool _loadingIngredients = true;
 
   List<String> _healthFacts = const [];
-  bool _loadingFacts = false;
-  List<RecipeCardUi> _recipeCards = const [];
+  bool _loadingFacts = false;  List<RecipeCardUi> _recipeCards = const [];
   bool _loadingRecipes = false;
 
   Set<int> _favoriteRecipeIds = <int>{};
   bool _loadingFavorites = false;
   List<RecipeCardUi> _favoriteRecipeCards = const [];
   bool _showingFavorites = false;
-  List<String> _cachedTrivia = const [];
   String? _lastRecipeIngredientKey;
   bool _ingredientsExpanded = false;
   bool _healthFactsExpanded = false;
@@ -423,40 +421,29 @@ class HealthPageState extends State<HealthPage> {
       _syncIngredientNutrition(name, 100, 'g');
 
   /* -------------------------- HEALTH FACTS -------------------------- */
-
   void _buildAndSetHealthFacts(List<IngredientRow> items) {
     if (!mounted) return;
     final facts = _buildFactsFromIngredients(items);
-    final merged = [
-      ...facts,
-      ..._cachedTrivia,
-    ].where((s) => s.trim().isNotEmpty).toList();
-    setState(() => _healthFacts = merged);
+    setState(() => _healthFacts = facts);
   }
-
   Future<void> _loadHealthFacts() async {
-    if (_ingredients.isEmpty) {
-      if (!mounted) return;
-      setState(() => _healthFacts = const []);
-      return;
-    }
-
     try {
       if (mounted) setState(() => _loadingFacts = true);
 
-      final ingredientFacts = _buildFactsFromIngredients(_ingredients);
+      final ingredientFacts = _ingredients.isNotEmpty 
+          ? _buildFactsFromIngredients(_ingredients)
+          : <String>[];
+      
+      final triviaFacts = _getHealthTrivia();
 
-      if (_cachedTrivia.isEmpty) {
-        _cachedTrivia = await _spoonRandomTrivia(count: 2);
+      final allFacts = [...ingredientFacts, ...triviaFacts];
+      if (allFacts.length > 12) {
+        allFacts.shuffle();
+        allFacts.removeRange(12, allFacts.length);
       }
 
-      final merged = <String>[
-        ...ingredientFacts,
-        ..._cachedTrivia,
-      ].where((s) => s.trim().isNotEmpty).toList();
-
       if (!mounted) return;
-      setState(() => _healthFacts = merged);
+      setState(() => _healthFacts = allFacts);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -506,11 +493,31 @@ class HealthPageState extends State<HealthPage> {
 
   String _fmt0(num? v) => v == null ? '' : v.toStringAsFixed(0);
   String _fmt1(num? v) => v == null ? '' : v.toStringAsFixed(1);
-
   String _title(String s) {
     final t = s.trim();
     if (t.isEmpty) return t;
     return t[0].toUpperCase() + t.substring(1);
+  }
+
+  List<String> _getHealthTrivia() {
+    return [
+      'Drink at least 8 glasses of water daily to stay hydrated.',
+      'Aim for 150 minutes of moderate cardio exercise per week.',
+      'Include protein in every meal to help build and repair muscle.',
+      'Eat a variety of colorful vegetables to get different nutrients.',
+      'Limit added sugars to less than 10% of your daily calories.',
+      'Get 7-9 hours of quality sleep each night for optimal recovery.',
+      'Fiber helps with digestion and keeps you feeling full longer.',
+      'Omega-3 fatty acids support heart and brain health.',
+      'Start your day with a healthy breakfast to boost metabolism.',
+      'Eat slowly and mindfully to improve digestion and satiety.',
+      'Whole grains are better than refined grains for sustained energy.',
+      'Include healthy fats like avocado, nuts, and olive oil in your diet.',
+      'Reduce sodium intake to help maintain healthy blood pressure.',
+      'Fresh fruits and vegetables are more nutritious than canned versions.',
+      'Combine carbs with protein for stable blood sugar levels.',
+      'Regular exercise improves mood, energy, and overall health.',
+    ];
   }
 
   /* -------------------------- RECIPES -------------------------- */
@@ -1046,24 +1053,7 @@ class HealthPageState extends State<HealthPage> {
       fatG: pick('Fat'),
       fiberG: pick('Fiber'),
       sugarG: pick('Sugar'),
-      sodiumMg: pick('Sodium'),
-    );
-  }
-
-  Future<List<String>> _spoonRandomTrivia({int count = 2}) async {
-    final facts = <String>[];
-
-    for (int i = 0; i < count; i++) {
-      final uri = Uri.parse('https://api.spoonacular.com/food/trivia/random');
-      final resp = await _spoonGet(uri);
-      if (resp == null) continue;
-
-      final data = jsonDecode(resp.body) as Map<String, dynamic>;
-      final text = (data['text'] ?? '').toString().trim();
-      if (text.isNotEmpty) facts.add(text);
-    }
-
-    return facts;
+      sodiumMg: pick('Sodium'),    );
   }
 
   Future<List<RecipeCardUi>> _spoonRecipeSearch(String query) async {
@@ -1699,8 +1689,6 @@ class _EmptyHint extends StatelessWidget {
     );
   }
 }
-
-/* -------------------------- INFO BUTTON -------------------------- */
 
 class _InfoButton extends StatelessWidget {
   final String? infoText;

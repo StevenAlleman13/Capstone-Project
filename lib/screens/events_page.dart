@@ -181,7 +181,6 @@ class EventsPageState extends State<EventsPage> {
       _events = List<Map<String, dynamic>>.from(response);
     });
   }
-
   Future<void> _fetchTasksFromSupabase() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
@@ -196,6 +195,7 @@ class EventsPageState extends State<EventsPage> {
         'end_date': taskData['end_date'],
         'completedDates': List<String>.from(taskData['completed_dates'] ?? []),
         'user_id': taskData['user_id'],
+        'is_challenge': (taskData['is_challenge'] as bool?) ?? false,
       }).toList();
       if (mounted) setState(() => _tasks = List<Map<String, dynamic>>.from(loaded));
     } catch (e) {
@@ -314,13 +314,13 @@ class EventsPageState extends State<EventsPage> {
       return eventEndDateTime.isBefore(now);
     } catch (_) {
       return false;
-    }
-  }
+    }  }
 
   List<Map<String, dynamic>> _events = [];
   DateTime _selectedDay = DateTime.now();
   final _calendarKey = GlobalKey<VerticalStickyCalendarState>();
   Timer? _completionTimer;
+  Timer? _taskRefreshTimer;
 
   List<Map> _eventsForDay(DateTime day) {
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -579,7 +579,6 @@ class EventsPageState extends State<EventsPage> {
     }
     if (changed && mounted) setState(() {});
   }
-
   @override
   void initState() {
     super.initState();
@@ -590,11 +589,16 @@ class EventsPageState extends State<EventsPage> {
       const Duration(seconds: 10),
       (_) => _checkAndMoveCompletedEvents(),
     );
+    // Refresh tasks every 2 seconds to catch changes from dashboard or journal edits
+    _taskRefreshTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _fetchTasksFromSupabase(),
+    );
   }
-
   @override
   void dispose() {
     _completionTimer?.cancel();
+    _taskRefreshTimer?.cancel();
     super.dispose();
   }
 
