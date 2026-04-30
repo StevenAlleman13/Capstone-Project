@@ -19,7 +19,8 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserver {
+class _DashboardPageState extends State<DashboardPage>
+    with WidgetsBindingObserver {
   // ── profile ──────────────────────────────────────────────────────────────
   String _username = '';
   int _coins = 0;
@@ -48,6 +49,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     _ringRefreshTimer?.cancel();
     super.dispose();
   }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // No-op since we removed screen time functionality
@@ -70,13 +72,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       if (!mounted) return;
       setState(() {
         _username = (row?['username'] ?? user.email ?? 'User').toString();
-        _coins =
-            (row?['coins'] is num) ? (row!['coins'] as num).toInt() : 0;
+        _coins = (row?['coins'] is num) ? (row!['coins'] as num).toInt() : 0;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(
-          () => _username = _supabase.auth.currentUser?.email ?? 'User');
+      setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
     }
   }
 
@@ -95,7 +95,15 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               .select('date, days, end_time, all_day')
               .eq('user_id', user.id);
           final now = DateTime.now();
-          const fullWeekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const fullWeekdays = [
+            'Sunday',
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+          ];
           final todayWeekday = fullWeekdays[now.weekday % 7];
           int total = 0, done = 0;
           for (final r in rows) {
@@ -110,7 +118,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                   final parts = endTime.split(':');
                   final endH = int.parse(parts[0]);
                   final endM = int.parse(parts[1]);
-                  if (now.hour > endH || (now.hour == endH && now.minute >= endM)) done++;
+                  if (now.hour > endH ||
+                      (now.hour == endH && now.minute >= endM))
+                    done++;
                 } catch (_) {}
               }
             } else {
@@ -121,7 +131,8 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               final allDay = r['all_day'] == true;
               if (allDay) {
                 // All-day events complete at end of day (23:59:59)
-                if (now.hour == 23 && now.minute == 59 && now.second >= 59) done++;
+                if (now.hour == 23 && now.minute == 59 && now.second >= 59)
+                  done++;
               } else {
                 final endTime = (r['end_time'] ?? '').toString();
                 if (endTime.isNotEmpty) {
@@ -129,9 +140,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
                     final parts = endTime.split(':');
                     int endH = int.parse(parts[0].trim());
                     int endM = int.parse(parts[1].trim().split(' ')[0]);
-                    if (endTime.toUpperCase().contains('PM') && endH < 12) endH += 12;
-                    if (endTime.toUpperCase().contains('AM') && endH == 12) endH = 0;
-                    final eventEnd = DateTime(now.year, now.month, now.day, endH, endM);
+                    if (endTime.toUpperCase().contains('PM') && endH < 12)
+                      endH += 12;
+                    if (endTime.toUpperCase().contains('AM') && endH == 12)
+                      endH = 0;
+                    final eventEnd = DateTime(
+                      now.year,
+                      now.month,
+                      now.day,
+                      endH,
+                      endM,
+                    );
                     if (eventEnd.isBefore(now)) done++;
                   } catch (_) {}
                 }
@@ -139,7 +158,9 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             }
           }
           if (!mounted) return;
-          setState(() => _eventRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0));
+          setState(
+            () => _eventRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
+          );
         } catch (_) {}
       }(),
 
@@ -156,15 +177,17 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
             final days = List<String>.from(r['days'] ?? []);
             if (days.isEmpty || days.contains(todayWeekday)) {
               total++;
-              if (List<String>.from(r['completed_dates'] ?? [])
-                  .contains(todayStr)) {
+              if (List<String>.from(
+                r['completed_dates'] ?? [],
+              ).contains(todayStr)) {
                 done++;
               }
             }
           }
           if (!mounted) return;
-          setState(() =>
-              _taskRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0));
+          setState(
+            () => _taskRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
+          );
         } catch (_) {}
       }(),
 
@@ -217,6 +240,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         '${n.month.toString().padLeft(2, '0')}-'
         '${n.day.toString().padLeft(2, '0')}';
   }
+
   String _weekdayName(int weekday) {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
@@ -231,7 +255,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── Profile ───────────────────────────────────────────────────
-            _ProfileWidget(username: _username, coins: _coins, onSettingsReturn: _loadProfile),
+            _ProfileWidget(
+              username: _username,
+              coins: _coins,
+              onSettingsReturn: _loadProfile,
+            ),
             const SizedBox(height: 10),
 
             // ── Activity Rings ────────────────────────────────────────────
@@ -241,12 +269,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               macroRing: _macroRing,
               weightRing: _weightRing,
             ),
-            const SizedBox(height: 10),            // ── Daily Tasks (expands to fill remaining space) ─────────────
+            const SizedBox(
+              height: 10,
+            ), // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
               flex: 1,
-              child: _DailyTasksWidget(
-                onTasksChanged: () => _loadRings(),
-              ),
+              child: _DailyTasksWidget(onTasksChanged: () => _loadRings()),
             ),
           ],
         ),
@@ -264,7 +292,11 @@ class _ProfileWidget extends StatelessWidget {
   final int coins;
   final VoidCallback? onSettingsReturn;
 
-  const _ProfileWidget({required this.username, required this.coins, this.onSettingsReturn});
+  const _ProfileWidget({
+    required this.username,
+    required this.coins,
+    this.onSettingsReturn,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -276,7 +308,8 @@ class _ProfileWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
         color: Colors.black,
-      ),      child: Row(
+      ),
+      child: Row(
         children: [
           // Left: Profile avatar
           CircleAvatar(
@@ -298,8 +331,11 @@ class _ProfileWidget extends StatelessWidget {
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.monetization_on,
-                        color: Colors.amber, size: 18),
+                    const Icon(
+                      Icons.monetization_on,
+                      color: Colors.amber,
+                      size: 18,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       '$coins coins',
@@ -363,13 +399,40 @@ class _ActivityRingsWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ProgressBarItem(value: eventRing, label: 'Events', color: const Color(0xFF00FF66)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              _InfoButton(
+                infoText:
+                    'Use this to track progress on your set Events, Tasks, Macros, and Weight from the Journal and Fitness tabs. Once you complete all of the daily requirements for each component, the progression bars will fill up.',
+                iconColor: neon,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          _ProgressBarItem(
+            value: eventRing,
+            label: 'Events',
+            color: const Color(0xFF00FF66),
+          ),
           const SizedBox(height: 12),
-          _ProgressBarItem(value: taskRing, label: 'Tasks', color: const Color(0xFF00FF66)),
+          _ProgressBarItem(
+            value: taskRing,
+            label: 'Tasks',
+            color: const Color(0xFF00FF66),
+          ),
           const SizedBox(height: 12),
-          _ProgressBarItem(value: macroRing, label: 'Macros', color: const Color(0xFFFF9500)),
+          _ProgressBarItem(
+            value: macroRing,
+            label: 'Macros',
+            color: const Color(0xFFFF9500),
+          ),
           const SizedBox(height: 12),
-          _ProgressBarItem(value: weightRing, label: 'Weight', color: const Color(0xFF2196F3)),
+          _ProgressBarItem(
+            value: weightRing,
+            label: 'Weight',
+            color: const Color(0xFF2196F3),
+          ),
         ],
       ),
     );
@@ -493,7 +556,8 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     'Walk 10,000 steps',
     'Do a random act of kindness',
     'Spend 10 minutes outdoors',
-  ];  @override
+  ];
+  @override
   void initState() {
     super.initState();
     _loadTasks();
@@ -521,6 +585,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
   }
+
   Future<void> _loadTasks() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -531,25 +596,30 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       final rows = await _supabase
           .from('user_tasks')
           .select()
-          .eq('user_id', user.id);      final todayWeekday = _weekdayName(DateTime.now().weekday);
-      final tasks = (rows as List).map((r) => {
-            'id': r['id'],
-            'name': r['name'].toString(),
-            'days': List<String>.from(r['days'] ?? []),
-            'end_date': r['end_date'],
-            'completed_dates':
-                List<String>.from(r['completed_dates'] ?? []),
-            'user_id': r['user_id'],
-            'is_challenge': (r['is_challenge'] as bool?) ?? false,
-          }).where((t) {
-        final isChallenge = t['is_challenge'] as bool;
-        if (isChallenge) {
-          // Challenges are only shown today if they're added
-          return true;
-        }
-        final days = t['days'] as List<String>;
-        return days.isEmpty || days.contains(todayWeekday);
-      }).toList();
+          .eq('user_id', user.id);
+      final todayWeekday = _weekdayName(DateTime.now().weekday);
+      final tasks = (rows as List)
+          .map(
+            (r) => {
+              'id': r['id'],
+              'name': r['name'].toString(),
+              'days': List<String>.from(r['days'] ?? []),
+              'end_date': r['end_date'],
+              'completed_dates': List<String>.from(r['completed_dates'] ?? []),
+              'user_id': r['user_id'],
+              'is_challenge': (r['is_challenge'] as bool?) ?? false,
+            },
+          )
+          .where((t) {
+            final isChallenge = t['is_challenge'] as bool;
+            if (isChallenge) {
+              // Challenges are only shown today if they're added
+              return true;
+            }
+            final days = t['days'] as List<String>;
+            return days.isEmpty || days.contains(todayWeekday);
+          })
+          .toList();
       if (!mounted) return;
       setState(() {
         _tasks = tasks;
@@ -562,7 +632,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
 
   Future<void> _toggleChallenge(Map<String, dynamic> challenge) async {
     final today = _todayKey();
-    final completed = List<String>.from(challenge['completed_dates'] as List? ?? []);
+    final completed = List<String>.from(
+      challenge['completed_dates'] as List? ?? [],
+    );
     if (completed.contains(today)) {
       completed.remove(today);
     } else {
@@ -576,7 +648,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .eq('id', challenge['id']);
       widget.onTasksChanged();
     } catch (_) {}
-  }  Future<void> _showAddChallengeDialog() async {
+  }
+
+  Future<void> _showAddChallengeDialog() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
@@ -585,7 +659,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         .where((t) => (t['is_challenge'] as bool?) ?? false)
         .map((t) => t['name'] as String)
         .toList();
-    
+
     final availableChallenges = _challengePool
         .where((c) => !alreadyAdded.contains(c))
         .toList();
@@ -594,7 +668,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       // All challenges already added
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All challenges already added for today!')),
+        const SnackBar(
+          content: Text('All challenges already added for today!'),
+        ),
       );
       return;
     }
@@ -630,15 +706,17 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add challenge: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to add challenge: $e')));
       // Remove from local list if database insert failed
       setState(() => _tasks.removeWhere((t) => t['id'] == id));
     }
   }
+
   bool _isCompletedToday(Map<String, dynamic> task) =>
-      (task['completed_dates'] as List<String>? ?? []).contains(_todayKey());Future<void> _toggleTask(Map<String, dynamic> task) async {
+      (task['completed_dates'] as List<String>? ?? []).contains(_todayKey());
+  Future<void> _toggleTask(Map<String, dynamic> task) async {
     final today = _todayKey();
     final completed = List<String>.from(task['completed_dates'] as List);
     if (completed.contains(today)) {
@@ -691,19 +769,33 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         formatTime: events.eventsFormatTime,
       ),
     );
-  }  @override
+  }
+
+  @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
-    
+
     // Separate regular tasks and challenges
-    final regularTasks = _tasks.where((t) => (t['is_challenge'] as bool?) ?? false ? false : true).toList();
-    final challenges = _tasks.where((t) => (t['is_challenge'] as bool?) ?? false).toList();
-    
-    final incompleteRegular = regularTasks.where((t) => !_isCompletedToday(t)).toList();
-    final completedRegular = regularTasks.where((t) => _isCompletedToday(t)).toList();
-    
-    final incompleteChallenges = challenges.where((c) => !_isCompletedToday(c)).toList();
-    final completedChallenges = challenges.where((c) => _isCompletedToday(c)).toList();
+    final regularTasks = _tasks
+        .where((t) => (t['is_challenge'] as bool?) ?? false ? false : true)
+        .toList();
+    final challenges = _tasks
+        .where((t) => (t['is_challenge'] as bool?) ?? false)
+        .toList();
+
+    final incompleteRegular = regularTasks
+        .where((t) => !_isCompletedToday(t))
+        .toList();
+    final completedRegular = regularTasks
+        .where((t) => _isCompletedToday(t))
+        .toList();
+
+    final incompleteChallenges = challenges
+        .where((c) => !_isCompletedToday(c))
+        .toList();
+    final completedChallenges = challenges
+        .where((c) => _isCompletedToday(c))
+        .toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -724,9 +816,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                 Expanded(
                   child: Text(
                     'DAILY TASKS',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: Colors.white),
                   ),
                 ),
                 // Add challenge button
@@ -737,9 +829,16 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                     height: 28,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFD700), width: 1.5),
+                      border: Border.all(
+                        color: const Color(0xFFFFD700),
+                        width: 1.5,
+                      ),
                     ),
-                    child: const Icon(Icons.star, color: Color(0xFFFFD700), size: 18),
+                    child: const Icon(
+                      Icons.star,
+                      color: Color(0xFFFFD700),
+                      size: 18,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -749,6 +848,12 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: _addTask,
+                ),
+                const SizedBox(width: 8),
+                _InfoButton(
+                  infoText:
+                      'Use this to check off or make Daily Tasks. Also press the star button to add additional tasks if you would like to challenge yourself. Swipe right to view your completed tasks for the day.',
+                  iconColor: neon,
                 ),
                 const SizedBox(width: 8),
               ],
@@ -769,12 +874,23 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                   )
                 : PageView(
                     controller: _pageController,
-                    onPageChanged: (page) => setState(() => _currentPage = page),
+                    onPageChanged: (page) =>
+                        setState(() => _currentPage = page),
                     children: [
                       // Page 0: Incomplete challenges + tasks
-                      _buildTaskList(incompleteRegular, incompleteChallenges, neon, isCompleted: false),
+                      _buildTaskList(
+                        incompleteRegular,
+                        incompleteChallenges,
+                        neon,
+                        isCompleted: false,
+                      ),
                       // Page 1: Completed challenges + tasks
-                      _buildTaskList(completedRegular, completedChallenges, neon, isCompleted: true),
+                      _buildTaskList(
+                        completedRegular,
+                        completedChallenges,
+                        neon,
+                        isCompleted: true,
+                      ),
                     ],
                   ),
           ),
@@ -807,19 +923,34 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         color: isActive ? neon : neon.withOpacity(0.3),
       ),
     );
-  }  Widget _buildTaskList(List<Map<String, dynamic>> tasks, List<Map<String, dynamic>> challenges, Color neon, {required bool isCompleted}) {
+  }
+
+  Widget _buildTaskList(
+    List<Map<String, dynamic>> tasks,
+    List<Map<String, dynamic>> challenges,
+    Color neon, {
+    required bool isCompleted,
+  }) {
     // Challenges at the top, then tasks
     final allItems = [...challenges, ...tasks];
-    
+
     if (allItems.isEmpty) {
       return Center(
         child: Text(
           isCompleted
               ? 'No completed tasks yet'
-              : ((_tasks.where((t) => (t['is_challenge'] as bool?) ?? false ? false : true).isEmpty &&
-                  _tasks.where((t) => (t['is_challenge'] as bool?) ?? false).isEmpty)
-                  ? 'No tasks for today.\nTap + to add one.'
-                  : 'All tasks completed!'),
+              : ((_tasks
+                            .where(
+                              (t) => (t['is_challenge'] as bool?) ?? false
+                                  ? false
+                                  : true,
+                            )
+                            .isEmpty &&
+                        _tasks
+                            .where((t) => (t['is_challenge'] as bool?) ?? false)
+                            .isEmpty)
+                    ? 'No tasks for today.\nTap + to add one.'
+                    : 'All tasks completed!'),
           textAlign: TextAlign.center,
           style: TextStyle(
             color: neon.withOpacity(0.5),
@@ -830,7 +961,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       );
     }
 
-    const Color challengeColor = Color(0xFFFFD700); // Gold/yellow for challenges
+    const Color challengeColor = Color(
+      0xFFFFD700,
+    ); // Gold/yellow for challenges
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -840,7 +973,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         final item = allItems[i];
         final isChallenge = (item['is_challenge'] as bool?) ?? false;
         final itemColor = isChallenge ? challengeColor : neon;
-        
+
         return InkWell(
           onTap: () => isChallenge ? _toggleChallenge(item) : _toggleTask(item),
           borderRadius: BorderRadius.circular(12),
@@ -849,15 +982,21 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isCompleted ? itemColor.withOpacity(0.2) : itemColor.withOpacity(0.35),
+                color: isCompleted
+                    ? itemColor.withOpacity(0.2)
+                    : itemColor.withOpacity(0.35),
                 width: 1,
               ),
-              color: isCompleted ? itemColor.withOpacity(0.05) : Colors.transparent,
+              color: isCompleted
+                  ? itemColor.withOpacity(0.05)
+                  : Colors.transparent,
             ),
             child: Row(
               children: [
                 Icon(
-                  isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+                  isCompleted
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
                   color: isCompleted ? itemColor : itemColor.withOpacity(0.4),
                   size: 22,
                 ),
@@ -866,11 +1005,13 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                   child: Text(
                     item['name'] as String,
                     style: TextStyle(
-                      color: isCompleted 
+                      color: isCompleted
                           ? (isChallenge ? Colors.white54 : Colors.white54)
                           : (isChallenge ? challengeColor : Colors.white),
                       fontSize: 14,
-                      decoration: isCompleted ? TextDecoration.lineThrough : null,
+                      decoration: isCompleted
+                          ? TextDecoration.lineThrough
+                          : null,
                       shadows: [],
                     ),
                   ),
@@ -879,13 +1020,73 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
                 if (isChallenge)
                   Icon(
                     Icons.star,
-                    color: isCompleted ? challengeColor.withOpacity(0.5) : challengeColor,
+                    color: isCompleted
+                        ? challengeColor.withOpacity(0.5)
+                        : challengeColor,
                     size: 20,
                   ),
               ],
             ),
           ),
-        );      },
+        );
+      },
+    );
+  }
+}
+
+class _InfoButton extends StatelessWidget {
+  final String? infoText;
+  final Color iconColor;
+  const _InfoButton({required this.infoText, required this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        final overlay = Overlay.of(context);
+        final renderBox = context.findRenderObject() as RenderBox;
+        final position = renderBox.localToGlobal(Offset.zero);
+
+        late OverlayEntry entry;
+        entry = OverlayEntry(
+          builder: (ctx) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => entry.remove(),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: MediaQuery.of(ctx).size.width - position.dx - 24,
+                  top: position.dy + 28,
+                  width: 220,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: iconColor, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: iconColor.withOpacity(0.2),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        infoText ?? '',
+                        style: TextStyle(color: iconColor, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        overlay.insert(entry);
+      },
+      child: Icon(Icons.help, color: iconColor, size: 20),
     );
   }
 }

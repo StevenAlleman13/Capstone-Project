@@ -115,7 +115,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
 */
 
-
 // settings tab superclass
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -125,7 +124,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-
   // load from supabase settings table into local variables. can not fathom the reason but it does not work.
   // for context: this function imitates every other load function in this project but one element that is exactly
   // the same in the same context and everything is throwing an error consistently both in VSCode and when ran.
@@ -139,6 +137,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!context.mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -148,7 +147,8 @@ class _SettingsPageState extends State<SettingsPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: _neonGreen),
           onPressed: () => Navigator.of(context).pop(),
-        ),        title: const Text(
+        ),
+        title: const Text(
           'Settings',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
         ),
@@ -157,50 +157,61 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: const EdgeInsets.all(16),
         physics: const BouncingScrollPhysics(),
         children: [
-          /* PROFILE TAB */  
+          /* PROFILE TAB */
 
-           // -- will be fully implemented in sprint 5. -3/23/2026
-
+          // -- will be fully implemented in sprint 5. -3/23/2026
           const _SectionFrame(
             title: 'PROFILE',
-            child: _Profile(),  
+            infoText:
+                'Use on the pencil button at the bottom right of the profile image to change your profile character. Use the other pencil button on the right to change your username.',
+            child: _Profile(),
           ),
 
           /* DIFFICULTY TAB */
-
           const SizedBox(height: 14),
           const _SectionFrame(
             title: 'DIFFICULTY',
+            infoText:
+                'Set your level of difficulty for screen time. Each difficulty will allow you more or less time on other distracting apps you set.',
             child: _DifficultySelector(),
-          ),          /* THEME TAB */
+          ),
 
+          /* THEME TAB */
           const SizedBox(height: 14),
           const _SectionFrame(
             title: 'THEME',
+            infoText:
+                'Change your theme from dark, light, or custom mode for the app appearance.',
             child: _ThemeSelector(),
           ),
-    
+
           /* ADVANCED TAB */
           const SizedBox(height: 14),
           const _SectionFrame(
             title: 'ADVANCED',
+            infoText: 'Edit the amount of screentime you allow for yourself.',
             child: _AdvancedSettings(),
-            ),
+          ),
 
           /* PERMISSIONS TAB */
-
           const SizedBox(height: 14),
           _SectionFrame(
             title: 'PERMISSIONS',
+            infoText:
+                'Edit the distracting apps that you would like to lock, allow or disable app overlay by toggling the slider, and allow or disable notifications from Lock In by toggling the slider.',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ListTile(
-                  contentPadding: EdgeInsets.zero,                  title: const Text(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
                     'Locked Apps',
                     style: TextStyle(color: Colors.white, fontSize: 15),
                   ),
-                  trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const AppPickerPage()),
@@ -214,20 +225,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Divider(color: Colors.white12, height: 20),
 
                 const _NotificationButton(),
-
               ],
             ),
           ),
           const SizedBox(height: 14),
 
           /* LOG OUT */
-
           _SectionFrame(
             title: 'LOG OUT',
             child: Align(
-              alignment: Alignment.centerLeft,              child: ElevatedButton.icon(
+              alignment: Alignment.centerLeft,
+              child: ElevatedButton.icon(
                 icon: const Icon(Icons.logout, color: Colors.white),
-                label: const Text('Log out', style: TextStyle(color: Colors.white)),
+                label: const Text(
+                  'Log out',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onPressed: () => _logout(context),
               ),
             ),
@@ -244,7 +257,8 @@ class _OverlayPermissionButton extends StatefulWidget {
   const _OverlayPermissionButton();
 
   @override
-  State<_OverlayPermissionButton> createState() => _OverlayPermissionButtonState();
+  State<_OverlayPermissionButton> createState() =>
+      _OverlayPermissionButtonState();
 }
 
 class _OverlayPermissionButtonState extends State<_OverlayPermissionButton>
@@ -272,7 +286,8 @@ class _OverlayPermissionButtonState extends State<_OverlayPermissionButton>
 
   Future<void> _checkPermission() async {
     try {
-      final granted = await _channel.invokeMethod<bool>('hasOverlayPermission') ?? false;
+      final granted =
+          await _channel.invokeMethod<bool>('hasOverlayPermission') ?? false;
       if (mounted) setState(() => _granted = granted);
     } catch (_) {}
   }
@@ -285,12 +300,10 @@ class _OverlayPermissionButtonState extends State<_OverlayPermissionButton>
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
     return ListTile(
-      contentPadding: EdgeInsets.zero,      title: Text(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
         'App Overlay',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-        ),
+        style: TextStyle(color: Colors.white, fontSize: 15),
       ),
       trailing: Switch(
         value: _granted,
@@ -331,32 +344,27 @@ class _NotificationButtonState extends State<_NotificationButton>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _checkPermission();
   }
+
   // checks permission settings for notifications
   // attempts to redirect user
   Future<bool> _checkNotificationSettings() async {
     PermissionStatus status = await Permission.notification.status;
 
-    if (status.isGranted) 
-    {
+    if (status.isGranted) {
       return true;
-    } 
-    else if (status.isDenied) 
-    {
-      // requests permission 
+    } else if (status.isDenied) {
+      // requests permission
       await _request();
       return false;
-    } 
-    else if (status.isPermanentlyDenied) 
-    {
+    } else if (status.isPermanentlyDenied) {
       // redirect user to app settings
       await openAppSettings();
       return false;
-    } 
-    else 
-    {
+    } else {
       return false;
     }
   }
+
   // updates '_granted' var based on return value
   Future<void> _checkPermission() async {
     try {
@@ -364,6 +372,7 @@ class _NotificationButtonState extends State<_NotificationButton>
       if (mounted) setState(() => _granted = granted);
     } catch (_) {}
   }
+
   Future<void> _request() async {
     await Permission.notification.request();
   }
@@ -372,12 +381,10 @@ class _NotificationButtonState extends State<_NotificationButton>
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
     return ListTile(
-      contentPadding: EdgeInsets.zero,      title: Text(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
         'Notifications',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 15,
-        ),
+        style: TextStyle(color: Colors.white, fontSize: 15),
       ),
       trailing: Switch(
         value: _granted,
@@ -387,9 +394,6 @@ class _NotificationButtonState extends State<_NotificationButton>
     );
   }
 }
-
-
-
 
 /* -------------------------- DIFFICULTY SELECTOR --------------------------- */
 
@@ -413,13 +417,16 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
   @override
   void initState() {
     super.initState();
-    _difficulty = Hive.box('selected_apps').get('difficulty', defaultValue: 'normal') as String;
+    _difficulty =
+        Hive.box('selected_apps').get('difficulty', defaultValue: 'normal')
+            as String;
   }
 
   void _select(String value) {
     Hive.box('selected_apps').put('difficulty', value);
     setState(() => _difficulty = value);
   }
+
   @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
@@ -436,21 +443,30 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
               onTap: () => _select(value),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isSelected ? neon : Colors.grey.shade700,
                     width: isSelected ? 1.8 : 1.0,
                   ),
-                  color: isSelected ? neon.withValues(alpha: 0.08) : Colors.transparent,
+                  color: isSelected
+                      ? neon.withValues(alpha: 0.08)
+                      : Colors.transparent,
                 ),
                 child: Column(
-                  children: [                    Text(
+                  children: [
+                    Text(
                       label,
                       style: TextStyle(
-                        color: isSelected ? neon : Colors.white, shadows: [],
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+                        color: isSelected ? neon : Colors.white,
+                        shadows: [],
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.normal,
                         fontSize: 13,
                       ),
                     ),
@@ -458,7 +474,9 @@ class _DifficultySelectorState extends State<_DifficultySelector> {
                     Text(
                       hours,
                       style: TextStyle(
-                        color: isSelected ? neon.withValues(alpha: 0.8) : Colors.white70,
+                        color: isSelected
+                            ? neon.withValues(alpha: 0.8)
+                            : Colors.white70,
                         fontSize: 11,
                         shadows: [],
                       ),
@@ -497,7 +515,8 @@ class _ThemeSelectorState extends State<_ThemeSelector> {
   @override
   void initState() {
     super.initState();
-    _theme = Hive.box('selected_apps').get('theme', defaultValue: 'dark') as String;
+    _theme =
+        Hive.box('selected_apps').get('theme', defaultValue: 'dark') as String;
   }
 
   void _select(String value) {
@@ -524,21 +543,22 @@ class _ThemeSelectorState extends State<_ThemeSelector> {
                 color: isSelected ? neon : Colors.grey.shade700,
                 width: isSelected ? 1.8 : 1.0,
               ),
-              color: isSelected ? neon.withValues(alpha: 0.08) : Colors.transparent,
+              color: isSelected
+                  ? neon.withValues(alpha: 0.08)
+                  : Colors.transparent,
             ),
             child: Column(
-              children: [                Icon(
-                  icon,
-                  size: 24,
-                  color: isSelected ? neon : Colors.white,
-                ),
+              children: [
+                Icon(icon, size: 24, color: isSelected ? neon : Colors.white),
                 const SizedBox(height: 4),
                 Text(
                   label,
                   style: TextStyle(
                     color: isSelected ? neon : Colors.white,
                     shadows: [],
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.w700
+                        : FontWeight.normal,
                     fontSize: 13,
                   ),
                 ),
@@ -556,11 +576,9 @@ class _ThemeSelectorState extends State<_ThemeSelector> {
 class _SectionFrame extends StatelessWidget {
   final String title;
   final Widget? child;
+  final String? infoText;
 
-  const _SectionFrame({
-    required this.title,
-    this.child,
-  });
+  const _SectionFrame({required this.title, this.child, this.infoText});
 
   @override
   Widget build(BuildContext context) {
@@ -571,18 +589,30 @@ class _SectionFrame extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: neon.withValues(alpha: 0.8), width: 1.2),
-        boxShadow: [BoxShadow(color: neon.withValues(alpha: 0.12), blurRadius: 16)],
+        boxShadow: [
+          BoxShadow(color: neon.withValues(alpha: 0.12), blurRadius: 16),
+        ],
         color: Colors.black,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
                 ),
+              ),
+              if (infoText != null) ...[
+                _InfoButton(infoText: infoText, iconColor: neon),
+              ],
+            ],
           ),
           const SizedBox(height: 10),
 
@@ -591,7 +621,10 @@ class _SectionFrame extends StatelessWidget {
                 height: 90,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: neon.withValues(alpha: 0.35), width: 1),
+                  border: Border.all(
+                    color: neon.withValues(alpha: 0.35),
+                    width: 1,
+                  ),
                   color: Colors.black,
                 ),
               ),
@@ -601,10 +634,7 @@ class _SectionFrame extends StatelessWidget {
   }
 }
 
-
 /* -------------------------- ADVANCED SECTION FRAME -------------------------- */
-
-
 
 class _AdvancedSettings extends StatefulWidget {
   const _AdvancedSettings();
@@ -640,8 +670,10 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not save max screentime.',
-                style: TextStyle(color: _neonGreen)),
+            content: Text(
+              'Could not save max screentime.',
+              style: TextStyle(color: _neonGreen),
+            ),
           ),
         );
       }
@@ -658,7 +690,8 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
           side: BorderSide(color: _neonGreen, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),        content: TextField(
+        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),
+        content: TextField(
           controller: _screentimeController,
           cursorColor: Colors.white,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
@@ -703,7 +736,8 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         OutlinedButton(
-          onPressed: _showSetScreentimeDialog,          style: OutlinedButton.styleFrom(
+          onPressed: _showSetScreentimeDialog,
+          style: OutlinedButton.styleFrom(
             side: BorderSide(color: _neonGreen, width: 1.5),
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
@@ -720,8 +754,6 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
     );
   }
 }
-
-
 
 /* -------------------------- USER PROFILE SECTION FRAME -------------------------- */
 
@@ -750,6 +782,7 @@ class _ProfileState extends State<_Profile> {
     _usernameController.dispose();
     super.dispose();
   }
+
   Future<void> _loadProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
@@ -797,7 +830,10 @@ class _ProfileState extends State<_Profile> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Username updated!', style: TextStyle(color: _neonGreen)),
+          content: Text(
+            'Username updated!',
+            style: TextStyle(color: _neonGreen),
+          ),
           backgroundColor: Colors.grey[900],
         ),
       );
@@ -806,7 +842,10 @@ class _ProfileState extends State<_Profile> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not update username.', style: TextStyle(color: Colors.red)),
+          content: Text(
+            'Could not update username.',
+            style: TextStyle(color: Colors.red),
+          ),
           backgroundColor: Colors.grey[900],
         ),
       );
@@ -823,7 +862,8 @@ class _ProfileState extends State<_Profile> {
           side: BorderSide(color: _neonGreen, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: Text('Edit Username', style: TextStyle(color: _neonGreen)),        content: TextField(
+        title: Text('Edit Username', style: TextStyle(color: _neonGreen)),
+        content: TextField(
           controller: _usernameController,
           cursorColor: Colors.white,
           style: TextStyle(color: _neonGreen),
@@ -861,8 +901,10 @@ class _ProfileState extends State<_Profile> {
       ),
     );
   }
+
   @override
-  Widget build(BuildContext context) {    final displayName = _saving ? 'Saving...' : _username;
+  Widget build(BuildContext context) {
+    final displayName = _saving ? 'Saving...' : _username;
 
     return Row(
       children: [
@@ -882,7 +924,8 @@ class _ProfileState extends State<_Profile> {
           },
           child: Stack(
             alignment: Alignment.bottomRight,
-            children: [              CircleAvatar(
+            children: [
+              CircleAvatar(
                 backgroundColor: const Color.fromARGB(255, 46, 46, 46),
                 radius: 45,
                 child: const Icon(Icons.person, size: 49, color: Colors.grey),
@@ -915,7 +958,8 @@ class _ProfileState extends State<_Profile> {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),              const SizedBox(width: 8),
+              ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: _showEditUsernameDialog,
                 child: const Icon(Icons.edit, color: _neonGreen, size: 20),
@@ -924,6 +968,63 @@ class _ProfileState extends State<_Profile> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _InfoButton extends StatelessWidget {
+  final String? infoText;
+  final Color iconColor;
+  const _InfoButton({required this.infoText, required this.iconColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        final overlay = Overlay.of(context);
+        final renderBox = context.findRenderObject() as RenderBox;
+        final position = renderBox.localToGlobal(Offset.zero);
+
+        late OverlayEntry entry;
+        entry = OverlayEntry(
+          builder: (ctx) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => entry.remove(),
+            child: Stack(
+              children: [
+                Positioned(
+                  right: MediaQuery.of(ctx).size.width - position.dx - 24,
+                  top: position.dy + 28,
+                  width: 220,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: iconColor, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: iconColor.withOpacity(0.2),
+                            blurRadius: 8,
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        infoText ?? '',
+                        style: TextStyle(color: iconColor, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        overlay.insert(entry);
+      },
+      child: Icon(Icons.help, color: iconColor, size: 20),
     );
   }
 }
