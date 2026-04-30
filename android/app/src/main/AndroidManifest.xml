@@ -44,11 +44,6 @@
                 android:host="login-callback" />
             </intent-filter>
         </activity>
-        <service
-            android:name=".AppMonitorService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

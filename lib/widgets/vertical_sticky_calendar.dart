@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class VerticalStickyCalendar extends StatefulWidget {
@@ -8,15 +9,20 @@ class VerticalStickyCalendar extends StatefulWidget {
   final DateTime? selectedDay;
   final ValueChanged<DateTime>? onDaySelected;
   final List<Map> Function(DateTime)? eventsForDay;
+  final List<Map> Function(DateTime)? completedEventsForDay;
   final List<Map<String, dynamic>> Function(DateTime)? tasksForDay;
   final List<Map<String, dynamic>> Function(DateTime)? completedTasksForDay;
   final bool isShowingEvents;
+  final bool showBothSections;
   final void Function(Map)? onEventEdit;
   final void Function(Map)? onEventDelete;
   final void Function(Map<String, dynamic>, int)? onTaskEdit;
   final Future<void> Function(Map<String, dynamic>, int)? onTaskDelete;
   final void Function(Map<String, dynamic>, int)? onTaskComplete;
+  final void Function(Map<String, dynamic>, int)? onTaskUncomplete;
   final void Function(bool isWeekView)? onViewModeChanged;
+  final VoidCallback? onAddEvent;
+  final VoidCallback? onAddTask;
 
   const VerticalStickyCalendar({
     super.key,
@@ -25,15 +31,20 @@ class VerticalStickyCalendar extends StatefulWidget {
     this.selectedDay,
     this.onDaySelected,
     this.eventsForDay,
+    this.completedEventsForDay,
     this.tasksForDay,
     this.completedTasksForDay,
     this.isShowingEvents = true,
+    this.showBothSections = false,
     this.onEventEdit,
     this.onEventDelete,
     this.onTaskEdit,
     this.onTaskDelete,
     this.onTaskComplete,
+    this.onTaskUncomplete,
     this.onViewModeChanged,
+    this.onAddEvent,
+    this.onAddTask,
   });
 
   @override
@@ -44,6 +55,112 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
   late DateTime _focusedDay;
   late DateTime _selectedDay;
   bool _jiggleMode = false;
+  bool _workoutsExpanded = false;
+  bool _eventsExpanded = false;
+  bool _tasksExpanded = false;
+  bool _showWorkoutForm = false;
+  String? _editingWorkoutId;
+  final TextEditingController _workoutTitleController = TextEditingController();
+  final Map<String, List<Map<String, dynamic>>> _workoutsByDay = {};
+  final List<Map<String, dynamic>> _savedWorkoutsForDay = [];
+  bool _loadingWorkouts = false;
+
+  SupabaseClient get _supabase => Supabase.instance.client;
+  String? get _userId => _supabase.auth.currentUser?.id;
+
+  String get _dayKey {
+    final d = _selectedDay;
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  List<Map<String, dynamic>> get _exercises => _workoutsByDay.putIfAbsent(_dayKey, () => []);
+
+  Future<void> _loadWorkoutsForDay() async {
+    if (_userId == null) return;
+    setState(() => _loadingWorkouts = true);
+    final rows = await _supabase
+        .from('user_workouts')
+        .select()
+        .eq('user_id', _userId!)
+        .eq('workout_date', _dayKey)
+        .order('created_at', ascending: true);
+    setState(() {
+      _savedWorkoutsForDay
+        ..clear()
+        ..addAll(rows);
+      _loadingWorkouts = false;
+    });
+  }
+
+  void _openWorkoutForEditing(Map<String, dynamic> workout) {
+    final exercises = (workout['exercises'] as List).map((ex) {
+      final sets = (ex['sets'] as List).map((s) => <String, TextEditingController>{
+        'lbs': TextEditingController(text: s['lbs'] ?? ''),
+        'reps': TextEditingController(text: s['reps'] ?? ''),
+      }).toList();
+      return <String, dynamic>{
+        'name': TextEditingController(text: ex['name'] ?? ''),
+        'rows': sets,
+      };
+    }).toList();
+
+    setState(() {
+      _editingWorkoutId = workout['id'] as String;
+      _workoutTitleController.text = workout['title'] ?? '';
+      _workoutsByDay[_dayKey] = exercises;
+      _showWorkoutForm = true;
+    });
+  }
+
+  Future<void> _saveWorkout() async {
+    if (_userId == null) return;
+    final exercisesData = _exercises.map((ex) {
+      final rows = ex['rows'] as List<Map<String, TextEditingController>>;
+      return {
+        'name': (ex['name'] as TextEditingController).text.trim(),
+        'sets': rows.map((r) => {
+          'lbs': r['lbs']!.text.trim(),
+          'reps': r['reps']!.text.trim(),
+        }).toList(),
+      };
+    }).toList();
+
+    final payload = {
+      'title': _workoutTitleController.text.trim(),
+      'exercises': exercisesData,
+    };
+
+    if (_editingWorkoutId != null) {
+      await _supabase
+          .from('user_workouts')
+          .update(payload)
+          .eq('id', _editingWorkoutId!);
+    } else {
+      await _supabase.from('user_workouts').insert({
+        ...payload,
+        'user_id': _userId,
+        'workout_date': _dayKey,
+      });
+    }
+
+    setState(() {
+      _showWorkoutForm = false;
+      _editingWorkoutId = null;
+      _workoutTitleController.clear();
+      _workoutsByDay.remove(_dayKey);
+    });
+
+    await _loadWorkoutsForDay();
+  }
+
+  /// Collapse both the events and tasks sections
+  void collapseAll() {
+    setState(() {
+      _workoutsExpanded = false;
+      _eventsExpanded = false;
+      _tasksExpanded = false;
+    });
+  }
 
   /// Public method to jump the calendar to today's date in week view
   void jumpToToday() {
@@ -61,6 +178,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     super.initState();
     _focusedDay = widget.selectedDay ?? DateTime.now();
     _selectedDay = widget.selectedDay ?? DateTime.now();
+    _loadWorkoutsForDay();
   }
 
   @override
@@ -84,7 +202,10 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                 setState(() {
                   _selectedDay = selectedDay;
                   _focusedDay = focusedDay;
+                  _showWorkoutForm = false;
+                  _workoutTitleController.clear();
                 });
+                _loadWorkoutsForDay();
                 widget.onDaySelected?.call(selectedDay);
                 widget.onViewModeChanged?.call(true);
               },
@@ -131,10 +252,10 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
             width: double.infinity,
             height: 1,
             decoration: BoxDecoration(
-              color: const Color(0xFF39FF14),
+              color: const Color(0xFF00FF66),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF39FF14).withOpacity(0.4),
+                  color: const Color(0xFF00FF66).withOpacity(0.4),
                   blurRadius: 2,
                   spreadRadius: 0.2,
                 ),
@@ -157,9 +278,11 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
               ),
             ),
           ),
-          const Divider(height: 1, thickness: 1, color: const Color(0xFF39FF14)),
+          const Divider(height: 1, thickness: 1, color: Color(0xFF00FF66)),
           Expanded(
-            child: widget.isShowingEvents ? _buildEventsList() : _buildTasksList(),
+            child: widget.showBothSections
+                ? _buildBothSections()
+                : (widget.isShowingEvents ? _buildEventsList() : _buildTasksList()),
           ),
         ],
       ),
@@ -194,6 +317,648 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     }
   }
 
+  Widget _buildBothSections() {
+    const neon = Color(0xFF00FF66);
+    return Container(
+      color: Colors.black,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            // Workouts collapsible
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: neon, width: 2),
+                color: Colors.black,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => _workoutsExpanded = !_workoutsExpanded),
+                    borderRadius: BorderRadius.vertical(
+                      top: const Radius.circular(18),
+                      bottom: _workoutsExpanded ? Radius.zero : const Radius.circular(18),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.fitness_center, color: neon, size: 20),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'Workouts',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                shadows: [],
+                              ),
+                            ),
+                          ),
+                          Icon(
+                            _workoutsExpanded ? Icons.expand_more : Icons.chevron_right,
+                            color: neon,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_workoutsExpanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: _showWorkoutForm
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                TextField(
+                                  controller: _workoutTitleController,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, shadows: []),
+                                  decoration: InputDecoration(
+                                    hintText: 'Workout Title',
+                                    hintStyle: TextStyle(color: Colors.grey[500], fontSize: 18),
+                                    enabledBorder: const UnderlineInputBorder(
+                                      borderSide: BorderSide(color: neon),
+                                    ),
+                                    focusedBorder: const UnderlineInputBorder(
+                                      borderSide: BorderSide(color: neon, width: 2),
+                                    ),
+                                    filled: false,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.only(bottom: 4),
+                                  ),
+                                ),
+                                ..._exercises.map((exercise) {
+                                  final nameController = exercise['name'] as TextEditingController;
+                                  final repRows = exercise['rows'] as List<Map<String, TextEditingController>>;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: neon.withValues(alpha: 0.4)),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      child: Column(
+                                        children: [
+                                          // Exercise header row
+                                          Container(
+                                            decoration: const BoxDecoration(
+                                              border: Border(bottom: BorderSide(color: neon)),
+                                            ),
+                                            child: Row(
+                                              crossAxisAlignment: CrossAxisAlignment.center,
+                                              children: [
+                                                Expanded(
+                                                  child: TextField(
+                                                    controller: nameController,
+                                                    style: const TextStyle(color: Colors.white, shadows: []),
+                                                    decoration: InputDecoration(
+                                                      hintText: 'Exercise Name',
+                                                      hintStyle: TextStyle(color: Colors.grey[500]),
+                                                      border: InputBorder.none,
+                                                      filled: false,
+                                                      isDense: true,
+                                                      contentPadding: const EdgeInsets.only(bottom: 0),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                GestureDetector(
+                                                  onTap: () => setState(() => _exercises.remove(exercise)),
+                                                  child: const Icon(Icons.delete_outline, color: neon, size: 18),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Rep rows
+                                          ...repRows.asMap().entries.map((entry) {
+                                            final i = entry.key;
+                                            final row = entry.value;
+                                            return Padding(
+                                              padding: const EdgeInsets.only(top: 6),
+                                              child: Row(
+                                                children: [
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Container(
+                                                        width: 46,
+                                                        height: 30,
+                                                        decoration: BoxDecoration(
+                                                          border: Border.all(color: neon.withValues(alpha: 0.5)),
+                                                          borderRadius: BorderRadius.circular(4),
+                                                        ),
+                                                        child: TextField(
+                                                          controller: row['lbs'],
+                                                          keyboardType: TextInputType.number,
+                                                          textAlign: TextAlign.center,
+                                                          textAlignVertical: TextAlignVertical.center,
+                                                          expands: true,
+                                                          maxLines: null,
+                                                          style: const TextStyle(color: Colors.white, fontSize: 14, shadows: []),
+                                                          decoration: const InputDecoration(
+                                                            isDense: true,
+                                                            contentPadding: EdgeInsets.zero,
+                                                            border: InputBorder.none,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      const Text('lbs', style: TextStyle(color: Colors.white70, fontSize: 13, shadows: [])),
+                                                    ],
+                                                  ),
+                                                  Expanded(
+                                                    child: Center(
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Container(
+                                                            width: 46,
+                                                            height: 30,
+                                                            decoration: BoxDecoration(
+                                                              border: Border.all(color: neon.withValues(alpha: 0.5)),
+                                                              borderRadius: BorderRadius.circular(4),
+                                                            ),
+                                                            child: TextField(
+                                                              controller: row['reps'],
+                                                              keyboardType: TextInputType.number,
+                                                              textAlign: TextAlign.center,
+                                                              textAlignVertical: TextAlignVertical.center,
+                                                              expands: true,
+                                                              maxLines: null,
+                                                              style: const TextStyle(color: Colors.white, fontSize: 14, shadows: []),
+                                                              decoration: const InputDecoration(
+                                                                isDense: true,
+                                                                contentPadding: EdgeInsets.zero,
+                                                                border: InputBorder.none,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          const Text('Reps', style: TextStyle(color: Colors.white70, fontSize: 13, shadows: [])),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  GestureDetector(
+                                                    onTap: () => setState(() => repRows.removeAt(i)),
+                                                    child: const Icon(Icons.remove, color: neon, size: 18),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                          const Divider(color: Colors.white12, height: 16),
+                                          Center(
+                                            child: TextButton(
+                                              onPressed: () => setState(() => repRows.add({
+                                                'lbs': TextEditingController(),
+                                                'reps': TextEditingController(),
+                                              })),
+                                              style: TextButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                                                minimumSize: Size.zero,
+                                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              ),
+                                              child: const Text('Add Set', style: TextStyle(color: neon, fontSize: 12, shadows: [])),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: () => setState(() => _exercises.add({
+                                    'name': TextEditingController(),
+                                    'rows': <Map<String, TextEditingController>>[],
+                                  })),
+                                  child: const Text('+ Add Exercise', style: TextStyle(color: neon, shadows: [])),
+                                ),
+                                const SizedBox(height: 8),
+                                ElevatedButton(
+                                  onPressed: _saveWorkout,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: neon,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  child: const Text('Save Workout', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, shadows: [])),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (_loadingWorkouts)
+                                  const Padding(
+                                    padding: EdgeInsets.symmetric(vertical: 8),
+                                    child: Center(child: CircularProgressIndicator(color: neon, strokeWidth: 2)),
+                                  )
+                                else ...[
+                                  ..._savedWorkoutsForDay.map((w) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: GestureDetector(
+                                      onTap: () => _openWorkoutForEditing(w),
+                                      child: Container(
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: neon, width: 1.5),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Container(
+                                              width: double.infinity,
+                                              padding: const EdgeInsets.symmetric(vertical: 8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[800],
+                                                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                                              ),
+                                              child: Center(
+                                                child: Text(
+                                                  w['title'] ?? 'Untitled',
+                                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, shadows: []),
+                                                ),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.center,
+                                                children: [
+                                            ...((w['exercises'] as List).asMap().entries.map((entry) {
+                                              final idx = entry.key;
+                                              final ex = entry.value;
+                                              final sets = ex['sets'] as List;
+                                              return Column(
+                                                children: [
+                                                  if (idx > 0)
+                                                    const Divider(color: neon, thickness: 0.5, height: 8),
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 2),
+                                                child: Center(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                                    children: [
+                                                      Text(ex['name'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, shadows: [])),
+                                                      ...sets.map((s) => Text(
+                                                        '${s['lbs']} lbs × ${s['reps']} reps',
+                                                        style: TextStyle(color: Colors.grey[500], fontSize: 12, shadows: const []),
+                                                      )),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                                ],
+                                              );
+                                            })),
+                                                ],
+                                              ),
+                                            ),
+                                            const Divider(color: Colors.white12, height: 8),
+                                            Center(
+                                              child: TextButton(
+                                                onPressed: () async {
+                                                  await _supabase
+                                                      .from('user_workouts')
+                                                      .delete()
+                                                      .eq('id', w['id']);
+                                                  await _loadWorkoutsForDay();
+                                                },
+                                                style: TextButton.styleFrom(
+                                                  padding: EdgeInsets.zero,
+                                                  minimumSize: Size.zero,
+                                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                  alignment: Alignment.center,
+                                                ),
+                                                child: const Text('Delete Workout', style: TextStyle(color: neon, fontSize: 13, shadows: [])),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  )),
+                                ],
+                                Center(
+                                  child: OutlinedButton(
+                                    onPressed: () => setState(() => _showWorkoutForm = true),
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(color: neon),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    ),
+                                    child: const Text('Create Workout', style: TextStyle(color: neon, shadows: [])),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Events collapsible
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: neon, width: 2),
+                color: Colors.black,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => _eventsExpanded = !_eventsExpanded),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.event, color: neon, size: 20),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Events',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      shadows: [],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: widget.onAddEvent,
+                          icon: const Icon(Icons.add, color: neon, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          splashRadius: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => setState(() => _eventsExpanded = !_eventsExpanded),
+                          child: Icon(
+                            _eventsExpanded ? Icons.expand_more : Icons.chevron_right,
+                            color: neon,
+                            size: 22,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_eventsExpanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: _buildEventsContent(),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Tasks collapsible
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: neon, width: 2),
+                color: Colors.black,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => _tasksExpanded = !_tasksExpanded),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.task_alt, color: neon, size: 20),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'Tasks',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                      shadows: [],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: widget.onAddTask,
+                          icon: const Icon(Icons.add, color: neon, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          splashRadius: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => setState(() => _tasksExpanded = !_tasksExpanded),
+                          child: Icon(
+                            _tasksExpanded ? Icons.expand_more : Icons.chevron_right,
+                            color: neon,
+                            size: 22,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_tasksExpanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                      child: _buildTasksContent(),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEventsContent() {
+    if (widget.eventsForDay == null) {
+      return const Text('No events function provided',
+          style: TextStyle(color: Colors.white54, shadows: []));
+    }
+    final events = widget.eventsForDay!(_selectedDay);
+    final completedEvents = widget.completedEventsForDay?.call(_selectedDay) ?? [];
+    if (events.isEmpty && completedEvents.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Text('No events',
+              style: TextStyle(color: Colors.white54, fontSize: 16, shadows: [])),
+        ),
+      );
+    }
+    final allDayEvents = events.where((e) => e['all_day'] == true).toList();
+    final timedEvents = events.where((e) => e['all_day'] != true).toList();
+    timedEvents.sort((a, b) {
+      final aTime = a['start_time'] as String?;
+      final bTime = b['start_time'] as String?;
+      if (aTime == null) return 1;
+      if (bTime == null) return -1;
+      return _parseTimeToMinutes(aTime).compareTo(_parseTimeToMinutes(bTime));
+    });
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        if (allDayEvents.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('ALL DAY',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...allDayEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                event: Map<String, dynamic>.from(entry.value),
+                index: entry.key,
+                isCompleted: false,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () => widget.onEventEdit?.call(entry.value),
+                onDelete: () => widget.onEventDelete?.call(entry.value),
+              )),
+          const SizedBox(height: 8),
+        ],
+        if (timedEvents.isNotEmpty) ...[
+          if (allDayEvents.isNotEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8, left: 4),
+              child: Text('SCHEDULED',
+                  style: TextStyle(
+                      color: Colors.white54, fontSize: 12,
+                      fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+            ),
+          ...timedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                event: Map<String, dynamic>.from(entry.value),
+                index: allDayEvents.length + entry.key,
+                isCompleted: false,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () => widget.onEventEdit?.call(entry.value),
+                onDelete: () => widget.onEventDelete?.call(entry.value),
+              )),
+        ],
+        if (completedEvents.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('COMPLETED',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...completedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                event: Map<String, dynamic>.from(entry.value),
+                index: allDayEvents.length + timedEvents.length + entry.key,
+                isCompleted: true,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () {},
+                onDelete: () => widget.onEventDelete?.call(entry.value),
+              )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTasksContent() {
+    if (widget.tasksForDay == null) {
+      return const Text('No tasks function provided',
+          style: TextStyle(color: Colors.white54, shadows: []));
+    }
+    final tasks = widget.tasksForDay!(_selectedDay);
+    final completedTasks = widget.completedTasksForDay?.call(_selectedDay) ?? [];
+    if (tasks.isEmpty && completedTasks.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Text('No tasks',
+              style: TextStyle(color: Colors.white54, fontSize: 16, shadows: [])),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 8),
+        if (tasks.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('TASKS',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...tasks.asMap().entries.map((entry) => _TaskDismissibleOverlay(
+                task: entry.value,
+                index: entry.key,
+                isCompleted: false,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () => widget.onTaskEdit?.call(entry.value, entry.key),
+                onDelete: () async => await widget.onTaskDelete?.call(entry.value, entry.key),
+                onComplete: () => widget.onTaskComplete?.call(entry.value, entry.key),
+                onUncomplete: () {},
+              )),
+          if (completedTasks.isNotEmpty) const SizedBox(height: 8),
+        ],
+        if (completedTasks.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8, left: 4),
+            child: Text('COMPLETED',
+                style: TextStyle(
+                    color: Colors.white54, fontSize: 12,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.5, shadows: [])),
+          ),
+          ...completedTasks.asMap().entries.map((entry) => _TaskDismissibleOverlay(
+                task: entry.value,
+                index: entry.key,
+                isCompleted: true,
+                isJiggling: _jiggleMode,
+                onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                onEdit: () {},
+                onDelete: () async => await widget.onTaskDelete?.call(entry.value, entry.key),
+                onComplete: () {},
+                onUncomplete: () => widget.onTaskUncomplete?.call(entry.value, entry.key),
+              )),
+        ],
+      ],
+    );
+  }
+
   Widget _buildEventsList() {
     if (widget.eventsForDay == null) {
       return Container(
@@ -208,11 +973,12 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     }
 
     final events = widget.eventsForDay!(_selectedDay);
+    final completedEvents = widget.completedEventsForDay?.call(_selectedDay) ?? [];
 
     // Separate all-day and timed events
     final allDayEvents = events.where((e) => e['all_day'] == true).toList();
     final timedEvents = events.where((e) => e['all_day'] != true).toList();
-    
+
     // Sort timed events by start time
     timedEvents.sort((a, b) {
       final aTime = a['start_time'] as String?;
@@ -229,7 +995,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
         children: [
           const SizedBox(height: 16),
           Expanded(
-            child: events.isEmpty
+            child: events.isEmpty && completedEvents.isEmpty
                 ? const Center(
                     child: Text(
                       'No events',
@@ -256,6 +1022,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                         ...allDayEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
                           event: Map<String, dynamic>.from(entry.value),
                           index: entry.key,
+                          isCompleted: false,
                           isJiggling: _jiggleMode,
                           onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
                           onEdit: () { widget.onEventEdit?.call(entry.value); },
@@ -281,9 +1048,35 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                         ...timedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
                           event: Map<String, dynamic>.from(entry.value),
                           index: allDayEvents.length + entry.key,
+                          isCompleted: false,
                           isJiggling: _jiggleMode,
                           onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
                           onEdit: () { widget.onEventEdit?.call(entry.value); },
+                          onDelete: () { widget.onEventDelete?.call(entry.value); },
+                        )),
+                      ],
+                      // Completed events section
+                      if (completedEvents.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8, left: 4),
+                          child: Text(
+                            'COMPLETED',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        ...completedEvents.asMap().entries.map((entry) => _EventDismissibleOverlay(
+                          event: Map<String, dynamic>.from(entry.value),
+                          index: allDayEvents.length + timedEvents.length + entry.key,
+                          isCompleted: true,
+                          isJiggling: _jiggleMode,
+                          onLongPress: () => setState(() => _jiggleMode = !_jiggleMode),
+                          onEdit: () {},
                           onDelete: () { widget.onEventDelete?.call(entry.value); },
                         )),
                       ],
@@ -355,6 +1148,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                             onEdit: () { widget.onTaskEdit?.call(task, index); },
                             onDelete: () async { await widget.onTaskDelete?.call(task, index); },
                             onComplete: () { widget.onTaskComplete?.call(task, index); },
+                            onUncomplete: () {},
                           );
                         }),
                         if (completedTasks.isNotEmpty) const SizedBox(height: 16),
@@ -385,6 +1179,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                             onEdit: () {},
                             onDelete: () async { await widget.onTaskDelete?.call(task, index); },
                             onComplete: () {},
+                            onUncomplete: () { widget.onTaskUncomplete?.call(task, index); },
                           );
                         }),
                       ],
@@ -404,6 +1199,7 @@ class _EventDismissibleOverlay extends StatefulWidget {
   final VoidCallback onEdit;
   final VoidCallback onLongPress;
   final bool isJiggling;
+  final bool isCompleted;
   final int index;
 
   const _EventDismissibleOverlay({
@@ -412,6 +1208,7 @@ class _EventDismissibleOverlay extends StatefulWidget {
     required this.onEdit,
     required this.onLongPress,
     required this.isJiggling,
+    required this.isCompleted,
     required this.index,
   });
 
@@ -482,10 +1279,10 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
               margin: const EdgeInsets.fromLTRB(0, 6, 6, 8),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.grey[850],
+                color: widget.isCompleted ? Colors.grey[900] : Colors.grey[850],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFF39FF14),
+                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF00FF66),
                   width: 1.5,
                 ),
               ),
@@ -499,11 +1296,11 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                       padding: const EdgeInsets.only(right: 12),
                       child: Text(
                         widget.event['start_time'],
-                        style: const TextStyle(
-                          color: Color(0xFF39FF14),
+                        style: TextStyle(
+                          color: widget.isCompleted ? Colors.grey[600] : const Color(0xFF00FF66),
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          shadows: [],
+                          shadows: const [],
                         ),
                       ),
                     ),
@@ -516,15 +1313,15 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                             Expanded(
                               child: Text(
                                 widget.event['title'] ?? 'Unnamed Event',
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: widget.isCompleted ? Colors.grey[600] : Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
-                                  shadows: [],
+                                  shadows: const [],
                                 ),
                               ),
                             ),
-                            if (hasDescription && !widget.isJiggling)
+                            if (hasDescription && !widget.isJiggling && !widget.isCompleted)
                               Icon(
                                 _expanded
                                     ? Icons.expand_less
@@ -538,10 +1335,10 @@ class _EventDismissibleOverlayState extends State<_EventDismissibleOverlay>
                             widget.event['end_time'] != null)
                           Text(
                             'Until ${widget.event['end_time']}',
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color: widget.isCompleted ? Colors.grey[700] : Colors.white60,
                               fontSize: 12,
-                              shadows: [],
+                              shadows: const [],
                             ),
                           ),
                         AnimatedSize(
@@ -600,6 +1397,7 @@ class _TaskDismissibleOverlay extends StatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback onComplete;
+  final VoidCallback onUncomplete;
   final VoidCallback onLongPress;
   final bool isJiggling;
 
@@ -610,6 +1408,7 @@ class _TaskDismissibleOverlay extends StatefulWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onComplete,
+    required this.onUncomplete,
     required this.onLongPress,
     required this.isJiggling,
   });
@@ -678,15 +1477,47 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                 color: widget.isCompleted ? Colors.grey[900] : Colors.grey[850],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: widget.isCompleted
-                      ? const Color(0xFF39FF14).withOpacity(0.5)
-                      : const Color(0xFF39FF14),
+                  color: widget.isCompleted ? Colors.grey[700]! : const Color(0xFF00FF66),
                   width: 1.5,
                 ),
               ),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  GestureDetector(
+                    onTap: widget.isJiggling
+                        ? null
+                        : widget.isCompleted
+                            ? widget.onUncomplete
+                            : widget.onComplete,
+                    child: widget.isCompleted
+                        ? Container(
+                            width: 24,
+                            height: 24,
+                            margin: const EdgeInsets.only(right: 10),
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Color(0xFF00FF66),
+                            ),
+                            child: const Icon(
+                              Icons.check,
+                              color: Colors.black,
+                              size: 16,
+                            ),
+                          )
+                        : Container(
+                            width: 24,
+                            height: 24,
+                            margin: const EdgeInsets.only(right: 10),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF00FF66),
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                  ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -694,70 +1525,26 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                         Text(
                           widget.task['name'] ?? 'Unnamed Task',
                           style: TextStyle(
-                            color: widget.isCompleted
-                                ? Colors.white54
-                                : Colors.white,
+                            color: widget.isCompleted ? Colors.grey[600] : Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
+                            decoration: widget.isCompleted ? TextDecoration.lineThrough : null,
+                            decorationColor: Colors.grey[600],
                             shadows: const [],
-                            decoration: widget.isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
                           ),
                         ),
                         if ((widget.task['days'] as List?)?.isNotEmpty ?? false)
                           Text(
                             'Repeats on: ${(widget.task['days'] as List).join(", ")}',
                             style: TextStyle(
-                              color: widget.isCompleted
-                                  ? Colors.white38
-                                  : Colors.white60,
+                              color: widget.isCompleted ? Colors.grey[700] : Colors.white60,
                               fontSize: 12,
                               shadows: const [],
-                              decoration: widget.isCompleted
-                                  ? TextDecoration.lineThrough
-                                  : null,
                             ),
                           ),
                       ],
                     ),
                   ),
-                  if (!widget.isCompleted && !widget.isJiggling)
-                    GestureDetector(
-                      onTap: widget.onComplete,
-                      child: Container(
-                        width: 24,
-                        height: 24,
-                        margin: const EdgeInsets.only(left: 12, top: 2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF39FF14),
-                            width: 2,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Color(0xFF39FF14),
-                          size: 16,
-                        ),
-                      ),
-                    ),
-                  if (widget.isCompleted)
-                    Container(
-                      width: 24,
-                      height: 24,
-                      margin: const EdgeInsets.only(left: 12, top: 2),
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF39FF14),
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        color: Colors.black,
-                        size: 16,
-                      ),
-                    ),
                 ],
               ),
             ),

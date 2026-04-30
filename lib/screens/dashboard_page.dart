@@ -7,9 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'events_page.dart' as events;
 
 const _permissionChannel = MethodChannel('lockin/permissions');
-const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 18.0;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,6 +29,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   int _coins = 0;
 
   // ── ring data ─────────────────────────────────────────────────────────────
+  double _eventRing = 0;
   double _taskRing = 0;
   double _macroRing = 0;
   double _weightRing = 0;
@@ -106,6 +107,62 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
     final todayStr = _todayKey();
 
     await Future.wait([
+      // Event ring
+      () async {
+        try {
+          final rows = await _supabase
+              .from('user_events')
+              .select('date, days, end_time, all_day')
+              .eq('user_id', user.id);
+          final now = DateTime.now();
+          const fullWeekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          final todayWeekday = fullWeekdays[now.weekday % 7];
+          int total = 0, done = 0;
+          for (final r in rows) {
+            final List<String> days = List<String>.from(r['days'] ?? []);
+            final isRepeating = days.isNotEmpty;
+            if (isRepeating) {
+              if (!days.contains(todayWeekday)) continue;
+              total++;
+              final endTime = (r['end_time'] ?? '').toString();
+              if (endTime.isNotEmpty) {
+                try {
+                  final parts = endTime.split(':');
+                  final endH = int.parse(parts[0]);
+                  final endM = int.parse(parts[1]);
+                  if (now.hour > endH || (now.hour == endH && now.minute >= endM)) done++;
+                } catch (_) {}
+              }
+            } else {
+              final eventDate = (r['date'] ?? '').toString();
+              if (!eventDate.startsWith(todayStr)) continue;
+              total++;
+              // Time-based completion — same logic as _isEventCompleted in events_page
+              final allDay = r['all_day'] == true;
+              if (allDay) {
+                // All-day events complete at end of day (23:59:59)
+                if (now.hour == 23 && now.minute == 59 && now.second >= 59) done++;
+              } else {
+                final endTime = (r['end_time'] ?? '').toString();
+                if (endTime.isNotEmpty) {
+                  try {
+                    final parts = endTime.split(':');
+                    int endH = int.parse(parts[0].trim());
+                    int endM = int.parse(parts[1].trim().split(' ')[0]);
+                    if (endTime.toUpperCase().contains('PM') && endH < 12) endH += 12;
+                    if (endTime.toUpperCase().contains('AM') && endH == 12) endH = 0;
+                    final eventEnd = DateTime(now.year, now.month, now.day, endH, endM);
+                    if (eventEnd.isBefore(now)) done++;
+                  } catch (_) {}
+                }
+              }
+            }
+          }
+          if (!mounted) return;
+          setState(() => _eventRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0));
+        } catch (_) {}
+      }(),
+
       // Task ring
       () async {
         try {
@@ -204,9 +261,12 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
       final now = DateTime.now();
       final start = DateTime(now.year, now.month, now.day);
       final list = await AppUsage().getAppUsage(start, now);
+      final selected = List<String>.from(
+        Hive.box('selected_apps').get('packages', defaultValue: <String>[]),
+      );
       Duration total = Duration.zero;
       for (final i in list) {
-        total += i.usage;
+        if (selected.isEmpty || selected.contains(i.packageName)) total += i.usage;
       }
       if (mounted) {
         setState(() {
@@ -271,6 +331,7 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
 
             // ── Activity Rings ────────────────────────────────────────────
             _ActivityRingsWidget(
+              eventRing: _eventRing,
               taskRing: _taskRing,
               macroRing: _macroRing,
               weightRing: _weightRing,
@@ -388,11 +449,13 @@ class _ProfileWidget extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ActivityRingsWidget extends StatelessWidget {
+  final double eventRing;
   final double taskRing;
   final double macroRing;
   final double weightRing;
 
   const _ActivityRingsWidget({
+    required this.eventRing,
     required this.taskRing,
     required this.macroRing,
     required this.weightRing,
@@ -412,6 +475,8 @@ class _ActivityRingsWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          _ProgressBarItem(value: eventRing, label: 'Events', color: const Color(0xFF00FF66)),
+          const SizedBox(height: 12),
           _ProgressBarItem(value: taskRing, label: 'Tasks', color: const Color(0xFF00FF66)),
           const SizedBox(height: 12),
           _ProgressBarItem(value: macroRing, label: 'Macros', color: const Color(0xFFFF9500)),
@@ -697,92 +762,41 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     } catch (_) {}
   }
 
-  Future<void> _addTask() async {
+  void _addTask() {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    final nameCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final result = await showDialog<String>(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.black,
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(color: _neonGreen, width: 1.5),
-          borderRadius: BorderRadius.circular(_cornerRadius),
-        ),
-        title: const Text('Add Task',
-            style: TextStyle(color: _neonGreen, shadows: [])),        content: Form(
-          key: formKey,
-          child: TextFormField(
-            controller: nameCtrl,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            cursorColor: Colors.white,
-            decoration: InputDecoration(
-              hintText: 'Task name',
-              hintStyle: const TextStyle(color: Colors.white38),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: _neonGreen),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide:
-                    const BorderSide(color: _neonGreen, width: 2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            validator: (v) =>
-                (v ?? '').trim().isEmpty ? 'Enter a task name' : null,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel',
-                style: TextStyle(color: _neonGreen, shadows: [])),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: _neonGreen),
-            onPressed: () {
-              if (formKey.currentState?.validate() != true) return;
-              Navigator.pop(ctx, nameCtrl.text.trim());
-            },
-            child: const Text('Add',
-                style: TextStyle(color: Colors.black, shadows: [])),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => events.AddEventTaskSheet(
+        selectedDay: DateTime.now(),
+        initialTab: 1,
+        onEventAdded: (_) {},
+        onTaskAdded: (task) async {
+          final id = const Uuid().v4();
+          try {
+            await _supabase.from('user_tasks').insert({
+              'id': id,
+              'name': task['name'],
+              'days': task['days'] ?? [],
+              'end_date': task['end_date'],
+              'completed_dates': [],
+              'user_id': user.id,
+            });
+            setState(() => _loadTasks());
+            widget.onTasksChanged();
+          } catch (_) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save task.')),
+            );
+          }
+        },
+        formatTime: events.eventsFormatTime,
       ),
     );
-
-    if (result == null || result.isEmpty) return;
-
-    final id = const Uuid().v4();
-    final newTask = {
-      'id': id,
-      'name': result,
-      'days': <String>[],
-      'end_date': null,
-      'completed_dates': <String>[],
-      'user_id': user.id,
-    };
-
-    setState(() => _tasks.add(newTask));    try {
-      await _supabase.from('user_tasks').insert({
-        'id': id,
-        'name': result,
-        'days': [],
-        'end_date': null,
-        'completed_dates': [],        'user_id': user.id,
-      });
-      widget.onTasksChanged();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save task.')),
-      );
-    }
   }  @override
   Widget build(BuildContext context) {
     final neon = Theme.of(context).colorScheme.secondary;
