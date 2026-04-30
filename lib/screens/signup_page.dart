@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+const Color _neonGreen = Color(0xFF00FF66);
+
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
 
@@ -135,11 +137,19 @@ class _SignUpPageState extends State<SignUpPage> {
                                 style: const TextStyle(color: Colors.red),
                                 textAlign: TextAlign.center,
                               ),
-                            ),
-                          SizedBox(
+                            ),                          SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton(
+                            child: OutlinedButton(
                               onPressed: _loading ? null : _signUp,
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                  color: _neonGreen.withOpacity(0.65),
+                                ),
+                                foregroundColor: _neonGreen,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                              ),
                               child: _loading
                                   ? const SizedBox(
                                       height: 16,

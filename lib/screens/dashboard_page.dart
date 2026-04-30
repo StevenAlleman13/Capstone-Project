@@ -1,15 +1,11 @@
 import 'dart:async';
 
-import 'package:android_intent_plus/android_intent.dart';
-import 'package:app_usage/app_usage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'events_page.dart' as events;
 
-const _permissionChannel = MethodChannel('lockin/permissions');
 const double _cornerRadius = 18.0;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,50 +23,34 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
   // ── profile ──────────────────────────────────────────────────────────────
   String _username = '';
   int _coins = 0;
-
   // ── ring data ─────────────────────────────────────────────────────────────
   double _eventRing = 0;
   double _taskRing = 0;
   double _macroRing = 0;
   double _weightRing = 0;
-
-  // ── screen time ───────────────────────────────────────────────────────────
-  Duration _usedToday = Duration.zero;
-  bool _permissionDenied = false;
-  bool _screenTimeLoading = true;
-  Timer? _refreshTimer;
-  Timer? _liveTimer;
-
   final _supabase = Supabase.instance.client;
+  Timer? _ringRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
-    _fetchScreenTime();
-    _refreshTimer =
-        Timer.periodic(const Duration(minutes: 1), (_) => _fetchScreenTime());
-    _liveTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && !_permissionDenied && !_screenTimeLoading) setState(() {});
+    // Refresh activity rings every 2 seconds to catch task updates from journal
+    _ringRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted) _loadRings();
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _refreshTimer?.cancel();
-    _liveTimer?.cancel();
+    _ringRefreshTimer?.cancel();
     super.dispose();
   }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) _fetchScreenTime();
-      });
-    }
+    // No-op since we removed screen time functionality
   }
 
   Future<void> _load() async {
@@ -237,89 +217,14 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
         '${n.month.toString().padLeft(2, '0')}-'
         '${n.day.toString().padLeft(2, '0')}';
   }
-
   String _weekdayName(int weekday) {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
   }
 
-  // ── screen time ───────────────────────────────────────────────────────────
-  Future<void> _fetchScreenTime() async {
-    try {
-      final has = await _permissionChannel
-              .invokeMethod<bool>('hasUsageStatsPermission') ??
-          false;
-      if (!has) {
-        if (mounted) {
-          setState(() {
-            _permissionDenied = true;
-            _screenTimeLoading = false;
-          });
-        }
-        return;
-      }
-      final now = DateTime.now();
-      final start = DateTime(now.year, now.month, now.day);
-      final list = await AppUsage().getAppUsage(start, now);
-      final selected = List<String>.from(
-        Hive.box('selected_apps').get('packages', defaultValue: <String>[]),
-      );
-      Duration total = Duration.zero;
-      for (final i in list) {
-        if (selected.isEmpty || selected.contains(i.packageName)) total += i.usage;
-      }
-      if (mounted) {
-        setState(() {
-          _usedToday = total;
-          _permissionDenied = false;
-          _screenTimeLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _permissionDenied = true;
-          _screenTimeLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _openUsageSettings() async {
-    const intent =
-        AndroidIntent(action: 'android.settings.USAGE_ACCESS_SETTINGS');
-    await intent.launch();
-  }
-
-  String _fmtDuration(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60);
-    if (h > 0) return '${h}h ${m}m';
-    return '${m}m';
-  }
-
-  // ── build ─────────────────────────────────────────────────────────────────
-  @override
+  // ── build ─────────────────────────────────────────────────────────────────  @override
   Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-    final difficulty = Hive.box('selected_apps')
-        .get('difficulty', defaultValue: 'normal') as String;
-    const limitMinutes = {'easy': 240, 'normal': 120, 'hardcore': 60, 'test': 0};
-    const diffLabels = {
-      'easy': 'Easy',
-      'normal': 'Normal',
-      'hardcore': 'Hardcore',
-      'test': 'Test',
-    };
-    final limitMins = limitMinutes[difficulty] ?? 120;
-    final limit = Duration(minutes: limitMins);
-    final remaining =
-        _usedToday >= limit ? Duration.zero : limit - _usedToday;
-    final screenProgress = limit.inSeconds == 0
-        ? 0.0
-        : (1.0 - _usedToday.inSeconds / limit.inSeconds).clamp(0.0, 1.0);
-    final screenBarColor = screenProgress < 0.2 ? Colors.red : neon;
-    final diffLabel = diffLabels[difficulty] ?? 'Normal';    return SafeArea(
+    return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Column(
@@ -336,28 +241,11 @@ class _DashboardPageState extends State<DashboardPage> with WidgetsBindingObserv
               macroRing: _macroRing,
               weightRing: _weightRing,
             ),
-            const SizedBox(height: 10),              // ── Daily Tasks (expands to fill remaining space) ─────────────
-            Expanded(
-              flex: 1,              child: _DailyTasksWidget(
-                onTasksChanged: () => _loadRings(),
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // ── Screen Time ───────────────────────────────────────────────
+            const SizedBox(height: 10),            // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
               flex: 1,
-              child: _ScreenTimeWidget(
-                loading: _screenTimeLoading,
-                permissionDenied: _permissionDenied,
-                remaining: remaining,
-                usedToday: _usedToday,
-                limit: limit,
-                progress: screenProgress,
-                barColor: screenBarColor,
-                diffLabel: diffLabel,
-                fmtDuration: _fmtDuration,
-                onEnablePermission: _openUsageSettings,
+              child: _DailyTasksWidget(
+                onTasksChanged: () => _loadRings(),
               ),
             ),
           ],
@@ -572,7 +460,9 @@ class _DailyTasksWidget extends StatefulWidget {
 }
 
 class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
-  final _supabase = Supabase.instance.client;  final _pageController = PageController();
+  final _supabase = Supabase.instance.client;
+  final _pageController = PageController();
+  Timer? _refreshTimer;
   List<Map<String, dynamic>> _tasks = [];
   bool _loading = true;
   int _currentPage = 0;
@@ -603,16 +493,20 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     'Walk 10,000 steps',
     'Do a random act of kindness',
     'Spend 10 minutes outdoors',
-  ];
-  @override
+  ];  @override
   void initState() {
     super.initState();
     _loadTasks();
+    // Refresh tasks every 2 seconds to catch edits/deletes from journal
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (mounted) _loadTasks();
+    });
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -991,183 +885,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
               ],
             ),
           ),
-        );
-      },
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  SCREEN TIME WIDGET
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ScreenTimeWidget extends StatelessWidget {
-  final bool loading;
-  final bool permissionDenied;
-  final Duration remaining;
-  final Duration usedToday;
-  final Duration limit;
-  final double progress;
-  final Color barColor;
-  final String diffLabel;
-  final String Function(Duration) fmtDuration;
-  final VoidCallback onEnablePermission;
-
-  const _ScreenTimeWidget({
-    required this.loading,
-    required this.permissionDenied,
-    required this.remaining,
-    required this.usedToday,
-    required this.limit,
-    required this.progress,
-    required this.barColor,
-    required this.diffLabel,
-    required this.fmtDuration,
-    required this.onEnablePermission,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_cornerRadius),
-        border: Border.all(color: neon, width: 2),
-        color: Colors.black,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'REMAINING SCREEN TIME',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: neon.withOpacity(0.5), width: 1),
-                ),
-                child: Text(
-                  diffLabel,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    shadows: [],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (loading)
-            const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else if (permissionDenied) ...[
-            const Text('Permission Required',
-                style:
-                    TextStyle(color: Colors.white, fontSize: 13, shadows: [])),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: onEnablePermission,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: neon,
-                side: BorderSide(color: neon.withOpacity(0.7), width: 1),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('Enable'),
-            ),
-          ] else ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  fmtDuration(remaining),
-                  style: TextStyle(
-                    color: barColor,
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
-                    shadows: [],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    '${fmtDuration(usedToday)} / ${fmtDuration(limit)}',
-                    style: const TextStyle(
-                        color: Colors.white54, fontSize: 12, shadows: []),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _NeonProgressBar(value: progress, neon: barColor),
-          ],
-        ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  NEON PROGRESS BAR
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _NeonProgressBar extends StatelessWidget {
-  final double value;
-  final Color neon;
-
-  const _NeonProgressBar({required this.value, required this.neon});
-
-  @override
-  Widget build(BuildContext context) {
-    final clamped = value.clamp(0.0, 1.0);
-    return Container(
-      height: 22,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: neon.withOpacity(0.95), width: 1.4),
-        boxShadow: [
-          BoxShadow(color: neon.withOpacity(0.18), blurRadius: 14)
-        ],
-        color: Colors.black,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(999),
-        child: FractionallySizedBox(
-          alignment: Alignment.centerLeft,
-          widthFactor: clamped,
-          child: Container(
-            decoration: BoxDecoration(
-              color: neon,
-              boxShadow: [
-                BoxShadow(
-                    color: neon.withOpacity(0.35), blurRadius: 18),
-              ],
-            ),
-          ),
-        ),
-      ),
+        );      },
     );
   }
 }
