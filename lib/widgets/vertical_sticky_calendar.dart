@@ -171,6 +171,10 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     });
   }
 
+  void refreshWorkouts() {
+    _loadWorkoutsForDay();
+  }
+
   /// Public method to jump the calendar to today's date in week view
   void jumpToToday() {
     final now = DateTime.now();
