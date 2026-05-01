@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'events_page.dart' as events;
+import '../services/offline_sync.dart';
 
 const double _cornerRadius = 18.0;
 
@@ -64,586 +65,58 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _loadProfile() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
-    try {      final row = await _supabase
+    final sync = SyncService.instance;
+    final cached = sync.getCachedSingle('profiles', user.id);
+    if (cached != null && mounted) {
+      setState(() {
+        _username = (cached['username'] ?? user.email ?? 'User').toString();
+        _coins = (cached['coins'] is num) ? (cached['coins'] as num).toInt() : 0;
+      });
+    }
+    try {
+      final row = await _supabase
           .from('profiles')
           .select('username, coins, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
+      if (row != null) sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
       if (!mounted) return;
       setState(() {
         _username = (row?['username'] ?? user.email ?? 'User').toString();
         _coins = (row?['coins'] is num) ? (row!['coins'] as num).toInt() : 0;
         _avatarSvg = (row?['avatar_svg'] ?? '').toString();
       });
+      final rawList = List<Map<String, dynamic>>.from(rows);
+      sync.cacheList('user_tasks_dash', user.id, rawList);
+      _applyTaskRows(rawList);
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
+      if (cached.isEmpty && mounted) setState(() => _loading = false);
     }
   }
 
-  // ── rings ─────────────────────────────────────────────────────────────────
-  Future<void> _loadRings() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-    final todayStr = _todayKey();
-
-    await Future.wait([
-      // Event ring
-      () async {
-        try {
-          final rows = await _supabase
-              .from('user_events')
-              .select('date, days, end_time, all_day')
-              .eq('user_id', user.id);
-          final now = DateTime.now();
-          const fullWeekdays = [
-            'Sunday',
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-          ];
-          final todayWeekday = fullWeekdays[now.weekday % 7];
-          int total = 0, done = 0;
-          for (final r in rows) {
-            final List<String> days = List<String>.from(r['days'] ?? []);
-            final isRepeating = days.isNotEmpty;
-            if (isRepeating) {
-              if (!days.contains(todayWeekday)) continue;
-              total++;
-              final endTime = (r['end_time'] ?? '').toString();
-              if (endTime.isNotEmpty) {
-                try {
-                  final parts = endTime.split(':');
-                  final endH = int.parse(parts[0]);
-                  final endM = int.parse(parts[1]);
-                  if (now.hour > endH ||
-                      (now.hour == endH && now.minute >= endM))
-                    done++;
-                } catch (_) {}
-              }
-            } else {
-              final eventDate = (r['date'] ?? '').toString();
-              if (!eventDate.startsWith(todayStr)) continue;
-              total++;
-              // Time-based completion — same logic as _isEventCompleted in events_page
-              final allDay = r['all_day'] == true;
-              if (allDay) {
-                // All-day events complete at end of day (23:59:59)
-                if (now.hour == 23 && now.minute == 59 && now.second >= 59)
-                  done++;
-              } else {
-                final endTime = (r['end_time'] ?? '').toString();
-                if (endTime.isNotEmpty) {
-                  try {
-                    final parts = endTime.split(':');
-                    int endH = int.parse(parts[0].trim());
-                    int endM = int.parse(parts[1].trim().split(' ')[0]);
-                    if (endTime.toUpperCase().contains('PM') && endH < 12)
-                      endH += 12;
-                    if (endTime.toUpperCase().contains('AM') && endH == 12)
-                      endH = 0;
-                    final eventEnd = DateTime(
-                      now.year,
-                      now.month,
-                      now.day,
-                      endH,
-                      endM,
-                    );
-                    if (eventEnd.isBefore(now)) done++;
-                  } catch (_) {}
-                }
-              }
-            }
-          }
-          if (!mounted) return;
-          setState(
-            () => _eventRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
-          );
-        } catch (_) {}
-      }(),
-
-      // Task ring
-      () async {
-        try {
-          final rows = await _supabase
-              .from('user_tasks')
-              .select('days, completed_dates')
-              .eq('user_id', user.id);
-          final todayWeekday = _weekdayName(DateTime.now().weekday);
-          int total = 0, done = 0;
-          for (final r in rows) {
-            final days = List<String>.from(r['days'] ?? []);
-            if (days.isEmpty || days.contains(todayWeekday)) {
-              total++;
-              if (List<String>.from(
-                r['completed_dates'] ?? [],
-              ).contains(todayStr)) {
-                done++;
-              }
-            }
-          }
-          if (!mounted) return;
-          setState(
-            () => _taskRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
-          );
-        } catch (_) {}
-      }(),
-
-      // Macro ring
-      () async {
-        try {
-          final goalRow = await _supabase
-              .from('macro_goals')
-              .select('calorie_goal')
-              .eq('user_id', user.id)
-              .maybeSingle();
-          final goal = (goalRow?['calorie_goal'] is num)
-              ? (goalRow!['calorie_goal'] as num).toDouble()
-              : 2000.0;
-          final logs = await _supabase
-              .from('daily_macro_logs')
-              .select('calories')
-              .eq('user_id', user.id)
-              .eq('log_date', todayStr);
-          double total = 0;
-          for (final l in logs) {
-            total += (l['calories'] is num)
-                ? (l['calories'] as num).toDouble()
-                : 0;
-          }
-          if (!mounted) return;
-          setState(() => _macroRing = (total / goal).clamp(0.0, 1.0));
-        } catch (_) {}
-      }(),
-
-      // Weight ring
-      () async {
-        try {
-          final row = await _supabase
-              .from('weight_entries')
-              .select('entry_date')
-              .eq('user_id', user.id)
-              .eq('entry_date', todayStr)
-              .maybeSingle();
-          if (!mounted) return;
-          setState(() => _weightRing = row != null ? 1.0 : 0.0);
-        } catch (_) {}
-      }(),
-    ]);
-  }
-
-  String _todayKey() {
-    final n = DateTime.now();
-    return '${n.year.toString().padLeft(4, '0')}-'
-        '${n.month.toString().padLeft(2, '0')}-'
-        '${n.day.toString().padLeft(2, '0')}';
-  }
-
-  String _weekdayName(int weekday) {
-    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return names[(weekday - 1).clamp(0, 6)];
-  }
-  // ── build ─────────────────────────────────────────────────────────────────
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Profile ───────────────────────────────────────────────────
-            _ProfileWidget(
-              username: _username,
-              coins: _coins,
-              avatarSvg: _avatarSvg,
-              onSettingsReturn: _loadProfile,
-            ),
-
-            const SizedBox(height: 10),
-
-            // ── Activity Rings ────────────────────────────────────────────
-            _ActivityRingsWidget(
-              eventRing: _eventRing,
-              taskRing: _taskRing,
-              macroRing: _macroRing,
-              weightRing: _weightRing,
-            ),
-            const SizedBox(height: 10),
-            // ── Daily Tasks (expands to fill remaining space) ─────────────
-            Expanded(
-              flex: 1,
-              child: _DailyTasksWidget(onTasksChanged: () {
-                _loadRings();
-                _loadProfile();
-              }),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  PROFILE WIDGET
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ProfileWidget extends StatelessWidget {
-  final String username;
-  final int coins;
-  final String avatarSvg;
-  final VoidCallback? onSettingsReturn;
-
-  const _ProfileWidget({
-    required this.username,
-    required this.coins,
-    this.avatarSvg = '',
-    this.onSettingsReturn,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_cornerRadius),
-        border: Border.all(color: neon, width: 2),
-        color: Colors.black,
-      ),
-      child: Row(
-        children: [          // Left: Profile avatar
-          avatarSvg.isNotEmpty
-              ? ClipOval(
-                  child: SvgPicture.string(
-                    avatarSvg,
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              : CircleAvatar(
-                  radius: 22,
-                  backgroundColor: neon.withOpacity(0.15),
-                  child: Icon(Icons.person, color: neon, size: 26),
-                ),
-          const SizedBox(width: 12),
-          // Middle: Profile info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  username.isEmpty ? '—' : username,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.monetization_on,
-                      color: Colors.amber,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$coins coins',
-                      style: const TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                        shadows: [],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // Right: Settings gear icon
-          IconButton(
-            icon: Icon(Icons.settings, color: neon, size: 26),
-            tooltip: 'Settings',
-            onPressed: () async {
-              await Navigator.of(context).pushNamed('/settings');
-              onSettingsReturn?.call();
-            },
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  ACTIVITY RINGS WIDGET
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ActivityRingsWidget extends StatelessWidget {
-  final double eventRing;
-  final double taskRing;
-  final double macroRing;
-  final double weightRing;
-
-  const _ActivityRingsWidget({
-    required this.eventRing,
-    required this.taskRing,
-    required this.macroRing,
-    required this.weightRing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_cornerRadius),
-        border: Border.all(color: neon, width: 2),
-        color: Colors.black,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _InfoButton(
-                infoText:
-                    'Use this to track progress on your set Events, Tasks, Macros, and Weight from the Journal and Fitness tabs. Once you complete all of the daily requirements for each component, the progression bars will fill up.',
-                iconColor: neon,
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          _ProgressBarItem(
-            value: eventRing,
-            label: 'Events',
-            color: const Color(0xFF00FF66),
-          ),
-          const SizedBox(height: 12),
-          _ProgressBarItem(
-            value: taskRing,
-            label: 'Tasks',
-            color: const Color(0xFF00FF66),
-          ),
-          const SizedBox(height: 12),
-          _ProgressBarItem(
-            value: macroRing,
-            label: 'Macros',
-            color: const Color(0xFFFF9500),
-          ),
-          const SizedBox(height: 12),
-          _ProgressBarItem(
-            value: weightRing,
-            label: 'Weight',
-            color: const Color(0xFF2196F3),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProgressBarItem extends StatelessWidget {
-  final double value;
-  final String label;
-  final Color color;
-
-  const _ProgressBarItem({
-    required this.value,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 60,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              shadows: [],
-            ),
-          ),
-        ),
-        Expanded(
-          child: Container(
-            height: 18,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: color.withOpacity(0.5), width: 1),
-              color: Colors.black,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: value.clamp(0.0, 1.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color,
-                    boxShadow: [
-                      BoxShadow(color: color.withOpacity(0.4), blurRadius: 8),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 40,
-          child: Text(
-            '${(value * 100).round()}%',
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              shadows: [],
-            ),
-            textAlign: TextAlign.right,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  DAILY TASKS WIDGET
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DailyTasksWidget extends StatefulWidget {
-  final VoidCallback onTasksChanged;
-  const _DailyTasksWidget({required this.onTasksChanged});
-
-  @override
-  State<_DailyTasksWidget> createState() => _DailyTasksWidgetState();
-}
-
-class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
-  final _supabase = Supabase.instance.client;
-  final _pageController = PageController();
-  Timer? _refreshTimer;
-  List<Map<String, dynamic>> _tasks = [];
-  bool _loading = true;
-  int _currentPage = 0;
-
-  // Pool of daily challenges
-  static const List<String> _challengePool = [
-    'Drink 8 glasses of water',
-    'Workout for 1 hour',
-    'Workout outside for 30 minutes',
-    'Take a 20-minute walk',
-    'Meditate for 10 minutes',
-    'Eat a healthy breakfast',
-    'Stretch for 10 minutes',
-    'Read for 20 minutes',
-    'No social media for 2 hours',
-    'Write down 3 things you are grateful for',
-    'Go to bed before 11 PM',
-    'Take the stairs instead of the elevator',
-    'Call or message a friend',
-    'Avoid sugary drinks today',
-    'Do 30 squats',
-    'Do 20 pushups',
-    'Do 10 pullups',
-    'Practice deep breathing for 10 minutes',
-    'Limit screen time to 2 hours',
-    'Eat a serving of vegetables',
-    'Walk 5,000 steps',
-    'Walk 10,000 steps',
-    'Do a random act of kindness',
-    'Spend 10 minutes outdoors',
-  ];
-  @override
-  void initState() {
-    super.initState();
-    _loadTasks();
-    // Refresh tasks every 2 seconds to catch edits/deletes from journal
-    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (mounted) _loadTasks();
+  void _applyTaskRows(List<Map<String, dynamic>> rows) {
+    final todayWeekday = _weekdayName(DateTime.now().weekday);
+    final tasks = rows.map((r) => <String, dynamic>{
+          'id': r['id'],
+          'name': r['name'].toString(),
+          'days': List<String>.from(r['days'] ?? []),
+          'end_date': r['end_date'],
+          'completed_dates': List<String>.from(r['completed_dates'] ?? []),
+          'user_id': r['user_id'],
+          'is_challenge': (r['is_challenge'] as bool?) ?? false,
+        }).where((t) {
+      final isChallenge = t['is_challenge'] as bool;
+      if (isChallenge) return true;
+      final days = t['days'] as List<String>;
+      return days.isEmpty || days.contains(todayWeekday);
+    }).toList();
+    if (!mounted) return;
+    setState(() {
+      _tasks = tasks;
+      _loading = false;
     });
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    _refreshTimer?.cancel();
-    super.dispose();
-  }
-
-  String _todayKey() {
-    final n = DateTime.now();
-    return '${n.year.toString().padLeft(4, '0')}-'
-        '${n.month.toString().padLeft(2, '0')}-'
-        '${n.day.toString().padLeft(2, '0')}';
-  }
-
-  String _weekdayName(int weekday) {
-    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return names[(weekday - 1).clamp(0, 6)];
-  }
-  Future<void> _loadTasks() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) {
-      if (mounted) setState(() => _loading = false);
-      return;
-    }
-    try {
-      final rows = await _supabase
-          .from('user_tasks')
-          .select()
-          .eq('user_id', user.id);
-      final today = _todayKey();
-      final todayWeekday = _weekdayName(DateTime.now().weekday);
-      final tasks = (rows as List)
-          .map(
-            (r) => {
-              'id': r['id'],
-              'name': r['name'].toString(),
-              'days': List<String>.from(r['days'] ?? []),
-              'end_date': r['end_date']?.toString(),
-              'completed_dates': List<String>.from(r['completed_dates'] ?? []),
-              'user_id': r['user_id'],
-              'is_challenge': (r['is_challenge'] as bool?) ?? false,
-            },
-          )
-          .where((t) {
-            final isChallenge = t['is_challenge'] as bool;
-            if (isChallenge) {
-              // Only show challenges created today
-              return (t['end_date'] as String?) == today;
-            }
-            final days = t['days'] as List<String>;
-            return days.isEmpty || days.contains(todayWeekday);
-          })
-          .toList();
-      if (!mounted) return;
-      setState(() {
-        _tasks = tasks;
-        _loading = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
   Future<void> _toggleChallenge(Map<String, dynamic> challenge) async {
     final today = _todayKey();
     final completed = List<String>.from(
@@ -656,16 +129,14 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       completed.add(today);
     }
     setState(() => challenge['completed_dates'] = completed);
+    SyncService.instance.patchCachedList('user_tasks_dash', _supabase.auth.currentUser?.id ?? '', 'id', challenge['id'].toString(), {'completed_dates': completed});
     try {
-      await _supabase
-          .from('user_tasks')
-          .update({'completed_dates': completed})
-          .eq('id', challenge['id']);
-      await _updateCoins(wasCompleted ? -5 : 5);
+      await _supabase.from('user_tasks').update({'completed_dates': completed}).eq('id', challenge['id']);
       widget.onTasksChanged();
-    } catch (_) {}
-  }
-  Future<void> _showAddChallengeDialog() async {
+    } catch (_) {
+      SyncService.instance.enqueue(table: 'user_tasks', type: 'update', data: {'completed_dates': completed}, match: {'id': challenge['id']});
+    }
+  }  Future<void> _showAddChallengeDialog() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
@@ -720,26 +191,16 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       'is_challenge': true,
     };
 
-    setState(() {
-      _tasks.add(newChallenge);
-    });
-
+    setState(() => _tasks.add(newChallenge));
+    final challengeData = {
+      'id': id, 'name': selected, 'days': <String>[], 'end_date': null,
+      'completed_dates': <String>[], 'user_id': user.id, 'is_challenge': true,
+    };
+    SyncService.instance.addToCachedList('user_tasks_dash', user.id, challengeData);
     try {
-      await _supabase.from('user_tasks').insert({
-        'id': id,
-        'name': selected,
-        'days': [],
-        'end_date': today,
-        'completed_dates': [],
-        'user_id': user.id,
-        'is_challenge': true,
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to add challenge: $e')),
-      );
-      setState(() => _tasks.removeWhere((t) => t['id'] == id));
+      await _supabase.from('user_tasks').insert(challengeData);
+    } catch (_) {
+      SyncService.instance.enqueue(table: 'user_tasks', type: 'insert', data: challengeData);
     }
   }
   bool _isCompletedToday(Map<String, dynamic> task) =>
@@ -773,14 +234,13 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       completed.add(today);
     }
     setState(() => task['completed_dates'] = completed);
+    SyncService.instance.patchCachedList('user_tasks_dash', _supabase.auth.currentUser?.id ?? '', 'id', task['id'].toString(), {'completed_dates': completed});
     try {
-      await _supabase
-          .from('user_tasks')
-          .update({'completed_dates': completed})
-          .eq('id', task['id']);
-      await _updateCoins(wasCompleted ? -1 : 1);
+      await _supabase.from('user_tasks').update({'completed_dates': completed}).eq('id', task['id']);
       widget.onTasksChanged();
-    } catch (_) {}
+    } catch (_) {
+      SyncService.instance.enqueue(table: 'user_tasks', type: 'update', data: {'completed_dates': completed}, match: {'id': task['id']});
+    }
   }
 
   void _addTask() {
@@ -797,23 +257,18 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         onEventAdded: (_) {},
         onTaskAdded: (task) async {
           final id = const Uuid().v4();
+          final taskData = {
+            'id': id, 'name': task['name'], 'days': task['days'] ?? [],
+            'end_date': task['end_date'], 'completed_dates': <String>[], 'user_id': user.id,
+          };
+          SyncService.instance.addToCachedList('user_tasks_dash', user.id, taskData);
           try {
-            await _supabase.from('user_tasks').insert({
-              'id': id,
-              'name': task['name'],
-              'days': task['days'] ?? [],
-              'end_date': task['end_date'],
-              'completed_dates': [],
-              'user_id': user.id,
-            });
-            setState(() => _loadTasks());
-            widget.onTasksChanged();
+            await _supabase.from('user_tasks').insert(taskData);
           } catch (_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to save task.')),
-            );
+            SyncService.instance.enqueue(table: 'user_tasks', type: 'insert', data: taskData);
           }
+          setState(() => _loadTasks());
+          widget.onTasksChanged();
         },
         formatTime: events.eventsFormatTime,
       ),

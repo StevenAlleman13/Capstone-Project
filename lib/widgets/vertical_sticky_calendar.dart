@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/offline_sync.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class VerticalStickyCalendar extends StatefulWidget {
@@ -79,16 +80,24 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
   Future<void> _loadWorkoutsForDay() async {
     if (_userId == null) return;
     setState(() => _loadingWorkouts = true);
-    final rows = await _supabase
-        .from('user_workouts')
-        .select()
-        .eq('user_id', _userId!)
-        .eq('workout_date', _dayKey)
-        .order('created_at', ascending: true);
+    final sync = SyncService.instance;
+    final cacheKey = 'user_workouts_$_dayKey';
+    final cachedWorkouts = sync.getCachedList(cacheKey, _userId!);
+    List<dynamic> rows = cachedWorkouts;
+    try {
+      final fresh = await _supabase
+          .from('user_workouts')
+          .select()
+          .eq('user_id', _userId!)
+          .eq('workout_date', _dayKey)
+          .order('created_at', ascending: true);
+      sync.cacheList(cacheKey, _userId!, List<Map<String, dynamic>>.from(fresh));
+      rows = fresh;
+    } catch (_) {}
     setState(() {
       _savedWorkoutsForDay
         ..clear()
-        ..addAll(rows);
+        ..addAll(rows.cast<Map<String, dynamic>>());
       _loadingWorkouts = false;
     });
   }
@@ -140,16 +149,20 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     };
 
     if (_editingWorkoutId != null) {
-      await _supabase
-          .from('user_workouts')
-          .update(payload)
-          .eq('id', _editingWorkoutId!);
+      SyncService.instance.patchCachedList('user_workouts_$_dayKey', _userId!, 'id', _editingWorkoutId!, payload);
+      try {
+        await _supabase.from('user_workouts').update(payload).eq('id', _editingWorkoutId!);
+      } catch (_) {
+        SyncService.instance.enqueue(table: 'user_workouts', type: 'update', data: payload, match: {'id': _editingWorkoutId!});
+      }
     } else {
-      await _supabase.from('user_workouts').insert({
-        ...payload,
-        'user_id': _userId,
-        'workout_date': _dayKey,
-      });
+      final insertData = {...payload, 'user_id': _userId, 'workout_date': _dayKey};
+      SyncService.instance.addToCachedList('user_workouts_$_dayKey', _userId!, Map<String, dynamic>.from(insertData));
+      try {
+        await _supabase.from('user_workouts').insert(insertData);
+      } catch (_) {
+        SyncService.instance.enqueue(table: 'user_workouts', type: 'insert', data: Map<String, dynamic>.from(insertData));
+      }
     }
 
     setState(() {
@@ -835,80 +848,29 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                                                   ),
                                                 ),
                                               ),
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.fromLTRB(
-                                                      10,
-                                                      2,
-                                                      10,
-                                                      8,
-                                                    ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.center,
-                                                  children: [
-                                                    ...((w['exercises'] as List).asMap().entries.map((
-                                                      entry,
-                                                    ) {
-                                                      final idx = entry.key;
-                                                      final ex = entry.value;
-                                                      final sets =
-                                                          ex['sets'] as List;
-                                                      return Column(
-                                                        children: [
-                                                          if (idx > 0)
-                                                            const Divider(
-                                                              color: neon,
-                                                              thickness: 0.5,
-                                                              height: 8,
-                                                            ),
-                                                          Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  top: 2,
-                                                                ),
-                                                            child: Center(
-                                                              child: Column(
-                                                                crossAxisAlignment:
-                                                                    CrossAxisAlignment
-                                                                        .center,
-                                                                children: [
-                                                                  Text(
-                                                                    ex['name'] ??
-                                                                        '',
-                                                                    style: const TextStyle(
-                                                                      color: Colors
-                                                                          .white,
-                                                                      fontSize:
-                                                                          16,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                      shadows:
-                                                                          [],
-                                                                    ),
-                                                                  ),
-                                                                  ...sets.map(
-                                                                    (s) => Text(
-                                                                      '${s['lbs']} lbs × ${s['reps']} reps',
-                                                                      style: TextStyle(
-                                                                        color: Colors
-                                                                            .grey[500],
-                                                                        fontSize:
-                                                                            12,
-                                                                        shadows:
-                                                                            const [],
-                                                                      ),
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      );
-                                                    })),
-                                                  ],
+                                                ],
+                                              );
+                                            })),
+                                                ],
+                                              ),
+                                            ),
+                                            const Divider(color: Colors.white12, height: 8),
+                                            Center(
+                                              child: TextButton(
+                                                onPressed: () async {
+                                                  SyncService.instance.removeFromCachedList('user_workouts_$_dayKey', _userId!, 'id', w['id'].toString());
+                                                  try {
+                                                    await _supabase.from('user_workouts').delete().eq('id', w['id']);
+                                                  } catch (_) {
+                                                    SyncService.instance.enqueue(table: 'user_workouts', type: 'delete', data: {}, match: {'id': w['id']});
+                                                  }
+                                                  await _loadWorkoutsForDay();
+                                                },
+                                                style: TextButton.styleFrom(
+                                                  padding: EdgeInsets.zero,
+                                                  minimumSize: Size.zero,
+                                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                  alignment: Alignment.center,
                                                 ),
                                               ),
                                               const Divider(

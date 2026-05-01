@@ -19,6 +19,7 @@ import 'screens/events_page.dart' show EventsPage, EventsPageState;
 import 'screens/settings_page.dart' as settings;
 import 'screens/quick_add.dart' as quick_add;
 import 'package:hive_flutter/hive_flutter.dart';
+import 'services/offline_sync.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 
@@ -41,6 +42,9 @@ Future<void> main() async {
   }
 
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await SyncService.instance.init();
+  // Flush once at startup — fire and forget so it never blocks the UI.
+  SyncService.instance.flushQueue();
 
   runApp(const MyApp());
 }

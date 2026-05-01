@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/offline_sync.dart';
 // import 'package:table_calendar/table_calendar.dart';
 // import 'package:table_calendar/table_calendar.dart' show isSameDay;
 import '../widgets/vertical_sticky_calendar.dart';
 import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 
 class EventsPage extends StatefulWidget {
   final VoidCallback? onViewModeChanged;
@@ -41,27 +39,28 @@ class EventsPageState extends State<EventsPage> {
           setState(() {
             _tasks[idx] = updatedTask;
           });
-
-          // Sync to Supabase
+          
           final taskId = updatedTask['id'];
           if (taskId != null) {
+            final updateData = {
+              'name': updatedTask['name'],
+              'days': updatedTask['days'],
+              'end_date': updatedTask['end_date'],
+            };
+            final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+            SyncService.instance.patchCachedList('user_tasks', userId, 'id', taskId.toString(), updateData);
             try {
               await Supabase.instance.client
                   .from('user_tasks')
-                  .update({
-                    'name': updatedTask['name'],
-                    'days': updatedTask['days'],
-                    'end_date': updatedTask['end_date'],
-                  })
+                  .update(updateData)
                   .eq('id', taskId);
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to update task in Supabase.'),
-                  ),
-                );
-              }
+            } catch (_) {
+              SyncService.instance.enqueue(
+                table: 'user_tasks',
+                type: 'update',
+                data: updateData,
+                match: {'id': taskId},
+              );
             }
           }
         },
@@ -84,29 +83,29 @@ class EventsPageState extends State<EventsPage> {
           // Sync to Supabase
           final eventId = updatedEvent['id'];
           if (eventId != null) {
+            final updateData = {
+              'title': updatedEvent['title'],
+              'description': updatedEvent['description'],
+              'date': updatedEvent['date'],
+              'start_time': updatedEvent['start_time'],
+              'end_time': updatedEvent['end_time'],
+              'all_day': updatedEvent['all_day'],
+            };
+            final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+            SyncService.instance.patchCachedList('user_events', userId, 'id', eventId.toString(), updateData);
             try {
               await Supabase.instance.client
                   .from('user_events')
-                  .update({
-                    'title': updatedEvent['title'],
-                    'description': updatedEvent['description'],
-                    'date': updatedEvent['date'],
-                    'start_time': updatedEvent['start_time'],
-                    'end_time': updatedEvent['end_time'],
-                    'all_day': updatedEvent['all_day'],
-                  })
+                  .update(updateData)
                   .eq('id', eventId);
-              if (mounted) {
-                setState(() {});
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to update event in Supabase.'),
-                  ),
-                );
-              }
+              if (mounted) setState(() {});
+            } catch (_) {
+              SyncService.instance.enqueue(
+                table: 'user_events',
+                type: 'update',
+                data: updateData,
+                match: {'id': eventId},
+              );
             }
           }
         },
@@ -171,47 +170,50 @@ class EventsPageState extends State<EventsPage> {
   Future<void> _fetchEventsFromSupabase() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
-    final response = await Supabase.instance.client
-        .from('user_events')
-        .select()
-        .eq('user_id', userId)
-        .order('date', ascending: true);
-    setState(() {
-      _events = List<Map<String, dynamic>>.from(response);
-    });
+    final sync = SyncService.instance;
+    final cached = sync.getCachedList('user_events', userId);
+    if (cached.isNotEmpty && mounted) setState(() => _events = cached);
+    try {
+      final response = await Supabase.instance.client
+          .from('user_events')
+          .select()
+          .eq('user_id', userId)
+          .order('date', ascending: true);
+      final data = List<Map<String, dynamic>>.from(response);
+      sync.cacheList('user_events', userId, data);
+      if (mounted) setState(() => _events = data);
+    } catch (_) {}
   }
 
   Future<void> _fetchTasksFromSupabase() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
+    final sync = SyncService.instance;
+    final cachedRaw = sync.getCachedList('user_tasks', userId);
+    if (cachedRaw.isNotEmpty && mounted) {
+      setState(() => _tasks = cachedRaw.map((t) => <String, dynamic>{
+        ...t,
+        'days': List<String>.from(t['days'] ?? []),
+        'completedDates': List<String>.from(t['completedDates'] ?? t['completed_dates'] ?? []),
+      }).toList());
+    }
     try {
       final response = await Supabase.instance.client
           .from('user_tasks')
           .select()
           .eq('user_id', userId);
-      final loaded = (response as List)
-          .map(
-            (taskData) => {
-              'id': taskData['id'],
-              'name': taskData['name'],
-              'days': List<String>.from(taskData['days'] ?? []),
-              'end_date': taskData['end_date'],
-              'completedDates': List<String>.from(
-                taskData['completed_dates'] ?? [],
-              ),
-              'user_id': taskData['user_id'],
-              'is_challenge': (taskData['is_challenge'] as bool?) ?? false,
-            },
-          )
-          .toList();
-      if (mounted)
-        setState(() => _tasks = List<Map<String, dynamic>>.from(loaded));
-    } catch (e) {
-      print('Error fetching tasks from Supabase: $e');
-    }
-  }
-
-  void _markTaskAsUncompleted(int idx) async {
+      final loaded = (response as List).map((taskData) => <String, dynamic>{
+        'id': taskData['id'],
+        'name': taskData['name'],
+        'days': List<String>.from(taskData['days'] ?? []),
+        'end_date': taskData['end_date'],
+        'completedDates': List<String>.from(taskData['completed_dates'] ?? []),
+        'user_id': taskData['user_id'],
+      }).toList();
+      sync.cacheList('user_tasks', userId, loaded);
+      if (mounted) setState(() => _tasks = List<Map<String, dynamic>>.from(loaded));
+    } catch (_) {}
+  }  void _markTaskAsUncompleted(int idx) async {
     if (idx >= 0 && idx < _tasks.length) {
       final todayStr = _selectedDay.toIso8601String().substring(0, 10);
       final List completedDates = List<String>.from(
@@ -222,13 +224,20 @@ class EventsPageState extends State<EventsPage> {
       setState(() {});
       final taskId = _tasks[idx]['id'];
       if (taskId != null) {
+        final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+        SyncService.instance.patchCachedList('user_tasks', userId, 'id', taskId.toString(), {'completedDates': completedDates, 'completed_dates': completedDates});
         try {
           await Supabase.instance.client
               .from('user_tasks')
               .update({'completed_dates': completedDates})
               .eq('id', taskId);
-        } catch (e) {
-          print('Error uncompleting task in Supabase: $e');
+        } catch (_) {
+          SyncService.instance.enqueue(
+            table: 'user_tasks',
+            type: 'update',
+            data: {'completed_dates': completedDates},
+            match: {'id': taskId},
+          );
         }
       }
     }
@@ -247,19 +256,23 @@ class EventsPageState extends State<EventsPage> {
         completedDates.add(todayStr);
       }
       _tasks[idx]['completedDates'] = completedDates;
-
       setState(() {});
-
-      // Sync to Supabase
       final taskId = _tasks[idx]['id'];
       if (taskId != null) {
+        final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+        SyncService.instance.patchCachedList('user_tasks', userId, 'id', taskId.toString(), {'completedDates': completedDates, 'completed_dates': completedDates});
         try {
           await Supabase.instance.client
               .from('user_tasks')
               .update({'completed_dates': completedDates})
               .eq('id', taskId);
-        } catch (e) {
-          print('Error updating task completion in Supabase: $e');
+        } catch (_) {
+          SyncService.instance.enqueue(
+            table: 'user_tasks',
+            type: 'update',
+            data: {'completed_dates': completedDates},
+            match: {'id': taskId},
+          );
         }
       }
     }
@@ -560,34 +573,24 @@ class EventsPageState extends State<EventsPage> {
             'end_time': event['end_time'] ?? '23:59',
             'all_day': event['all_day'] ?? false,
             'days': event['days'] ?? [],
-            'latitude': event['latitude'],
-            'longitude': event['longitude'],
           };
           setState(() => _events.add(fullEvent));
+          final insertData = {
+            'id': id,
+            'title': event['title'],
+            'description': event['description'] ?? '',
+            'date': eventDate.toIso8601String(),
+            'user_id': userId,
+            'start_time': event['start_time'] ?? '00:00',
+            'end_time': event['end_time'] ?? '23:59',
+            'all_day': event['all_day'] ?? false,
+            'days': event['days'] ?? [],
+          };
+          SyncService.instance.addToCachedList('user_events', userId ?? '', insertData);
           try {
-            await Supabase.instance.client.from('user_events').insert([
-              {
-                'id': id,
-                'title': event['title'],
-                'description': event['description'] ?? '',
-                'date': eventDate.toIso8601String(),
-                'user_id': userId,
-                'start_time': event['start_time'] ?? '00:00',
-                'end_time': event['end_time'] ?? '23:59',
-                'all_day': event['all_day'] ?? false,
-                'days': event['days'] ?? [],
-                'latitude': event['latitude'],
-                'longitude': event['longitude'],
-              },
-            ]);
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Failed to upload event to Supabase.'),
-                ),
-              );
-            }
+            await Supabase.instance.client.from('user_events').insert([insertData]);
+          } catch (_) {
+            SyncService.instance.enqueue(table: 'user_events', type: 'insert', data: insertData);
           }
           setState(() {});
         },
@@ -598,33 +601,25 @@ class EventsPageState extends State<EventsPage> {
             'id': id,
             'name': task['name'],
             'days': task['days'] ?? [],
-            'end_date': task['end_date'], // null means indefinite
+            'end_date': task['end_date'],
             'completedDates': <String>[],
             'user_id': userId,
           };
-          setState(() {
-            _tasks.add(newTask);
-          });
-
-          // Sync to Supabase
+          setState(() => _tasks.add(newTask));
+          final taskInsert = {
+            'id': id,
+            'name': task['name'],
+            'days': task['days'] ?? [],
+            'end_date': task['end_date'],
+            'completed_dates': <String>[],
+            'completedDates': <String>[],
+            'user_id': userId,
+          };
+          SyncService.instance.addToCachedList('user_tasks', userId ?? '', taskInsert);
           try {
-            await Supabase.instance.client.from('user_tasks').insert([
-              {
-                'id': id,
-                'name': task['name'],
-                'days': task['days'] ?? [],
-                'end_date': task['end_date'], // null means indefinite
-                'completed_dates': [], 'user_id': userId,
-              },
-            ]);
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Failed to upload task to Supabase.'),
-                ),
-              );
-            }
+            await Supabase.instance.client.from('user_tasks').insert([taskInsert]);
+          } catch (_) {
+            SyncService.instance.enqueue(table: 'user_tasks', type: 'insert', data: taskInsert);
           }
         },
         formatTime: formatTime,
@@ -691,111 +686,84 @@ class EventsPageState extends State<EventsPage> {
       body: Column(
         children: [
           Flexible(
-            fit: FlexFit.loose,
-            child: VerticalStickyCalendar(
-              key: _calendarKey,
-              firstDay: DateTime(DateTime.now().year, 1, 1),
-              lastDay: DateTime(DateTime.now().year, 12, 31),
-              selectedDay: _selectedDay.year == DateTime.now().year
-                  ? _selectedDay
-                  : DateTime.now(),
-              onDaySelected: (date) {
-                setState(() {
-                  _selectedDay = date;
-                });
-                widget.onViewModeChanged?.call();
-              },
-              onViewModeChanged: (isWeekView) {
-                widget.onViewModeChanged?.call();
-              },
-              eventsForDay: _eventsForDay,
-              completedEventsForDay: _completedEventsForDay,
-              tasksForDay: _tasksForDay,
-              completedTasksForDay: _completedTasksForDay,
-              showBothSections: true,
-              onEventEdit: (event) {
-                _showEditEventDialog(event);
-              },
-              onEventDelete: (event) async {
-                setState(() {
-                  _events.removeWhere((e) => e['id'] == event['id']);
-                });
-                try {
-                  await Supabase.instance.client
-                      .from('user_events')
-                      .delete()
-                      .eq('id', event['id']);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Event deleted')),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(
-                      context,
-                    ).showSnackBar(SnackBar(content: Text('Delete error: $e')));
-                  }
-                }
-              },
-              onTaskEdit: (task, index) {
-                final realIndex = _tasks.indexOf(task);
-                if (realIndex != -1) _showEditTaskDialog(realIndex);
-              },
-              onTaskDelete: (task, index) async {
-                final realIndex = _tasks.indexOf(task);
-                if (realIndex != -1) {
-                  // Show confirmation dialog
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Delete Task'),
-                        content: Text(
-                          'Are you sure you want to delete "${task['name']}"?',
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-
-                  // Only proceed if user confirmed
-                  if (confirmed != true) return;
-
-                  final taskId = task['id'];
+              fit: FlexFit.loose,
+              child: VerticalStickyCalendar(
+                key: _calendarKey,
+                firstDay: DateTime(DateTime.now().year, 1, 1),
+                lastDay: DateTime(DateTime.now().year, 12, 31),
+                selectedDay: _selectedDay.year == DateTime.now().year
+                    ? _selectedDay
+                    : DateTime.now(),
+                onDaySelected: (date) {
                   setState(() {
-                    _tasks.removeAt(realIndex);
+                    _selectedDay = date;
                   });
-
-                  // Delete from Supabase
-                  if (taskId != null) {
-                    try {
-                      await Supabase.instance.client
-                          .from('user_tasks')
-                          .delete()
-                          .eq('id', taskId);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Task deleted')),
+                  widget.onViewModeChanged?.call();
+                },
+                onViewModeChanged: (isWeekView) {
+                  widget.onViewModeChanged?.call();
+                },
+                eventsForDay: _eventsForDay,
+                completedEventsForDay: _completedEventsForDay,
+                tasksForDay: _tasksForDay,
+                completedTasksForDay: _completedTasksForDay,
+                showBothSections: true,
+                onEventEdit: (event) {
+                  _showEditEventDialog(event);
+                },
+                onEventDelete: (event) async {
+                  final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+                  setState(() => _events.removeWhere((e) => e['id'] == event['id']));
+                  SyncService.instance.removeFromCachedList('user_events', userId, 'id', event['id'].toString());
+                  try {
+                    await Supabase.instance.client.from('user_events').delete().eq('id', event['id']);
+                  } catch (_) {
+                    SyncService.instance.enqueue(table: 'user_events', type: 'delete', data: {}, match: {'id': event['id']});
+                  }
+                },
+                onTaskEdit: (task, index) {
+                  final realIndex = _tasks.indexOf(task);
+                  if (realIndex != -1) _showEditTaskDialog(realIndex);
+                },
+                onTaskDelete: (task, index) async {
+                  final realIndex = _tasks.indexOf(task);
+                  if (realIndex != -1) {
+                    // Show confirmation dialog
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text('Delete Task'),
+                          content: Text('Are you sure you want to delete "${task['name']}"?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                            ),
+                          ],
                         );
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Delete error: $e')),
-                        );
+                      },
+                    );
+                    
+                    // Only proceed if user confirmed
+                    if (confirmed != true) return;
+                    
+                    final taskId = task['id'];
+                    setState(() {
+                      _tasks.removeAt(realIndex);
+                    });
+                    
+                    if (taskId != null) {
+                      final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+                      SyncService.instance.removeFromCachedList('user_tasks', userId, 'id', taskId.toString());
+                      try {
+                        await Supabase.instance.client.from('user_tasks').delete().eq('id', taskId);
+                      } catch (_) {
+                        SyncService.instance.enqueue(table: 'user_tasks', type: 'delete', data: {}, match: {'id': taskId});
                       }
                     }
                   }
@@ -1083,8 +1051,6 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
   String? _expandedTimePicker;
   // Event repeat days
   List<bool> _eventSelectedDays = List.generate(7, (_) => false);
-  // Event location
-  LatLng? _pickedLocation;
   // Task fields
   final _notesCtl = TextEditingController();
   List<bool> _selectedDays = List.generate(7, (_) => false);
@@ -1261,15 +1227,11 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       child: Column(
         children: [
           // Title + Description + Location section
-          _card(
-            children: [
-              _textField(_titleCtl, 'Title'),
-              const Divider(height: 1, color: Colors.white12),
-              _textField(_locationCtl, 'Description (Optional)'),
-              const Divider(height: 1, color: Colors.white12),
-              _locationRow(),
-            ],
-          ),
+          _card(children: [
+            _textField(_titleCtl, 'Title'),
+            const Divider(height: 1, color: Colors.white12),
+            _textField(_locationCtl, 'Description (Optional)'),
+          ]),
           const SizedBox(height: 16),
           // Date / time section
           _card(
@@ -1338,48 +1300,6 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _locationRow() {
-    return GestureDetector(
-      onTap: () async {
-        final result = await showModalBottomSheet<LatLng>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (_) => const _LocationPickerSheet(),
-        );
-        if (result != null) setState(() => _pickedLocation = result);
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            const Icon(Icons.location_on, color: Color(0xFF39FF14), size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _pickedLocation == null
-                    ? 'Add Location'
-                    : '${_pickedLocation!.latitude.toStringAsFixed(5)}, ${_pickedLocation!.longitude.toStringAsFixed(5)}',
-                style: TextStyle(
-                  color: _pickedLocation == null
-                      ? Colors.grey[500]
-                      : Colors.white,
-                  fontSize: 16,
-                  shadows: const [],
-                ),
-              ),
-            ),
-            if (_pickedLocation != null)
-              GestureDetector(
-                onTap: () => setState(() => _pickedLocation = null),
-                child: const Icon(Icons.close, color: Colors.white54, size: 18),
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -1888,12 +1808,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
         'all_day': _allDay,
         'start_time': _allDay ? '00:00' : _timeToString(_startTime),
         'end_time': _allDay ? '23:59' : _timeToString(_endTime),
-        'days': List.generate(
-          7,
-          (i) => _eventSelectedDays[i] ? _fullWeekdays[i] : null,
-        ).whereType<String>().toList(),
-        'latitude': _pickedLocation?.latitude,
-        'longitude': _pickedLocation?.longitude,
+        'days': List.generate(7, (i) => _eventSelectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
       });
     } else {
       final days = _resolveRepeatDays();
@@ -2904,157 +2819,5 @@ class _EditEventSheetState extends State<_EditEventSheet> {
   }
 }
 
-// ─── Location Picker Sheet ────────────────────────────────────────────────────
 
-class _LocationPickerSheet extends StatefulWidget {
-  const _LocationPickerSheet();
 
-  @override
-  State<_LocationPickerSheet> createState() => _LocationPickerSheetState();
-}
-
-class _LocationPickerSheetState extends State<_LocationPickerSheet> {
-  LatLng? _pinned;
-  LatLng _center = const LatLng(32.5252, -92.6382); // default: Ruston, LA
-  final MapController _mapController = MapController();
-  bool _loadingLocation = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _goToCurrentLocation();
-  }
-
-  Future<void> _goToCurrentLocation() async {
-    try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.deniedForever) return;
-      final pos = await Geolocator.getCurrentPosition();
-      if (!mounted) return;
-      setState(() {
-        _center = LatLng(pos.latitude, pos.longitude);
-        _loadingLocation = false;
-      });
-      _mapController.move(_center, 14);
-    } catch (_) {
-      if (mounted) setState(() => _loadingLocation = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      child: Column(
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Color(0xFF39FF14),
-                      fontSize: 16,
-                      shadows: [],
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                const Text(
-                  'Pick Location',
-                  style: TextStyle(
-                    color: Color(0xFF39FF14),
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    shadows: [],
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: _pinned == null
-                      ? null
-                      : () => Navigator.pop(context, _pinned),
-                  child: Text(
-                    'Confirm',
-                    style: TextStyle(
-                      color: _pinned == null
-                          ? Colors.grey[700]
-                          : const Color(0xFF39FF14),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      shadows: const [],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: Color(0xFF39FF14)),
-          // Map
-          Expanded(
-            child: _loadingLocation
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF39FF14)),
-                  )
-                : FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _center,
-                      initialZoom: 14,
-                      onTap: (_, latlng) => setState(() => _pinned = latlng),
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName:
-                            'com.example.flutter_application_1',
-                      ),
-                      if (_pinned != null)
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: _pinned!,
-                              width: 40,
-                              height: 40,
-                              child: const Icon(
-                                Icons.location_on,
-                                color: Color(0xFF39FF14),
-                                size: 40,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-          ),
-          if (_pinned != null)
-            Container(
-              color: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '${_pinned!.latitude.toStringAsFixed(5)}, ${_pinned!.longitude.toStringAsFixed(5)}',
-                style: const TextStyle(
-                  color: Colors.white54,
-                  fontSize: 13,
-                  shadows: [],
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
