@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'events_page.dart' as events;
@@ -20,9 +21,9 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage>
-    with WidgetsBindingObserver {
-  // ── profile ──────────────────────────────────────────────────────────────
+    with WidgetsBindingObserver {  // ── profile ──────────────────────────────────────────────────────────────
   String _username = '';
+  String _avatarSvg = '';
   int _coins = 0;
   // ── ring data ─────────────────────────────────────────────────────────────
   double _eventRing = 0;
@@ -63,16 +64,16 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _loadProfile() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
-    try {
-      final row = await _supabase
+    try {      final row = await _supabase
           .from('profiles')
-          .select('username, coins')
+          .select('username, coins, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
       if (!mounted) return;
       setState(() {
         _username = (row?['username'] ?? user.email ?? 'User').toString();
         _coins = (row?['coins'] is num) ? (row!['coins'] as num).toInt() : 0;
+        _avatarSvg = (row?['avatar_svg'] ?? '').toString();
       });
     } catch (_) {
       if (!mounted) return;
@@ -245,8 +246,8 @@ class _DashboardPageState extends State<DashboardPage>
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
   }
-
-  // ── build ─────────────────────────────────────────────────────────────────  @override
+  // ── build ─────────────────────────────────────────────────────────────────
+  @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
@@ -258,8 +259,10 @@ class _DashboardPageState extends State<DashboardPage>
             _ProfileWidget(
               username: _username,
               coins: _coins,
+              avatarSvg: _avatarSvg,
               onSettingsReturn: _loadProfile,
             ),
+
             const SizedBox(height: 10),
 
             // ── Activity Rings ────────────────────────────────────────────
@@ -269,12 +272,14 @@ class _DashboardPageState extends State<DashboardPage>
               macroRing: _macroRing,
               weightRing: _weightRing,
             ),
-            const SizedBox(
-              height: 10,
-            ), // ── Daily Tasks (expands to fill remaining space) ─────────────
+            const SizedBox(height: 10),
+            // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
               flex: 1,
-              child: _DailyTasksWidget(onTasksChanged: () => _loadRings()),
+              child: _DailyTasksWidget(onTasksChanged: () {
+                _loadRings();
+                _loadProfile();
+              }),
             ),
           ],
         ),
@@ -290,11 +295,13 @@ class _DashboardPageState extends State<DashboardPage>
 class _ProfileWidget extends StatelessWidget {
   final String username;
   final int coins;
+  final String avatarSvg;
   final VoidCallback? onSettingsReturn;
 
   const _ProfileWidget({
     required this.username,
     required this.coins,
+    this.avatarSvg = '',
     this.onSettingsReturn,
   });
 
@@ -310,13 +317,21 @@ class _ProfileWidget extends StatelessWidget {
         color: Colors.black,
       ),
       child: Row(
-        children: [
-          // Left: Profile avatar
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: neon.withOpacity(0.15),
-            child: Icon(Icons.person, color: neon, size: 26),
-          ),
+        children: [          // Left: Profile avatar
+          avatarSvg.isNotEmpty
+              ? ClipOval(
+                  child: SvgPicture.string(
+                    avatarSvg,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              : CircleAvatar(
+                  radius: 22,
+                  backgroundColor: neon.withOpacity(0.15),
+                  child: Icon(Icons.person, color: neon, size: 26),
+                ),
           const SizedBox(width: 12),
           // Middle: Profile info
           Expanded(
@@ -585,7 +600,6 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
   }
-
   Future<void> _loadTasks() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -597,6 +611,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .from('user_tasks')
           .select()
           .eq('user_id', user.id);
+      final today = _todayKey();
       final todayWeekday = _weekdayName(DateTime.now().weekday);
       final tasks = (rows as List)
           .map(
@@ -604,7 +619,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
               'id': r['id'],
               'name': r['name'].toString(),
               'days': List<String>.from(r['days'] ?? []),
-              'end_date': r['end_date'],
+              'end_date': r['end_date']?.toString(),
               'completed_dates': List<String>.from(r['completed_dates'] ?? []),
               'user_id': r['user_id'],
               'is_challenge': (r['is_challenge'] as bool?) ?? false,
@@ -613,8 +628,8 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .where((t) {
             final isChallenge = t['is_challenge'] as bool;
             if (isChallenge) {
-              // Challenges are only shown today if they're added
-              return true;
+              // Only show challenges created today
+              return (t['end_date'] as String?) == today;
             }
             final days = t['days'] as List<String>;
             return days.isEmpty || days.contains(todayWeekday);
@@ -629,13 +644,13 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       if (mounted) setState(() => _loading = false);
     }
   }
-
   Future<void> _toggleChallenge(Map<String, dynamic> challenge) async {
     final today = _todayKey();
     final completed = List<String>.from(
       challenge['completed_dates'] as List? ?? [],
     );
-    if (completed.contains(today)) {
+    final wasCompleted = completed.contains(today);
+    if (wasCompleted) {
       completed.remove(today);
     } else {
       completed.add(today);
@@ -646,17 +661,35 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .from('user_tasks')
           .update({'completed_dates': completed})
           .eq('id', challenge['id']);
+      await _updateCoins(wasCompleted ? -5 : 5);
       widget.onTasksChanged();
     } catch (_) {}
   }
-
   Future<void> _showAddChallengeDialog() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    // Get challenges not already added today
-    final alreadyAdded = _tasks
+    final today = _todayKey();
+
+    // Count challenges already added today (end_date used as creation date)
+    final todaysChallenges = _tasks
         .where((t) => (t['is_challenge'] as bool?) ?? false)
+        .where((t) => (t['end_date'] as String?) == today)
+        .toList();
+
+    if (todaysChallenges.length >= 3) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only add 3 daily challenges per day!'),
+          backgroundColor: Colors.deepOrange,
+        ),
+      );
+      return;
+    }
+
+    // Get challenges not already added today
+    final alreadyAdded = todaysChallenges
         .map((t) => t['name'] as String)
         .toList();
 
@@ -665,12 +698,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         .toList();
 
     if (availableChallenges.isEmpty) {
-      // All challenges already added
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All challenges already added for today!'),
-        ),
+        const SnackBar(content: Text('All challenges already added for today!')),
       );
       return;
     }
@@ -684,7 +714,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       'id': id,
       'name': selected,
       'days': <String>[],
-      'end_date': null,
+      'end_date': today, // stamp creation date so we can filter by day
       'completed_dates': <String>[],
       'user_id': user.id,
       'is_challenge': true,
@@ -699,27 +729,45 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         'id': id,
         'name': selected,
         'days': [],
-        'end_date': null,
+        'end_date': today,
         'completed_dates': [],
         'user_id': user.id,
         'is_challenge': true,
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to add challenge: $e')));
-      // Remove from local list if database insert failed
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to add challenge: $e')),
+      );
       setState(() => _tasks.removeWhere((t) => t['id'] == id));
     }
   }
-
   bool _isCompletedToday(Map<String, dynamic> task) =>
       (task['completed_dates'] as List<String>? ?? []).contains(_todayKey());
+
+  /// Adds [delta] coins to the current user's profile (can be negative to remove).
+  Future<void> _updateCoins(int delta) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await _supabase
+          .from('profiles')
+          .select('coins')
+          .eq('id', user.id)
+          .maybeSingle();
+      final current = (row?['coins'] as num?)?.toInt() ?? 0;
+      final updated = (current + delta).clamp(0, 999999);
+      await _supabase
+          .from('profiles')
+          .update({'coins': updated})
+          .eq('id', user.id);
+    } catch (_) {}
+  }
   Future<void> _toggleTask(Map<String, dynamic> task) async {
     final today = _todayKey();
     final completed = List<String>.from(task['completed_dates'] as List);
-    if (completed.contains(today)) {
+    final wasCompleted = completed.contains(today);
+    if (wasCompleted) {
       completed.remove(today);
     } else {
       completed.add(today);
@@ -730,6 +778,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .from('user_tasks')
           .update({'completed_dates': completed})
           .eq('id', task['id']);
+      await _updateCoins(wasCompleted ? -1 : 1);
       widget.onTasksChanged();
     } catch (_) {}
   }

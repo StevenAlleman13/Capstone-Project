@@ -46,15 +46,13 @@ Future<void> main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
+  const MyApp({super.key});  @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (context) => MyAppState(),
       child: MaterialApp(
-        title: 'Namer App',
-        theme: ThemeData(
+          title: 'Namer App',
+          theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: Colors.black,
           colorScheme: ColorScheme.dark(
@@ -95,8 +93,7 @@ class MyApp extends StatelessWidget {
           cardTheme: CardThemeData(
             color: Colors.black,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
+          ),          elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.grey[900],
               foregroundColor: _neonGreen,
@@ -112,8 +109,7 @@ class MyApp extends StatelessWidget {
           '/settings': (context) => const settings.SettingsPage(),
           '/reset-password': (context) {
             final email = ModalRoute.of(context)!.settings.arguments as String;
-            return ResetPasswordPage(email: email);
-          },
+            return ResetPasswordPage(email: email);          },
         },
       ),
     );

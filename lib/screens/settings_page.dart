@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:avatar_maker/avatar_maker.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 // import 'package:app_settings/app_settings.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
@@ -339,8 +342,10 @@ class _Profile extends StatefulWidget {
 
 class _ProfileState extends State<_Profile> {
   final _usernameController = TextEditingController();
+  final _avatarMakerKey = GlobalKey();
   String _username = '...';
   bool _saving = false;
+  String _avatarSvg = ''; // Store avatar SVG as string
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -354,25 +359,28 @@ class _ProfileState extends State<_Profile> {
   void dispose() {
     _usernameController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadProfile() async {
+  }  Future<void> _loadProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
 
     try {
       final row = await _client
           .from('profiles')
-          .select('username')
+          .select('username, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
 
       if (!mounted) return;
       final fetched = (row?['username'] ?? '').toString();
-      if (fetched.isNotEmpty && fetched != _username) {
+      final avatarSvg = (row?['avatar_svg'] ?? '').toString();
+      
+      if (fetched.isNotEmpty) {
         setState(() {
           _username = fetched;
           _usernameController.text = _username;
+          if (avatarSvg.isNotEmpty) {
+            _avatarSvg = avatarSvg;
+          }
         });
       }
     } catch (_) {
@@ -420,12 +428,121 @@ class _ProfileState extends State<_Profile> {
             style: TextStyle(color: Colors.red),
           ),
           backgroundColor: Colors.grey[900],
+        ),      );
+    }
+  }  Future<void> _openAvatarMaker() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    String? newAvatarSvg;
+
+    // Open avatar maker customizer in a dialog
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Customize Avatar',
+                    style: TextStyle(color: _neonGreen, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.72,
+                ),
+                child: AvatarMakerCustomizer(
+                  key: _avatarMakerKey,
+                ),
+              ),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        final controller = Get.find<AvatarMakerController>();
+                        await controller.saveAvatarSVG();
+                        newAvatarSvg = controller.displayedAvatarSVG.value;
+                      } catch (e) {
+                        newAvatarSvg = null;
+                      }
+                      Navigator.pop(ctx);
+                    },
+                    child: Text(
+                      'Save',
+                      style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Save avatar SVG if we got one
+    if (newAvatarSvg == null || newAvatarSvg!.isEmpty) return;
+
+    try {
+      setState(() => _saving = true);
+      
+      await _client.from('profiles').upsert({
+        'id': user.id,
+        'avatar_svg': newAvatarSvg,
+      }, onConflict: 'id');
+
+      if (!mounted) return;
+      setState(() {
+        _avatarSvg = newAvatarSvg!;
+        _saving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Avatar updated!',
+            style: TextStyle(color: _neonGreen),
+          ),
+          backgroundColor: Colors.grey[900],
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      print('Error saving avatar: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to save avatar: $e',
+            style: TextStyle(color: Colors.red),
+          ),
+          backgroundColor: Colors.grey[900],
+          duration: const Duration(seconds: 3),
         ),
       );
     }
   }
 
-  void _showEditUsernameDialog() {
+    void _showEditUsernameDialog() {
     _usernameController.text = _username;
     showDialog(
       context: context,
@@ -468,8 +585,7 @@ class _ProfileState extends State<_Profile> {
             child: Text(
               'Save',
               style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
-            ),
-          ),
+            ),          ),
         ],
       ),
     );
@@ -478,30 +594,63 @@ class _ProfileState extends State<_Profile> {
   @override
   Widget build(BuildContext context) {
     final displayName = _saving ? 'Saving...' : _username;
+    final userInitial = _username.isNotEmpty ? _username[0].toUpperCase() : '?';
 
     return Row(
       children: [
         // ── Profile picture (left) ──
         GestureDetector(
-          onTap: () {
-            // TODO: implement profile picture upload
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Profile picture upload coming soon!',
-                  style: TextStyle(color: _neonGreen),
-                ),
-                backgroundColor: Colors.grey[900],
-              ),
-            );
-          },
+          onTap: _openAvatarMaker,
           child: Stack(
             alignment: Alignment.bottomRight,
             children: [
-              CircleAvatar(
-                backgroundColor: const Color.fromARGB(255, 46, 46, 46),
-                radius: 45,
-                child: const Icon(Icons.person, size: 49, color: Colors.grey),
+              SizedBox(
+                width: 90,
+                height: 90,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(50),
+                  child: _avatarSvg.isNotEmpty
+                      ? Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _neonGreen, width: 2),
+                          ),
+                          child: SvgPicture.string(
+                            _avatarSvg,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                _neonGreen.withValues(alpha: 0.3),
+                                _neonGreen.withValues(alpha: 0.1),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            border: Border.all(color: _neonGreen, width: 2),
+                          ),
+                          child: Center(
+                            child: Text(
+                              userInitial,
+                              style: const TextStyle(
+                                color: _neonGreen,
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(
+                                    color: _neonGreen,
+                                    blurRadius: 8.0,
+                                  )
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
               ),
               Container(
                 padding: const EdgeInsets.all(5),
