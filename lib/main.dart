@@ -13,7 +13,7 @@ import 'screens/welcome_page.dart';
 import 'screens/signup_page.dart';
 import 'screens/reset_password_page.dart';
 import 'screens/dashboard_page.dart' as dash;
-import 'screens/health_page.dart' as health;
+import 'screens/health_page.dart' show HealthPage, HealthPageState;
 import 'screens/fitness_page.dart' show FitnessPage, FitnessPageState;
 import 'screens/events_page.dart' show EventsPage, EventsPageState;
 import 'screens/settings_page.dart' as settings;
@@ -104,7 +104,8 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const AuthGate(),        routes: {
+        home: const AuthGate(),
+        routes: {
           '/login': (context) => const LoginPage(),
           '/signup': (context) => const SignUpPage(),
           '/home': (context) => const MyHomePage(),
@@ -177,6 +178,7 @@ class _AuthGateState extends State<AuthGate> with WidgetsBindingObserver {
       _hasSession = session != null;
     });
   }
+
   @override
   Widget build(BuildContext context) {
     if (_hasSession == null) {
@@ -232,6 +234,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final GlobalKey<EventsPageState> eventsPageKey = GlobalKey<EventsPageState>();
   final GlobalKey<FitnessPageState> fitnessPageKey =
       GlobalKey<FitnessPageState>();
+  final GlobalKey<HealthPageState> healthPageKey = GlobalKey<HealthPageState>();
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +257,7 @@ class _MyHomePageState extends State<MyHomePage> {
             },
           ),
           const SizedBox.shrink(), // index 2 — plus button, not a real tab
-          const health.HealthPage(),
+          HealthPage(key: healthPageKey),
           FitnessPage(key: fitnessPageKey),
         ],
       ),
@@ -306,7 +309,10 @@ class _MyHomePageState extends State<MyHomePage> {
                               style: OutlinedButton.styleFrom(
                                 side: BorderSide(color: _neonGreen, width: 1.5),
                                 foregroundColor: _neonGreen,
-                                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 28,
+                                  vertical: 8,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
@@ -347,12 +353,17 @@ class _MyHomePageState extends State<MyHomePage> {
                             const SizedBox(width: 12),
                             // ── Plus button ──
                             GestureDetector(
-                              onTap: () => quick_add.showQuickAddSheet(
-                                context,
-                                onNavigate: (index) =>
-                                    setState(() => selectedIndex = index),
-                                fitnessPageKey: fitnessPageKey,
-                              ),
+                              onTap: () => quick_add
+                                  .showQuickAddSheet(
+                                    context,
+                                    onNavigate: (index) =>
+                                        setState(() => selectedIndex = index),
+                                  )
+                                  .then((_) {
+                                    eventsPageKey.currentState?.refresh();
+                                    fitnessPageKey.currentState?.refresh();
+                                    healthPageKey.currentState?.refresh();
+                                  }),
                               child: Container(
                                 width: 50,
                                 height: 50,
@@ -367,9 +378,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                   ],
                                 ),
                                 child: const Icon(
-                                  Icons.add,
+                                  Icons.smart_toy,
                                   color: Colors.black,
-                                  size: 36,
+                                  size: 30,
                                 ),
                               ),
                             ),

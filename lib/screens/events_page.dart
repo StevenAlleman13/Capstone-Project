@@ -11,7 +11,7 @@ import 'package:geolocator/geolocator.dart';
 
 class EventsPage extends StatefulWidget {
   final VoidCallback? onViewModeChanged;
-  
+
   const EventsPage({super.key, this.onViewModeChanged});
 
   @override
@@ -19,7 +19,6 @@ class EventsPage extends StatefulWidget {
 }
 
 class EventsPageState extends State<EventsPage> {
-
   static const List<String> _fullWeekdays = [
     'Sunday',
     'Monday',
@@ -42,7 +41,7 @@ class EventsPageState extends State<EventsPage> {
           setState(() {
             _tasks[idx] = updatedTask;
           });
-          
+
           // Sync to Supabase
           final taskId = updatedTask['id'];
           if (taskId != null) {
@@ -81,7 +80,7 @@ class EventsPageState extends State<EventsPage> {
         onEventUpdated: (updatedEvent) async {
           final idx = _events.indexWhere((e) => e['id'] == updatedEvent['id']);
           if (idx != -1) setState(() => _events[idx] = updatedEvent);
-          
+
           // Sync to Supabase
           final eventId = updatedEvent['id'];
           if (eventId != null) {
@@ -165,7 +164,7 @@ class EventsPageState extends State<EventsPage> {
         );
       },
     );
-    
+
     return result;
   }
 
@@ -181,6 +180,7 @@ class EventsPageState extends State<EventsPage> {
       _events = List<Map<String, dynamic>>.from(response);
     });
   }
+
   Future<void> _fetchTasksFromSupabase() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
@@ -188,20 +188,30 @@ class EventsPageState extends State<EventsPage> {
       final response = await Supabase.instance.client
           .from('user_tasks')
           .select()
-          .eq('user_id', userId);      final loaded = (response as List).map((taskData) => {
-        'id': taskData['id'],
-        'name': taskData['name'],
-        'days': List<String>.from(taskData['days'] ?? []),
-        'end_date': taskData['end_date'],
-        'completedDates': List<String>.from(taskData['completed_dates'] ?? []),
-        'user_id': taskData['user_id'],
-        'is_challenge': (taskData['is_challenge'] as bool?) ?? false,
-      }).toList();
-      if (mounted) setState(() => _tasks = List<Map<String, dynamic>>.from(loaded));
+          .eq('user_id', userId);
+      final loaded = (response as List)
+          .map(
+            (taskData) => {
+              'id': taskData['id'],
+              'name': taskData['name'],
+              'days': List<String>.from(taskData['days'] ?? []),
+              'end_date': taskData['end_date'],
+              'completedDates': List<String>.from(
+                taskData['completed_dates'] ?? [],
+              ),
+              'user_id': taskData['user_id'],
+              'is_challenge': (taskData['is_challenge'] as bool?) ?? false,
+            },
+          )
+          .toList();
+      if (mounted)
+        setState(() => _tasks = List<Map<String, dynamic>>.from(loaded));
     } catch (e) {
       print('Error fetching tasks from Supabase: $e');
     }
-  }  void _markTaskAsUncompleted(int idx) async {
+  }
+
+  void _markTaskAsUncompleted(int idx) async {
     if (idx >= 0 && idx < _tasks.length) {
       final todayStr = _selectedDay.toIso8601String().substring(0, 10);
       final List completedDates = List<String>.from(
@@ -237,9 +247,9 @@ class EventsPageState extends State<EventsPage> {
         completedDates.add(todayStr);
       }
       _tasks[idx]['completedDates'] = completedDates;
-      
+
       setState(() {});
-      
+
       // Sync to Supabase
       final taskId = _tasks[idx]['id'];
       if (taskId != null) {
@@ -281,13 +291,23 @@ class EventsPageState extends State<EventsPage> {
       final now = DateTime.now();
       final eventEnd = DateTime.parse(date);
       DateTime eventEndDateTime = DateTime(
-        eventEnd.year, eventEnd.month, eventEnd.day, hour, minute,
+        eventEnd.year,
+        eventEnd.month,
+        eventEnd.day,
+        hour,
+        minute,
       );
       if (endTime.toUpperCase().contains('PM') && hour < 12) {
         eventEndDateTime = eventEndDateTime.add(const Duration(hours: 12));
       }
       if (endTime.toUpperCase().contains('AM') && hour == 12) {
-        eventEndDateTime = DateTime(eventEnd.year, eventEnd.month, eventEnd.day, 0, minute);
+        eventEndDateTime = DateTime(
+          eventEnd.year,
+          eventEnd.month,
+          eventEnd.day,
+          0,
+          minute,
+        );
       }
       return eventEndDateTime.isBefore(now);
     } catch (_) {
@@ -304,7 +324,13 @@ class EventsPageState extends State<EventsPage> {
       int hour = int.parse(endParts[0].trim());
       int minute = int.parse(endParts[1].trim().split(' ')[0]);
       final now = DateTime.now();
-      DateTime eventEndDateTime = DateTime(now.year, now.month, now.day, hour, minute);
+      DateTime eventEndDateTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        hour,
+        minute,
+      );
       if (endTime.toUpperCase().contains('PM') && hour < 12) {
         eventEndDateTime = eventEndDateTime.add(const Duration(hours: 12));
       }
@@ -314,7 +340,8 @@ class EventsPageState extends State<EventsPage> {
       return eventEndDateTime.isBefore(now);
     } catch (_) {
       return false;
-    }  }
+    }
+  }
 
   List<Map<String, dynamic>> _events = [];
   DateTime _selectedDay = DateTime.now();
@@ -324,53 +351,84 @@ class EventsPageState extends State<EventsPage> {
 
   List<Map> _eventsForDay(DateTime day) {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    const fullWeekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const fullWeekdays = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
     final dayStr = day.toIso8601String().substring(0, 10);
     final todayStr = DateTime.now().toIso8601String().substring(0, 10);
-    return _events.where((ev) {
-      if (ev['user_id'] != userId) return false;
-      final List<String> days = List<String>.from(ev['days'] ?? []);
-      final isRepeating = days.isNotEmpty;
-      if (isRepeating) {
-        // Hide if end_time has passed today (time-based, no in-memory state needed)
-        if (dayStr == todayStr && _isRepeatingEventCompletedToday(ev)) return false;
-        final eventDate = DateTime.tryParse(ev['date'] ?? '');
-        if (eventDate == null) return false;
-        final eventDateOnly = DateTime(eventDate.year, eventDate.month, eventDate.day);
-        final dayOnly = DateTime(day.year, day.month, day.day);
-        if (dayOnly.isBefore(eventDateOnly)) return false;
-        return days.contains(fullWeekdays[day.weekday % 7]);
-      } else {
-        if (_isEventCompleted(ev)) return false;
-        return ev['date']?.substring(0, 10) == dayStr;
-      }
-    }).cast<Map>().toList();
+    return _events
+        .where((ev) {
+          if (ev['user_id'] != userId) return false;
+          final List<String> days = List<String>.from(ev['days'] ?? []);
+          final isRepeating = days.isNotEmpty;
+          if (isRepeating) {
+            // Hide if end_time has passed today (time-based, no in-memory state needed)
+            if (dayStr == todayStr && _isRepeatingEventCompletedToday(ev))
+              return false;
+            final eventDate = DateTime.tryParse(ev['date'] ?? '');
+            if (eventDate == null) return false;
+            final eventDateOnly = DateTime(
+              eventDate.year,
+              eventDate.month,
+              eventDate.day,
+            );
+            final dayOnly = DateTime(day.year, day.month, day.day);
+            if (dayOnly.isBefore(eventDateOnly)) return false;
+            return days.contains(fullWeekdays[day.weekday % 7]);
+          } else {
+            if (_isEventCompleted(ev)) return false;
+            return ev['date']?.substring(0, 10) == dayStr;
+          }
+        })
+        .cast<Map>()
+        .toList();
   }
 
   List<Map> _completedEventsForDay(DateTime day) {
     final userId = Supabase.instance.client.auth.currentUser?.id;
-    const fullWeekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const fullWeekdays = [
+      'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+    ];
     final dayStr = day.toIso8601String().substring(0, 10);
     final todayStr = DateTime.now().toIso8601String().substring(0, 10);
-    return _events.where((ev) {
-      if (ev['user_id'] != userId) return false;
-      final List<String> days = List<String>.from(ev['days'] ?? []);
-      final isRepeating = days.isNotEmpty;
-      if (isRepeating) {
-        // Completed if end_time has passed today (time-based, no in-memory state needed)
-        if (dayStr != todayStr) return false;
-        if (!_isRepeatingEventCompletedToday(ev)) return false;
-        final eventDate = DateTime.tryParse(ev['date'] ?? '');
-        if (eventDate == null) return false;
-        final eventDateOnly = DateTime(eventDate.year, eventDate.month, eventDate.day);
-        final dayOnly = DateTime(day.year, day.month, day.day);
-        if (dayOnly.isBefore(eventDateOnly)) return false;
-        return days.contains(fullWeekdays[day.weekday % 7]);
-      } else {
-        if (!_isEventCompleted(ev)) return false;
-        return ev['date']?.substring(0, 10) == dayStr;
-      }
-    }).cast<Map>().toList();
+    return _events
+        .where((ev) {
+          if (ev['user_id'] != userId) return false;
+          final List<String> days = List<String>.from(ev['days'] ?? []);
+          final isRepeating = days.isNotEmpty;
+          if (isRepeating) {
+            // Completed if end_time has passed today (time-based, no in-memory state needed)
+            if (dayStr != todayStr) return false;
+            if (!_isRepeatingEventCompletedToday(ev)) return false;
+            final eventDate = DateTime.tryParse(ev['date'] ?? '');
+            if (eventDate == null) return false;
+            final eventDateOnly = DateTime(
+              eventDate.year,
+              eventDate.month,
+              eventDate.day,
+            );
+            final dayOnly = DateTime(day.year, day.month, day.day);
+            if (dayOnly.isBefore(eventDateOnly)) return false;
+            return days.contains(fullWeekdays[day.weekday % 7]);
+          } else {
+            if (!_isEventCompleted(ev)) return false;
+            return ev['date']?.substring(0, 10) == dayStr;
+          }
+        })
+        .cast<Map>()
+        .toList();
   }
 
   List<Map<String, dynamic>> _tasksForDay(DateTime day) {
@@ -386,24 +444,31 @@ class EventsPageState extends State<EventsPage> {
 
     return _tasks.where((task) {
       final List<String> days = List<String>.from(task['days'] ?? []);
-      final List completedDates = List<String>.from(task['completedDates'] ?? []);
+      final List completedDates = List<String>.from(
+        task['completedDates'] ?? [],
+      );
       final dayStr = day.toIso8601String().substring(0, 10);
-      
+
       // Only show tasks from today onwards
       final today = DateTime.now();
       final todayStart = DateTime(today.year, today.month, today.day);
       final isNotBeforeToday = !day.isBefore(todayStart);
-      
+
       // Check end date if it exists
       final endDateStr = task['end_date'];
-      final isBeforeEndDate = endDateStr == null || !day.isAfter(DateTime.parse(endDateStr));
-      
+      final isBeforeEndDate =
+          endDateStr == null || !day.isAfter(DateTime.parse(endDateStr));
+
       // Check if task should appear on this day
-      final isRepeatDay = days.isEmpty || days.contains(fullWeekdays[day.weekday % 7]);
+      final isRepeatDay =
+          days.isEmpty || days.contains(fullWeekdays[day.weekday % 7]);
       // Don't show completed tasks
       final isNotCompleted = !completedDates.contains(dayStr);
-      
-      return isRepeatDay && isNotCompleted && isNotBeforeToday && isBeforeEndDate;
+
+      return isRepeatDay &&
+          isNotCompleted &&
+          isNotBeforeToday &&
+          isBeforeEndDate;
     }).toList();
   }
 
@@ -417,25 +482,29 @@ class EventsPageState extends State<EventsPage> {
       'Friday',
       'Saturday',
     ];
-    
+
     return _tasks.where((task) {
       final List<String> days = List<String>.from(task['days'] ?? []);
-      final List completedDates = List<String>.from(task['completedDates'] ?? []);
+      final List completedDates = List<String>.from(
+        task['completedDates'] ?? [],
+      );
       final dayStr = day.toIso8601String().substring(0, 10);
-      
+
       // Only show tasks from today onwards
       final today = DateTime.now();
       final todayStart = DateTime(today.year, today.month, today.day);
       final isNotBeforeToday = !day.isBefore(todayStart);
-      
+
       // Check end date if it exists
       final endDateStr = task['end_date'];
-      final isBeforeEndDate = endDateStr == null || !day.isAfter(DateTime.parse(endDateStr));
-      
+      final isBeforeEndDate =
+          endDateStr == null || !day.isAfter(DateTime.parse(endDateStr));
+
       // Check if task should appear on this day and is completed
-      final isRepeatDay = days.isEmpty || days.contains(fullWeekdays[day.weekday % 7]);
+      final isRepeatDay =
+          days.isEmpty || days.contains(fullWeekdays[day.weekday % 7]);
       final isCompleted = completedDates.contains(dayStr);
-      
+
       return isRepeatDay && isCompleted && isNotBeforeToday && isBeforeEndDate;
     }).toList();
   }
@@ -445,6 +514,12 @@ class EventsPageState extends State<EventsPage> {
       _selectedDay = DateTime.now();
     });
     _calendarKey.currentState?.jumpToToday();
+  }
+
+  void refresh() {
+    _fetchEventsFromSupabase();
+    _fetchTasksFromSupabase();
+    _calendarKey.currentState?.refreshWorkouts();
   }
 
   void collapseAll() {
@@ -489,7 +564,8 @@ class EventsPageState extends State<EventsPage> {
             'longitude': event['longitude'],
           };
           setState(() => _events.add(fullEvent));
-          try {            await Supabase.instance.client.from('user_events').insert([
+          try {
+            await Supabase.instance.client.from('user_events').insert([
               {
                 'id': id,
                 'title': event['title'],
@@ -507,7 +583,9 @@ class EventsPageState extends State<EventsPage> {
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Failed to upload event to Supabase.')),
+                const SnackBar(
+                  content: Text('Failed to upload event to Supabase.'),
+                ),
               );
             }
           }
@@ -527,21 +605,24 @@ class EventsPageState extends State<EventsPage> {
           setState(() {
             _tasks.add(newTask);
           });
-          
+
           // Sync to Supabase
-          try {            await Supabase.instance.client.from('user_tasks').insert([
+          try {
+            await Supabase.instance.client.from('user_tasks').insert([
               {
                 'id': id,
                 'name': task['name'],
                 'days': task['days'] ?? [],
                 'end_date': task['end_date'], // null means indefinite
-                'completed_dates': [],                'user_id': userId,
+                'completed_dates': [], 'user_id': userId,
               },
             ]);
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Failed to upload task to Supabase.')),
+                const SnackBar(
+                  content: Text('Failed to upload task to Supabase.'),
+                ),
               );
             }
           }
@@ -579,6 +660,7 @@ class EventsPageState extends State<EventsPage> {
     }
     if (changed && mounted) setState(() {});
   }
+
   @override
   void initState() {
     super.initState();
@@ -595,6 +677,7 @@ class EventsPageState extends State<EventsPage> {
       (_) => _fetchTasksFromSupabase(),
     );
   }
+
   @override
   void dispose() {
     _completionTimer?.cancel();
@@ -608,127 +691,128 @@ class EventsPageState extends State<EventsPage> {
       body: Column(
         children: [
           Flexible(
-              fit: FlexFit.loose,
-              child: VerticalStickyCalendar(
-                key: _calendarKey,
-                firstDay: DateTime(DateTime.now().year, 1, 1),
-                lastDay: DateTime(DateTime.now().year, 12, 31),
-                selectedDay: _selectedDay.year == DateTime.now().year
-                    ? _selectedDay
-                    : DateTime.now(),
-                onDaySelected: (date) {
-                  setState(() {
-                    _selectedDay = date;
-                  });
-                  widget.onViewModeChanged?.call();
-                },
-                onViewModeChanged: (isWeekView) {
-                  widget.onViewModeChanged?.call();
-                },
-                eventsForDay: _eventsForDay,
-                completedEventsForDay: _completedEventsForDay,
-                tasksForDay: _tasksForDay,
-                completedTasksForDay: _completedTasksForDay,
-                showBothSections: true,
-                onEventEdit: (event) {
-                  _showEditEventDialog(event);
-                },
-                onEventDelete: (event) async {
-                  setState(() {
-                    _events.removeWhere((e) => e['id'] == event['id']);
-                  });
-                  try {
-                    await Supabase.instance.client
-                        .from('user_events')
-                        .delete()
-                        .eq('id', event['id']);
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Event deleted'),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Delete error: $e'),
-                        ),
-                      );
-                    }
-                  }
-                },
-                onTaskEdit: (task, index) {
-                  final realIndex = _tasks.indexOf(task);
-                  if (realIndex != -1) _showEditTaskDialog(realIndex);
-                },
-                onTaskDelete: (task, index) async {
-                  final realIndex = _tasks.indexOf(task);
-                  if (realIndex != -1) {
-                    // Show confirmation dialog
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return AlertDialog(
-                          title: const Text('Delete Task'),
-                          content: Text('Are you sure you want to delete "${task['name']}"?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
-                        );
-                      },
+            fit: FlexFit.loose,
+            child: VerticalStickyCalendar(
+              key: _calendarKey,
+              firstDay: DateTime(DateTime.now().year, 1, 1),
+              lastDay: DateTime(DateTime.now().year, 12, 31),
+              selectedDay: _selectedDay.year == DateTime.now().year
+                  ? _selectedDay
+                  : DateTime.now(),
+              onDaySelected: (date) {
+                setState(() {
+                  _selectedDay = date;
+                });
+                widget.onViewModeChanged?.call();
+              },
+              onViewModeChanged: (isWeekView) {
+                widget.onViewModeChanged?.call();
+              },
+              eventsForDay: _eventsForDay,
+              completedEventsForDay: _completedEventsForDay,
+              tasksForDay: _tasksForDay,
+              completedTasksForDay: _completedTasksForDay,
+              showBothSections: true,
+              onEventEdit: (event) {
+                _showEditEventDialog(event);
+              },
+              onEventDelete: (event) async {
+                setState(() {
+                  _events.removeWhere((e) => e['id'] == event['id']);
+                });
+                try {
+                  await Supabase.instance.client
+                      .from('user_events')
+                      .delete()
+                      .eq('id', event['id']);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Event deleted')),
                     );
-                    
-                    // Only proceed if user confirmed
-                    if (confirmed != true) return;
-                    
-                    final taskId = task['id'];
-                    setState(() {
-                      _tasks.removeAt(realIndex);
-                    });
-                    
-                    // Delete from Supabase
-                    if (taskId != null) {
-                      try {
-                        await Supabase.instance.client
-                            .from('user_tasks')
-                            .delete()
-                            .eq('id', taskId);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Task deleted')),
-                          );
-                        }
-                      } catch (e) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Delete error: $e')),
-                          );
-                        }
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text('Delete error: $e')));
+                  }
+                }
+              },
+              onTaskEdit: (task, index) {
+                final realIndex = _tasks.indexOf(task);
+                if (realIndex != -1) _showEditTaskDialog(realIndex);
+              },
+              onTaskDelete: (task, index) async {
+                final realIndex = _tasks.indexOf(task);
+                if (realIndex != -1) {
+                  // Show confirmation dialog
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Delete Task'),
+                        content: Text(
+                          'Are you sure you want to delete "${task['name']}"?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text(
+                              'Delete',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+
+                  // Only proceed if user confirmed
+                  if (confirmed != true) return;
+
+                  final taskId = task['id'];
+                  setState(() {
+                    _tasks.removeAt(realIndex);
+                  });
+
+                  // Delete from Supabase
+                  if (taskId != null) {
+                    try {
+                      await Supabase.instance.client
+                          .from('user_tasks')
+                          .delete()
+                          .eq('id', taskId);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Task deleted')),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Delete error: $e')),
+                        );
                       }
                     }
                   }
-                },
-                onTaskComplete: (task, index) {
-                  final realIndex = _tasks.indexOf(task);
-                  if (realIndex != -1) _markTaskAsCompleted(realIndex);
-                },
-                onTaskUncomplete: (task, index) {
-                  final realIndex = _tasks.indexOf(task);
-                  if (realIndex != -1) _markTaskAsUncompleted(realIndex);
-                },
-                onAddEvent: addEvent,
-                onAddTask: addTask,
-              ),
+                }
+              },
+              onTaskComplete: (task, index) {
+                final realIndex = _tasks.indexOf(task);
+                if (realIndex != -1) _markTaskAsCompleted(realIndex);
+              },
+              onTaskUncomplete: (task, index) {
+                final realIndex = _tasks.indexOf(task);
+                if (realIndex != -1) _markTaskAsUncompleted(realIndex);
+              },
+              onAddEvent: addEvent,
+              onAddTask: addTask,
             ),
+          ),
         ],
       ),
     );
@@ -760,36 +844,52 @@ class _CustomCalendarState extends State<_CustomCalendar> {
   @override
   void initState() {
     super.initState();
-    _displayedMonth = DateTime(widget.selectedDate.year, widget.selectedDate.month, 1);
+    _displayedMonth = DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+      1,
+    );
   }
 
   void _previousMonth() {
     setState(() {
-      _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month - 1, 1);
+      _displayedMonth = DateTime(
+        _displayedMonth.year,
+        _displayedMonth.month - 1,
+        1,
+      );
     });
   }
 
   void _nextMonth() {
     setState(() {
-      _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month + 1, 1);
+      _displayedMonth = DateTime(
+        _displayedMonth.year,
+        _displayedMonth.month + 1,
+        1,
+      );
     });
   }
 
   List<DateTime?> _getDaysInMonth() {
     final firstDayOfMonth = _displayedMonth;
-    final lastDayOfMonth = DateTime(_displayedMonth.year, _displayedMonth.month + 1, 0);
-    
+    final lastDayOfMonth = DateTime(
+      _displayedMonth.year,
+      _displayedMonth.month + 1,
+      0,
+    );
+
     // Get the weekday of the first day (0 = Sunday, 6 = Saturday)
     final firstWeekday = firstDayOfMonth.weekday % 7;
-    
+
     // Create list with null padding for days before the month starts
     List<DateTime?> days = List.filled(firstWeekday, null, growable: true);
-    
+
     // Add all days in the month
     for (int day = 1; day <= lastDayOfMonth.day; day++) {
       days.add(DateTime(_displayedMonth.year, _displayedMonth.month, day));
     }
-    
+
     return days;
   }
 
@@ -797,7 +897,7 @@ class _CustomCalendarState extends State<_CustomCalendar> {
   Widget build(BuildContext context) {
     final days = _getDaysInMonth();
     const dayAbbreviations = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    
+
     return Column(
       children: [
         // Month/Year header with navigation
@@ -865,18 +965,21 @@ class _CustomCalendarState extends State<_CustomCalendar> {
                 if (date == null) {
                   return const SizedBox.shrink();
                 }
-                
-                final isSelected = date.year == widget.selectedDate.year &&
+
+                final isSelected =
+                    date.year == widget.selectedDate.year &&
                     date.month == widget.selectedDate.month &&
                     date.day == widget.selectedDate.day;
-                
-                final isToday = date.year == DateTime.now().year &&
+
+                final isToday =
+                    date.year == DateTime.now().year &&
                     date.month == DateTime.now().month &&
                     date.day == DateTime.now().day;
-                
-                final isOutOfRange = date.isBefore(widget.firstDate) || 
+
+                final isOutOfRange =
+                    date.isBefore(widget.firstDate) ||
                     date.isAfter(widget.lastDate);
-                
+
                 return InkWell(
                   onTap: isOutOfRange ? null : () => widget.onDateChanged(date),
                   splashColor: Colors.white.withOpacity(0.1),
@@ -884,11 +987,11 @@ class _CustomCalendarState extends State<_CustomCalendar> {
                   borderRadius: BorderRadius.circular(50),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isSelected 
+                      color: isSelected
                           ? Colors.white.withOpacity(0.2)
                           : isToday
-                              ? Colors.white.withOpacity(0.1)
-                              : Colors.transparent,
+                          ? Colors.white.withOpacity(0.1)
+                          : Colors.transparent,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -898,10 +1001,12 @@ class _CustomCalendarState extends State<_CustomCalendar> {
                           color: isOutOfRange
                               ? Colors.grey[700]
                               : isSelected
-                                  ? Colors.white
-                                  : Colors.white,
+                              ? Colors.white
+                              : Colors.white,
                           fontSize: 18,
-                          fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected || isToday
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           shadows: [],
                         ),
                       ),
@@ -918,8 +1023,18 @@ class _CustomCalendarState extends State<_CustomCalendar> {
 
   String _getMonthName(int month) {
     const monthNames = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return monthNames[month - 1];
   }
@@ -976,7 +1091,13 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
   DateTime? _taskEndDate; // Null means indefinite
 
   static const List<String> _fullWeekdays = [
-    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
   ];
 
   @override
@@ -1006,7 +1127,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
           color: Colors.black,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
-            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+            top: BorderSide(
+              color: const Color(0xFF39FF14).withOpacity(0.3),
+              width: 1,
+            ),
           ),
         ),
         child: SafeArea(
@@ -1017,22 +1141,49 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
               children: [
                 // ── Header row: Cancel / "New" / Add ──
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: Color(0xFF39FF14),
+                            fontSize: 16,
+                            shadows: [],
+                          ),
+                        ),
                       ),
                       const Spacer(),
-                      Text(_tab == 0 ? 'New Event' : 'New Task', style: const TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      Text(
+                        _tab == 0 ? 'New Event' : 'New Task',
+                        style: const TextStyle(
+                          color: Color(0xFF39FF14),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          shadows: [],
+                        ),
+                      ),
                       const Spacer(),
                       TextButton(
                         onPressed: _onAdd,
-                        child: Text('Add', style: TextStyle(
-                          color: (_titleCtl.text.trim().isEmpty || (_tab == 0 && !_isTimeValid)) ? Colors.grey[700] : const Color(0xFF39FF14),
-                          fontSize: 16, fontWeight: FontWeight.w600, shadows: [],
-                        )),
+                        child: Text(
+                          'Add',
+                          style: TextStyle(
+                            color:
+                                (_titleCtl.text.trim().isEmpty ||
+                                    (_tab == 0 && !_isTimeValid))
+                                ? Colors.grey[700]
+                                : const Color(0xFF39FF14),
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            shadows: [],
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1099,7 +1250,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
         );
       },
     );
-    
+
     return result;
   }
 
@@ -1110,47 +1261,82 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       child: Column(
         children: [
           // Title + Description + Location section
-          _card(children: [
-            _textField(_titleCtl, 'Title'),
-            const Divider(height: 1, color: Colors.white12),
-            _textField(_locationCtl, 'Description (Optional)'),
-            const Divider(height: 1, color: Colors.white12),
-            _locationRow(),
-          ]),
+          _card(
+            children: [
+              _textField(_titleCtl, 'Title'),
+              const Divider(height: 1, color: Colors.white12),
+              _textField(_locationCtl, 'Description (Optional)'),
+              const Divider(height: 1, color: Colors.white12),
+              _locationRow(),
+            ],
+          ),
           const SizedBox(height: 16),
           // Date / time section
-          _card(children: [
-            _switchRow('All-day', _allDay, (v) => setState(() {
-              _allDay = v;
-              _expandedTimePicker = null;
-            })),
-            const Divider(height: 1, color: Colors.white12),
-            _eventDateTimeRow('Starts', _startDate, _allDay ? null : _startTime, 'start', (d) {
-              setState(() {
-                _startDate = d;
-                if (_endDate.isBefore(_startDate)) _endDate = _startDate;
-              });
-            }),
-            if (!_allDay && _expandedTimePicker == 'start')
-              _inlineTimePicker(_startTime, (t) => setState(() => _startTime = t)),
-            const Divider(height: 1, color: Colors.white12),
-            _eventDateTimeRow('Ends', _endDate, _allDay ? null : _endTime, 'end', (d) {
-              setState(() => _endDate = d);
-            }),
-            if (!_allDay && _expandedTimePicker == 'end')
-              _inlineTimePicker(_endTime, (t) => setState(() => _endTime = t)),
-          ]),
-          const SizedBox(height: 16),
-          _card(children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Center(
-                child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          _card(
+            children: [
+              _switchRow(
+                'All-day',
+                _allDay,
+                (v) => setState(() {
+                  _allDay = v;
+                  _expandedTimePicker = null;
+                }),
               ),
-            ),
-            const Divider(height: 1, color: Colors.white12),
-            _eventRepeatDaysRow(),
-          ]),
+              const Divider(height: 1, color: Colors.white12),
+              _eventDateTimeRow(
+                'Starts',
+                _startDate,
+                _allDay ? null : _startTime,
+                'start',
+                (d) {
+                  setState(() {
+                    _startDate = d;
+                    if (_endDate.isBefore(_startDate)) _endDate = _startDate;
+                  });
+                },
+              ),
+              if (!_allDay && _expandedTimePicker == 'start')
+                _inlineTimePicker(
+                  _startTime,
+                  (t) => setState(() => _startTime = t),
+                ),
+              const Divider(height: 1, color: Colors.white12),
+              _eventDateTimeRow(
+                'Ends',
+                _endDate,
+                _allDay ? null : _endTime,
+                'end',
+                (d) {
+                  setState(() => _endDate = d);
+                },
+              ),
+              if (!_allDay && _expandedTimePicker == 'end')
+                _inlineTimePicker(
+                  _endTime,
+                  (t) => setState(() => _endTime = t),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _card(
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Center(
+                  child: Text(
+                    'Repeat',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      shadows: [],
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1, color: Colors.white12),
+              _eventRepeatDaysRow(),
+            ],
+          ),
         ],
       ),
     );
@@ -1179,7 +1365,9 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                     ? 'Add Location'
                     : '${_pickedLocation!.latitude.toStringAsFixed(5)}, ${_pickedLocation!.longitude.toStringAsFixed(5)}',
                 style: TextStyle(
-                  color: _pickedLocation == null ? Colors.grey[500] : Colors.white,
+                  color: _pickedLocation == null
+                      ? Colors.grey[500]
+                      : Colors.white,
                   fontSize: 16,
                   shadows: const [],
                 ),
@@ -1205,18 +1393,27 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
         children: List.generate(7, (i) {
           final sel = _eventSelectedDays[i];
           return GestureDetector(
-            onTap: () => setState(() => _eventSelectedDays[i] = !_eventSelectedDays[i]),
+            onTap: () =>
+                setState(() => _eventSelectedDays[i] = !_eventSelectedDays[i]),
             child: Container(
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+                border: Border.all(
+                  color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2),
+                ),
               ),
               alignment: Alignment.center,
-              child: Text(dayLabels[i], style: TextStyle(
-                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: const [],
-              )),
+              child: Text(
+                dayLabels[i],
+                style: TextStyle(
+                  color: sel ? Colors.black : Colors.grey[500],
+                  fontWeight: FontWeight.w600,
+                  shadows: const [],
+                ),
+              ),
             ),
           );
         }),
@@ -1236,19 +1433,23 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
-          const Spacer(),
-          _pillButton(
-            _formatDate(date),
-            () async {
-              final picked = await _showBottomDatePicker(
-                initialDate: date,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2030),
-              );
-              if (picked != null) onDatePicked(picked);
-            },
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              shadows: [],
+            ),
           ),
+          const Spacer(),
+          _pillButton(_formatDate(date), () async {
+            final picked = await _showBottomDatePicker(
+              initialDate: date,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2030),
+            );
+            if (picked != null) onDatePicked(picked);
+          }),
           if (time != null) ...[
             const SizedBox(width: 8),
             GestureDetector(
@@ -1258,15 +1459,28 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                 });
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: isExpanded ? const Color(0xFF39FF14).withOpacity(0.15) : Colors.grey[900],
+                  color: isExpanded
+                      ? const Color(0xFF39FF14).withOpacity(0.15)
+                      : Colors.grey[900],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF39FF14).withOpacity(isExpanded ? 0.4 : 0.2)),
+                  border: Border.all(
+                    color: const Color(
+                      0xFF39FF14,
+                    ).withOpacity(isExpanded ? 0.4 : 0.2),
+                  ),
                 ),
                 child: Text(
                   widget.formatTime(time),
-                  style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: []),
+                  style: const TextStyle(
+                    color: Color(0xFF39FF14),
+                    fontSize: 14,
+                    shadows: [],
+                  ),
                 ),
               ),
             ),
@@ -1277,7 +1491,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
   }
 
   // Implements a scroll wheel time picker that expands below the date row when the time is tapped
-  Widget _inlineTimePicker(TimeOfDay current, ValueChanged<TimeOfDay> onChanged) {
+  Widget _inlineTimePicker(
+    TimeOfDay current,
+    ValueChanged<TimeOfDay> onChanged,
+  ) {
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
@@ -1294,7 +1511,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
               decoration: BoxDecoration(
                 color: const Color(0xFF39FF14).withOpacity(0.06),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.25), width: 1),
+                border: Border.all(
+                  color: const Color(0xFF39FF14).withOpacity(0.25),
+                  width: 1,
+                ),
               ),
             ),
             Row(
@@ -1305,7 +1525,11 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                   width: 56,
                   child: ListWheelScrollView.useDelegate(
                     controller: FixedExtentScrollController(
-                      initialItem: (current.hourOfPeriod == 0 ? 12 : current.hourOfPeriod) - 1,
+                      initialItem:
+                          (current.hourOfPeriod == 0
+                              ? 12
+                              : current.hourOfPeriod) -
+                          1,
                     ),
                     itemExtent: 36,
                     diameterRatio: 1.2,
@@ -1318,18 +1542,34 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                     },
                     childDelegate: ListWheelChildBuilderDelegate(
                       builder: (ctx, idx) => Center(
-                        child: Text('${idx + 1}', style: const TextStyle(color: Colors.white, fontSize: 20, shadows: [])),
+                        child: Text(
+                          '${idx + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            shadows: [],
+                          ),
+                        ),
                       ),
                       childCount: 12,
                     ),
                   ),
                 ),
-                const Text(':', style: TextStyle(color: Colors.white, fontSize: 20, shadows: [])),
+                const Text(
+                  ':',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    shadows: [],
+                  ),
+                ),
                 // Minute wheel (00-59)
                 SizedBox(
                   width: 56,
                   child: ListWheelScrollView.useDelegate(
-                    controller: FixedExtentScrollController(initialItem: current.minute),
+                    controller: FixedExtentScrollController(
+                      initialItem: current.minute,
+                    ),
                     itemExtent: 36,
                     diameterRatio: 1.2,
                     physics: const FixedExtentScrollPhysics(),
@@ -1338,7 +1578,14 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                     },
                     childDelegate: ListWheelChildBuilderDelegate(
                       builder: (ctx, idx) => Center(
-                        child: Text(idx.toString().padLeft(2, '0'), style: const TextStyle(color: Colors.white, fontSize: 20, shadows: [])),
+                        child: Text(
+                          idx.toString().padLeft(2, '0'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            shadows: [],
+                          ),
+                        ),
                       ),
                       childCount: 60,
                     ),
@@ -1357,14 +1604,34 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                     physics: const FixedExtentScrollPhysics(),
                     onSelectedItemChanged: (v) {
                       final isAm = v == 0;
-                      int h12 = current.hourOfPeriod == 0 ? 12 : current.hourOfPeriod;
+                      int h12 = current.hourOfPeriod == 0
+                          ? 12
+                          : current.hourOfPeriod;
                       int h24 = h12 % 12;
                       if (!isAm) h24 += 12;
                       onChanged(TimeOfDay(hour: h24, minute: current.minute));
                     },
                     children: const [
-                      Center(child: Text('AM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
-                      Center(child: Text('PM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
+                      Center(
+                        child: Text(
+                          'AM',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            shadows: [],
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Text(
+                          'PM',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            shadows: [],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1383,26 +1650,31 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       child: Column(
         children: [
           // Title
-          _card(children: [
-            _textField(_titleCtl, 'Title'),
-          ]),
+          _card(children: [_textField(_titleCtl, 'Title')]),
           const SizedBox(height: 16),
           // End Date (optional)
-          _card(children: [
-            _taskOptionalEndDateRow(),
-          ]),
+          _card(children: [_taskOptionalEndDateRow()]),
           const SizedBox(height: 16),
-          // 
-          _card(children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Center(
-                child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          //
+          _card(
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Center(
+                  child: Text(
+                    'Repeat',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      shadows: [],
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const Divider(height: 1, color: Colors.white12),
-            _customRepeatDays(),
-          ]),
+              const Divider(height: 1, color: Colors.white12),
+              _customRepeatDays(),
+            ],
+          ),
         ],
       ),
     );
@@ -1429,7 +1701,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey[500], shadows: []),
         border: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       onChanged: (_) => setState(() {}),
     );
@@ -1440,7 +1715,14 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              shadows: [],
+            ),
+          ),
           const Spacer(),
           Switch(
             value: value,
@@ -1462,7 +1744,14 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xFF39FF14),
+            fontSize: 14,
+            shadows: [],
+          ),
+        ),
       ),
     );
   }
@@ -1473,7 +1762,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          const Text('End Date', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          const Text(
+            'End Date',
+            style: TextStyle(color: Colors.white, fontSize: 16, shadows: []),
+          ),
           const Spacer(),
           if (_taskEndDate != null)
             GestureDetector(
@@ -1497,7 +1789,9 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
             _taskEndDate == null ? 'None' : _formatDate(_taskEndDate!),
             () async {
               final picked = await _showBottomDatePicker(
-                initialDate: _taskEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                initialDate:
+                    _taskEndDate ??
+                    DateTime.now().add(const Duration(days: 30)),
                 firstDate: DateTime.now(),
                 lastDate: DateTime(2030),
               );
@@ -1522,16 +1816,24 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
           return GestureDetector(
             onTap: () => setState(() => _selectedDays[i] = !_selectedDays[i]),
             child: Container(
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+                border: Border.all(
+                  color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2),
+                ),
               ),
               alignment: Alignment.center,
-              child: Text(dayLabels[i], style: TextStyle(
-                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: [],
-              )),
+              child: Text(
+                dayLabels[i],
+                style: TextStyle(
+                  color: sel ? Colors.black : Colors.grey[500],
+                  fontWeight: FontWeight.w600,
+                  shadows: [],
+                ),
+              ),
             ),
           );
         }),
@@ -1542,14 +1844,28 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   String _formatDate(DateTime d) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
   List<String> _resolveRepeatDays() {
-    return List.generate(7, (i) => _selectedDays[i] ? _fullWeekdays[i] : null)
-        .whereType<String>()
-        .toList();
+    return List.generate(
+      7,
+      (i) => _selectedDays[i] ? _fullWeekdays[i] : null,
+    ).whereType<String>().toList();
   }
 
   bool get _isTimeValid {
@@ -1572,7 +1888,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
         'all_day': _allDay,
         'start_time': _allDay ? '00:00' : _timeToString(_startTime),
         'end_time': _allDay ? '23:59' : _timeToString(_endTime),
-        'days': List.generate(7, (i) => _eventSelectedDays[i] ? _fullWeekdays[i] : null).whereType<String>().toList(),
+        'days': List.generate(
+          7,
+          (i) => _eventSelectedDays[i] ? _fullWeekdays[i] : null,
+        ).whereType<String>().toList(),
         'latitude': _pickedLocation?.latitude,
         'longitude': _pickedLocation?.longitude,
       });
@@ -1603,10 +1922,7 @@ class _EditTaskSheet extends StatefulWidget {
   final Map<String, dynamic> task;
   final Function(Map<String, dynamic>) onTaskUpdated;
 
-  const _EditTaskSheet({
-    required this.task,
-    required this.onTaskUpdated,
-  });
+  const _EditTaskSheet({required this.task, required this.onTaskUpdated});
 
   @override
   State<_EditTaskSheet> createState() => _EditTaskSheetState();
@@ -1618,7 +1934,13 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
   DateTime? _taskEndDate;
 
   static const List<String> _fullWeekdays = [
-    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
   ];
 
   @override
@@ -1629,8 +1951,8 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
       7,
       (i) => (widget.task['days'] as List<String>).contains(_fullWeekdays[i]),
     );
-    _taskEndDate = widget.task['end_date'] != null 
-        ? DateTime.parse(widget.task['end_date']) 
+    _taskEndDate = widget.task['end_date'] != null
+        ? DateTime.parse(widget.task['end_date'])
         : null;
   }
 
@@ -1704,7 +2026,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
           color: Colors.black,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
-            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+            top: BorderSide(
+              color: const Color(0xFF39FF14).withOpacity(0.3),
+              width: 1,
+            ),
           ),
         ),
         child: SafeArea(
@@ -1715,15 +2040,33 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
               children: [
                 // ── Header row: Cancel / "Edit Task" / Save ──
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: Color(0xFF39FF14),
+                            fontSize: 16,
+                            shadows: [],
+                          ),
+                        ),
                       ),
                       const Spacer(),
-                      const Text('Edit Task', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      const Text(
+                        'Edit Task',
+                        style: TextStyle(
+                          color: Color(0xFF39FF14),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          shadows: [],
+                        ),
+                      ),
                       const Spacer(),
                       TextButton(
                         onPressed: canSave
@@ -1733,7 +2076,9 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                                   'name': _titleCtl.text.trim(),
                                   'days': List.generate(
                                     7,
-                                    (i) => _selectedDays[i] ? _fullWeekdays[i] : null,
+                                    (i) => _selectedDays[i]
+                                        ? _fullWeekdays[i]
+                                        : null,
                                   ).whereType<String>().toList(),
                                   'end_date': _taskEndDate?.toIso8601String(),
                                 };
@@ -1744,7 +2089,9 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                         child: Text(
                           'Save',
                           style: TextStyle(
-                            color: canSave ? const Color(0xFF39FF14) : Colors.grey[700],
+                            color: canSave
+                                ? const Color(0xFF39FF14)
+                                : Colors.grey[700],
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             shadows: [],
@@ -1761,24 +2108,32 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
-                      _card(children: [
-                        _textField(_titleCtl, 'Title'),
-                      ]),
+                      _card(children: [_textField(_titleCtl, 'Title')]),
                       const SizedBox(height: 16),
-                      _card(children: [
-                        _taskOptionalEndDateRow(),
-                      ]),
+                      _card(children: [_taskOptionalEndDateRow()]),
                       const SizedBox(height: 16),
-                      _card(children: [
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          child: Center(
-                            child: Text('Repeat', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+                      _card(
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Repeat',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  shadows: [],
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                        const Divider(height: 1, color: Colors.white12),
-                        _customRepeatDays(),
-                      ]),
+                          const Divider(height: 1, color: Colors.white12),
+                          _customRepeatDays(),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -1810,7 +2165,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey[500], shadows: []),
         border: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       onChanged: (_) => setState(() {}),
     );
@@ -1826,7 +2184,14 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xFF39FF14),
+            fontSize: 14,
+            shadows: [],
+          ),
+        ),
       ),
     );
   }
@@ -1836,7 +2201,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          const Text('End Date', style: TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          const Text(
+            'End Date',
+            style: TextStyle(color: Colors.white, fontSize: 16, shadows: []),
+          ),
           const Spacer(),
           if (_taskEndDate != null)
             GestureDetector(
@@ -1860,7 +2228,9 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
             _taskEndDate == null ? 'None' : _formatDate(_taskEndDate!),
             () async {
               final picked = await _showBottomDatePicker(
-                initialDate: _taskEndDate ?? DateTime.now().add(const Duration(days: 30)),
+                initialDate:
+                    _taskEndDate ??
+                    DateTime.now().add(const Duration(days: 30)),
                 firstDate: DateTime.now(),
                 lastDate: DateTime(2030),
               );
@@ -1885,16 +2255,24 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
           return GestureDetector(
             onTap: () => setState(() => _selectedDays[i] = !_selectedDays[i]),
             child: Container(
-              width: 36, height: 36,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2)),
+                border: Border.all(
+                  color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2),
+                ),
               ),
               alignment: Alignment.center,
-              child: Text(dayLabels[i], style: TextStyle(
-                color: sel ? Colors.black : Colors.grey[500], fontWeight: FontWeight.w600, shadows: [],
-              )),
+              child: Text(
+                dayLabels[i],
+                style: TextStyle(
+                  color: sel ? Colors.black : Colors.grey[500],
+                  fontWeight: FontWeight.w600,
+                  shadows: [],
+                ),
+              ),
             ),
           );
         }),
@@ -1903,7 +2281,20 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
   }
 
   String _formatDate(DateTime d) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 }
@@ -1939,13 +2330,15 @@ class _EditEventSheetState extends State<_EditEventSheet> {
   void initState() {
     super.initState();
     _titleCtl = TextEditingController(text: widget.event['title'] ?? '');
-    _locationCtl = TextEditingController(text: widget.event['description'] ?? '');
+    _locationCtl = TextEditingController(
+      text: widget.event['description'] ?? '',
+    );
     _allDay = widget.event['all_day'] ?? false;
-    _startDate = widget.event['date'] != null 
-        ? DateTime.parse(widget.event['date']) 
+    _startDate = widget.event['date'] != null
+        ? DateTime.parse(widget.event['date'])
         : DateTime.now();
     _endDate = _startDate;
-    
+
     // Parse start time
     if (widget.event['start_time'] != null) {
       final startParts = (widget.event['start_time'] as String).split(':');
@@ -1960,7 +2353,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
     } else {
       _startTime = const TimeOfDay(hour: 13, minute: 0);
     }
-    
+
     // Parse end time
     if (widget.event['end_time'] != null) {
       final endParts = (widget.event['end_time'] as String).split(':');
@@ -2057,7 +2450,10 @@ class _EditEventSheetState extends State<_EditEventSheet> {
           color: Colors.black,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
-            top: BorderSide(color: const Color(0xFF39FF14).withOpacity(0.3), width: 1),
+            top: BorderSide(
+              color: const Color(0xFF39FF14).withOpacity(0.3),
+              width: 1,
+            ),
           ),
         ),
         child: SafeArea(
@@ -2068,15 +2464,33 @@ class _EditEventSheetState extends State<_EditEventSheet> {
               children: [
                 // ── Header row: Cancel / "Edit Event" / Save ──
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: Color(0xFF39FF14),
+                            fontSize: 16,
+                            shadows: [],
+                          ),
+                        ),
                       ),
                       const Spacer(),
-                      const Text('Edit Event', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                      const Text(
+                        'Edit Event',
+                        style: TextStyle(
+                          color: Color(0xFF39FF14),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          shadows: [],
+                        ),
+                      ),
                       const Spacer(),
                       TextButton(
                         onPressed: canSave
@@ -2087,8 +2501,12 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                                   'description': _locationCtl.text.trim(),
                                   'date': _startDate.toIso8601String(),
                                   'all_day': _allDay,
-                                  'start_time': _allDay ? '00:00' : _timeToString(_startTime),
-                                  'end_time': _allDay ? '23:59' : _timeToString(_endTime),
+                                  'start_time': _allDay
+                                      ? '00:00'
+                                      : _timeToString(_startTime),
+                                  'end_time': _allDay
+                                      ? '23:59'
+                                      : _timeToString(_endTime),
                                 };
                                 widget.onEventUpdated(updatedEvent);
                                 Navigator.pop(context);
@@ -2097,7 +2515,9 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                         child: Text(
                           'Save',
                           style: TextStyle(
-                            color: canSave ? const Color(0xFF39FF14) : Colors.grey[700],
+                            color: canSave
+                                ? const Color(0xFF39FF14)
+                                : Colors.grey[700],
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             shadows: [],
@@ -2115,34 +2535,61 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                   child: Column(
                     children: [
                       // Title + Description section
-                      _card(children: [
-                        _textField(_titleCtl, 'Title'),
-                        const Divider(height: 1, color: Colors.white12),
-                        _textField(_locationCtl, 'Description (Optional)'),
-                      ]),
+                      _card(
+                        children: [
+                          _textField(_titleCtl, 'Title'),
+                          const Divider(height: 1, color: Colors.white12),
+                          _textField(_locationCtl, 'Description (Optional)'),
+                        ],
+                      ),
                       const SizedBox(height: 16),
                       // Date / time section
-                      _card(children: [
-                        _switchRow('All-day', _allDay, (v) => setState(() {
-                          _allDay = v;
-                          _expandedTimePicker = null;
-                        })),
-                        const Divider(height: 1, color: Colors.white12),
-                        _eventDateTimeRow('Starts', _startDate, _allDay ? null : _startTime, 'start', (d) {
-                          setState(() {
-                            _startDate = d;
-                            if (_endDate.isBefore(_startDate)) _endDate = _startDate;
-                          });
-                        }),
-                        if (!_allDay && _expandedTimePicker == 'start')
-                          _inlineTimePicker(_startTime, (t) => setState(() => _startTime = t)),
-                        const Divider(height: 1, color: Colors.white12),
-                        _eventDateTimeRow('Ends', _endDate, _allDay ? null : _endTime, 'end', (d) {
-                          setState(() => _endDate = d);
-                        }),
-                        if (!_allDay && _expandedTimePicker == 'end')
-                          _inlineTimePicker(_endTime, (t) => setState(() => _endTime = t)),
-                      ]),
+                      _card(
+                        children: [
+                          _switchRow(
+                            'All-day',
+                            _allDay,
+                            (v) => setState(() {
+                              _allDay = v;
+                              _expandedTimePicker = null;
+                            }),
+                          ),
+                          const Divider(height: 1, color: Colors.white12),
+                          _eventDateTimeRow(
+                            'Starts',
+                            _startDate,
+                            _allDay ? null : _startTime,
+                            'start',
+                            (d) {
+                              setState(() {
+                                _startDate = d;
+                                if (_endDate.isBefore(_startDate))
+                                  _endDate = _startDate;
+                              });
+                            },
+                          ),
+                          if (!_allDay && _expandedTimePicker == 'start')
+                            _inlineTimePicker(
+                              _startTime,
+                              (t) => setState(() => _startTime = t),
+                            ),
+                          const Divider(height: 1, color: Colors.white12),
+                          _eventDateTimeRow(
+                            'Ends',
+                            _endDate,
+                            _allDay ? null : _endTime,
+                            'end',
+                            (d) {
+                              setState(() => _endDate = d);
+                            },
+                          ),
+                          if (!_allDay && _expandedTimePicker == 'end')
+                            _inlineTimePicker(
+                              _endTime,
+                              (t) => setState(() => _endTime = t),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -2174,7 +2621,10 @@ class _EditEventSheetState extends State<_EditEventSheet> {
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey[500], shadows: []),
         border: InputBorder.none,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       onChanged: (_) => setState(() {}),
     );
@@ -2185,7 +2635,14 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              shadows: [],
+            ),
+          ),
           const Spacer(),
           Switch(
             value: value,
@@ -2207,7 +2664,14 @@ class _EditEventSheetState extends State<_EditEventSheet> {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
         ),
-        child: Text(text, style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: [])),
+        child: Text(
+          text,
+          style: const TextStyle(
+            color: Color(0xFF39FF14),
+            fontSize: 14,
+            shadows: [],
+          ),
+        ),
       ),
     );
   }
@@ -2224,19 +2688,23 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, shadows: [])),
-          const Spacer(),
-          _pillButton(
-            _formatDate(date),
-            () async {
-              final picked = await _showBottomDatePicker(
-                initialDate: date,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2030),
-              );
-              if (picked != null) onDatePicked(picked);
-            },
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              shadows: [],
+            ),
           ),
+          const Spacer(),
+          _pillButton(_formatDate(date), () async {
+            final picked = await _showBottomDatePicker(
+              initialDate: date,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2030),
+            );
+            if (picked != null) onDatePicked(picked);
+          }),
           if (time != null) ...[
             const SizedBox(width: 8),
             GestureDetector(
@@ -2246,15 +2714,28 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                 });
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: isExpanded ? const Color(0xFF39FF14).withOpacity(0.15) : Colors.grey[900],
+                  color: isExpanded
+                      ? const Color(0xFF39FF14).withOpacity(0.15)
+                      : Colors.grey[900],
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF39FF14).withOpacity(isExpanded ? 0.4 : 0.2)),
+                  border: Border.all(
+                    color: const Color(
+                      0xFF39FF14,
+                    ).withOpacity(isExpanded ? 0.4 : 0.2),
+                  ),
                 ),
                 child: Text(
                   widget.formatTime(time),
-                  style: const TextStyle(color: Color(0xFF39FF14), fontSize: 14, shadows: []),
+                  style: const TextStyle(
+                    color: Color(0xFF39FF14),
+                    fontSize: 14,
+                    shadows: [],
+                  ),
                 ),
               ),
             ),
@@ -2264,7 +2745,10 @@ class _EditEventSheetState extends State<_EditEventSheet> {
     );
   }
 
-  Widget _inlineTimePicker(TimeOfDay current, ValueChanged<TimeOfDay> onChanged) {
+  Widget _inlineTimePicker(
+    TimeOfDay current,
+    ValueChanged<TimeOfDay> onChanged,
+  ) {
     final isPm = current.period == DayPeriod.pm;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -2282,7 +2766,9 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                   diameterRatio: 1.5,
                   physics: const FixedExtentScrollPhysics(),
                   controller: FixedExtentScrollController(
-                    initialItem: current.hourOfPeriod == 0 ? 11 : current.hourOfPeriod - 1,
+                    initialItem: current.hourOfPeriod == 0
+                        ? 11
+                        : current.hourOfPeriod - 1,
                   ),
                   onSelectedItemChanged: (i) {
                     int h12 = i + 1;
@@ -2294,13 +2780,27 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                     builder: (context, index) {
                       final val = (index % 12) + 1;
                       return Center(
-                        child: Text('$val', style: const TextStyle(color: Colors.white, fontSize: 24, shadows: [])),
+                        child: Text(
+                          '$val',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            shadows: [],
+                          ),
+                        ),
                       );
                     },
                   ),
                 ),
               ),
-              const Text(':', style: TextStyle(color: Colors.white, fontSize: 28, shadows: [])),
+              const Text(
+                ':',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  shadows: [],
+                ),
+              ),
               // Minute picker
               SizedBox(
                 width: 80,
@@ -2308,7 +2808,9 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                   itemExtent: 40,
                   diameterRatio: 1.5,
                   physics: const FixedExtentScrollPhysics(),
-                  controller: FixedExtentScrollController(initialItem: current.minute),
+                  controller: FixedExtentScrollController(
+                    initialItem: current.minute,
+                  ),
                   onSelectedItemChanged: (i) {
                     onChanged(TimeOfDay(hour: current.hour, minute: i));
                   },
@@ -2316,8 +2818,14 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                     builder: (context, index) {
                       final val = index % 60;
                       return Center(
-                        child: Text(val.toString().padLeft(2, '0'),
-                            style: const TextStyle(color: Colors.white, fontSize: 24, shadows: [])),
+                        child: Text(
+                          val.toString().padLeft(2, '0'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            shadows: [],
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -2332,14 +2840,34 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                   isSelected: [!isPm, isPm],
                   onPressed: (v) {
                     final isAm = v == 0;
-                    int h12 = current.hourOfPeriod == 0 ? 12 : current.hourOfPeriod;
+                    int h12 = current.hourOfPeriod == 0
+                        ? 12
+                        : current.hourOfPeriod;
                     int h24 = h12 % 12;
                     if (!isAm) h24 += 12;
                     onChanged(TimeOfDay(hour: h24, minute: current.minute));
                   },
                   children: const [
-                    Center(child: Text('AM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
-                    Center(child: Text('PM', style: TextStyle(color: Colors.white, fontSize: 20, shadows: []))),
+                    Center(
+                      child: Text(
+                        'AM',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          shadows: [],
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Text(
+                        'PM',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          shadows: [],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -2351,7 +2879,20 @@ class _EditEventSheetState extends State<_EditEventSheet> {
   }
 
   String _formatDate(DateTime d) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${months[d.month - 1]} ${d.day}, ${d.year}';
   }
 
@@ -2420,17 +2961,36 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF39FF14), fontSize: 16, shadows: [])),
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF39FF14),
+                      fontSize: 16,
+                      shadows: [],
+                    ),
+                  ),
                 ),
                 const Spacer(),
-                const Text('Pick Location', style: TextStyle(color: Color(0xFF39FF14), fontSize: 17, fontWeight: FontWeight.w600, shadows: [])),
+                const Text(
+                  'Pick Location',
+                  style: TextStyle(
+                    color: Color(0xFF39FF14),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    shadows: [],
+                  ),
+                ),
                 const Spacer(),
                 TextButton(
-                  onPressed: _pinned == null ? null : () => Navigator.pop(context, _pinned),
+                  onPressed: _pinned == null
+                      ? null
+                      : () => Navigator.pop(context, _pinned),
                   child: Text(
                     'Confirm',
                     style: TextStyle(
-                      color: _pinned == null ? Colors.grey[700] : const Color(0xFF39FF14),
+                      color: _pinned == null
+                          ? Colors.grey[700]
+                          : const Color(0xFF39FF14),
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       shadows: const [],
@@ -2444,7 +3004,9 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
           // Map
           Expanded(
             child: _loadingLocation
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF39FF14)))
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF39FF14)),
+                  )
                 : FlutterMap(
                     mapController: _mapController,
                     options: MapOptions(
@@ -2454,8 +3016,10 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                     ),
                     children: [
                       TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.example.flutter_application_1',
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName:
+                            'com.example.flutter_application_1',
                       ),
                       if (_pinned != null)
                         MarkerLayer(
@@ -2464,7 +3028,11 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                               point: _pinned!,
                               width: 40,
                               height: 40,
-                              child: const Icon(Icons.location_on, color: Color(0xFF39FF14), size: 40),
+                              child: const Icon(
+                                Icons.location_on,
+                                color: Color(0xFF39FF14),
+                                size: 40,
+                              ),
                             ),
                           ],
                         ),
@@ -2477,7 +3045,11 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 '${_pinned!.latitude.toStringAsFixed(5)}, ${_pinned!.longitude.toStringAsFixed(5)}',
-                style: const TextStyle(color: Colors.white54, fontSize: 13, shadows: []),
+                style: const TextStyle(
+                  color: Colors.white54,
+                  fontSize: 13,
+                  shadows: [],
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -2486,5 +3058,3 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
     );
   }
 }
-
-

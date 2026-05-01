@@ -26,7 +26,8 @@ class HealthPageState extends State<HealthPage> {
   bool _loadingIngredients = true;
 
   List<String> _healthFacts = const [];
-  bool _loadingFacts = false;  List<RecipeCardUi> _recipeCards = const [];
+  bool _loadingFacts = false;
+  List<RecipeCardUi> _recipeCards = const [];
   bool _loadingRecipes = false;
 
   Set<int> _favoriteRecipeIds = <int>{};
@@ -42,6 +43,10 @@ class HealthPageState extends State<HealthPage> {
   void initState() {
     super.initState();
     _bootstrap();
+  }
+
+  void refresh() {
+    _loadIngredients();
   }
 
   Future<void> _bootstrap() async {
@@ -426,14 +431,15 @@ class HealthPageState extends State<HealthPage> {
     final facts = _buildFactsFromIngredients(items);
     setState(() => _healthFacts = facts);
   }
+
   Future<void> _loadHealthFacts() async {
     try {
       if (mounted) setState(() => _loadingFacts = true);
 
-      final ingredientFacts = _ingredients.isNotEmpty 
+      final ingredientFacts = _ingredients.isNotEmpty
           ? _buildFactsFromIngredients(_ingredients)
           : <String>[];
-      
+
       final triviaFacts = _getHealthTrivia();
 
       final allFacts = [...ingredientFacts, ...triviaFacts];
@@ -1053,7 +1059,8 @@ class HealthPageState extends State<HealthPage> {
       fatG: pick('Fat'),
       fiberG: pick('Fiber'),
       sugarG: pick('Sugar'),
-      sodiumMg: pick('Sodium'),    );
+      sodiumMg: pick('Sodium'),
+    );
   }
 
   Future<List<RecipeCardUi>> _spoonRecipeSearch(String query) async {
