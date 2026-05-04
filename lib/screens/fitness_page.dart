@@ -47,12 +47,46 @@ class FitnessPageState extends State<FitnessPage> {
   List<_MacroLogEntry> _todayLogs = [];
   bool _logsLoading = true;
 
+  // ── trainer ──────────────────────────────────────────────────────────────
+  final TextEditingController _trainerCtrl = TextEditingController();
+  final ScrollController _trainerScroll = ScrollController();
+  bool _trainerExpanded = false;
+  bool _suppressResumeWarning = false;
+  bool _sidebarOpen = false;
+  bool _archivedLoading = false;
+  List<_ArchivedConversation> _archivedConversations = [];
+  final List<_TrainerMsg> _trainerMsgs = [
+    _TrainerMsg(
+      role: _TrainerRole.model,
+      text:
+          "Hi! I'm your personal fitness and nutrition coach. How can I help you today?",
+    ),
+  ];
+  bool _trainerSending = false;
+  _ArchivedConversation? _viewingConversation;
+  static const String _geminiApiKey = String.fromEnvironment(
+    'GEMINI_API_KEY',
+    defaultValue: '',
+  );
+  static const String _geminiModel = 'gemini-1.5-flash-latest';
+
   SupabaseClient get _client => Supabase.instance.client;
 
   @override
   void initState() {
     super.initState();
     _bootstrap();
+  }
+
+  @override
+  void dispose() {
+    _weightController.dispose();
+    _minController.dispose();
+    _maxController.dispose();
+    _goalController.dispose();
+    _trainerCtrl.dispose();
+    _trainerScroll.dispose();
+    super.dispose();
   }
 
   void refresh() {
@@ -67,11 +101,13 @@ class FitnessPageState extends State<FitnessPage> {
   }
 
   Future<void> _bootstrap() async {
+    await SyncService.instance.flushQueue();
     await Future.wait([
       _loadGraphSettingsFromSupabase(),
       _loadWeightsFromSupabase(),
       _loadMacroGoals(),
       _loadTodayLogs(),
+      _loadUserSettings(),
     ]);
   }
 
@@ -105,26 +141,6 @@ class FitnessPageState extends State<FitnessPage> {
     } catch (_) {
       SyncService.instance.enqueue(table: 'user_settings', type: 'upsert', data: data);
     }
-  }
-
-  @override
-  void dispose() {
-    _weightController.dispose();
-    _minController.dispose();
-    _maxController.dispose();
-    _goalController.dispose();
-    _trainerCtrl.dispose();
-    _trainerScroll.dispose();
-    super.dispose();
-  }
-
-  void expandTrainer() {
-    setState(() => _trainerExpanded = true);
-  }
-
-  String _todayKey() {
-    final now = DateTime.now();
-    return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
   Future<void> _loadGraphSettingsFromSupabase() async {
@@ -2432,6 +2448,108 @@ class FitnessPageState extends State<FitnessPage> {
     final s = v.toStringAsFixed(1);
     if (s.endsWith('.0')) return s.substring(0, s.length - 2);
     return s;
+  }
+}
+
+enum _TrainerRole { user, model }
+
+class _TrainerMsg {
+  final _TrainerRole role;
+  final String text;
+  const _TrainerMsg({required this.role, required this.text});
+}
+
+class _ArchivedConversation {
+  final String id;
+  final String name;
+  final List<_TrainerMsg> messages;
+  final DateTime createdAt;
+
+  _ArchivedConversation({
+    required this.id,
+    required this.name,
+    required this.messages,
+    required this.createdAt,
+  });
+
+  String get formattedDate {
+    final d = createdAt;
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  factory _ArchivedConversation.fromMap(Map<String, dynamic> m) {
+    final msgsList = ((m['messages'] as List?) ?? []).map((msg) {
+      final map = msg as Map<String, dynamic>;
+      return _TrainerMsg(
+        role: map['role'] == 'user' ? _TrainerRole.user : _TrainerRole.model,
+        text: map['text']?.toString() ?? '',
+      );
+    }).toList();
+    return _ArchivedConversation(
+      id: m['id'].toString(),
+      name: m['name']?.toString() ?? 'Untitled',
+      messages: msgsList,
+      createdAt:
+          DateTime.tryParse(m['created_at']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+class _TypingBubble extends StatefulWidget {
+  const _TypingBubble();
+
+  @override
+  State<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends State<_TypingBubble>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final dots = '.${_ctrl.value > 0.33 ? '.' : ' '}${_ctrl.value > 0.66 ? '.' : ' '}';
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _neonGreen.withOpacity(0.6),
+              width: 1.2,
+            ),
+          ),
+          child: Text(
+            dots,
+            style: const TextStyle(
+              color: _neonGreen,
+              fontSize: 18,
+              letterSpacing: 4,
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

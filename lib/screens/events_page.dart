@@ -174,6 +174,7 @@ class EventsPageState extends State<EventsPage> {
     final cached = sync.getCachedList('user_events', userId);
     if (cached.isNotEmpty && mounted) setState(() => _events = cached);
     try {
+      await sync.flushQueue();
       final response = await Supabase.instance.client
           .from('user_events')
           .select()
@@ -198,6 +199,7 @@ class EventsPageState extends State<EventsPage> {
       }).toList());
     }
     try {
+      await sync.flushQueue();
       final response = await Supabase.instance.client
           .from('user_tasks')
           .select()
@@ -612,7 +614,6 @@ class EventsPageState extends State<EventsPage> {
             'days': task['days'] ?? [],
             'end_date': task['end_date'],
             'completed_dates': <String>[],
-            'completedDates': <String>[],
             'user_id': userId,
           };
           SyncService.instance.addToCachedList('user_tasks', userId ?? '', taskInsert);
@@ -767,8 +768,7 @@ class EventsPageState extends State<EventsPage> {
                       }
                     }
                   }
-                }
-              },
+                },
               onTaskComplete: (task, index) {
                 final realIndex = _tasks.indexOf(task);
                 if (realIndex != -1) _markTaskAsCompleted(realIndex);

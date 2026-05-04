@@ -51,6 +51,7 @@ class HealthPageState extends State<HealthPage> {
   }
 
   Future<void> _bootstrap() async {
+    await SyncService.instance.flushQueue();
     await _loadFavorites();
     await _loadIngredients();
   }
@@ -343,26 +344,8 @@ class HealthPageState extends State<HealthPage> {
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (formKey.currentState?.validate() != true) return;
-                Navigator.pop(context, (
-                  name: nameCtrl.text.trim(),
-                  amount: double.parse(amountCtrl.text.trim()),
-                  unit: selectedUnit,
-                ));
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-      ),
-    );    if (result == null) return;
+        );
+    if (result == null) return;
     final ingData = {'user_id': user.id, 'name': result.name, 'serving_amount': result.amount, 'serving_unit': result.unit};
     final ingDataFallback = {'user_id': user.id, 'name': result.name};
     SyncService.instance.addToCachedList('ingredients', user.id, ingData);

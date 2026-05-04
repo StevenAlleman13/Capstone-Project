@@ -99,10 +99,17 @@ class SyncService {
     }));
   }
 
+  Future<void>? _flushFuture;
+
   /// Replays every queued operation against Supabase in order.
-  /// Stops at the first failure (still offline) and keeps remaining ops queued.
-  Future<void> flushQueue() async {
-    if (_queue.isEmpty) return;
+  /// Concurrent callers all await the same flush so none races ahead to fetch
+  /// stale data before the upload finishes.
+  Future<void> flushQueue() {
+    if (_queue.isEmpty) return Future.value();
+    return _flushFuture ??= _doFlush().whenComplete(() => _flushFuture = null);
+  }
+
+  Future<void> _doFlush() async {
     final keys = _queue.keys.toList();
     for (final key in keys) {
       final raw = _queue.get(key);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../services/offline_sync.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -85,6 +86,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     final cachedWorkouts = sync.getCachedList(cacheKey, _userId!);
     List<dynamic> rows = cachedWorkouts;
     try {
+      await SyncService.instance.flushQueue();
       final fresh = await _supabase
           .from('user_workouts')
           .select()
@@ -156,7 +158,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
         SyncService.instance.enqueue(table: 'user_workouts', type: 'update', data: payload, match: {'id': _editingWorkoutId!});
       }
     } else {
-      final insertData = {...payload, 'user_id': _userId, 'workout_date': _dayKey};
+      final insertData = {...payload, 'id': const Uuid().v4(), 'user_id': _userId, 'workout_date': _dayKey};
       SyncService.instance.addToCachedList('user_workouts_$_dayKey', _userId!, Map<String, dynamic>.from(insertData));
       try {
         await _supabase.from('user_workouts').insert(insertData);
@@ -848,29 +850,80 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                                                   ),
                                                 ),
                                               ),
-                                                ],
-                                              );
-                                            })),
-                                                ],
-                                              ),
-                                            ),
-                                            const Divider(color: Colors.white12, height: 8),
-                                            Center(
-                                              child: TextButton(
-                                                onPressed: () async {
-                                                  SyncService.instance.removeFromCachedList('user_workouts_$_dayKey', _userId!, 'id', w['id'].toString());
-                                                  try {
-                                                    await _supabase.from('user_workouts').delete().eq('id', w['id']);
-                                                  } catch (_) {
-                                                    SyncService.instance.enqueue(table: 'user_workouts', type: 'delete', data: {}, match: {'id': w['id']});
-                                                  }
-                                                  await _loadWorkoutsForDay();
-                                                },
-                                                style: TextButton.styleFrom(
-                                                  padding: EdgeInsets.zero,
-                                                  minimumSize: Size.zero,
-                                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                  alignment: Alignment.center,
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                      10,
+                                                      2,
+                                                      10,
+                                                      8,
+                                                    ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.center,
+                                                  children: [
+                                                    ...((w['exercises'] as List).asMap().entries.map((
+                                                      entry,
+                                                    ) {
+                                                      final idx = entry.key;
+                                                      final ex = entry.value;
+                                                      final sets =
+                                                          ex['sets'] as List;
+                                                      return Column(
+                                                        children: [
+                                                          if (idx > 0)
+                                                            const Divider(
+                                                              color: neon,
+                                                              thickness: 0.5,
+                                                              height: 8,
+                                                            ),
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  top: 2,
+                                                                ),
+                                                            child: Center(
+                                                              child: Column(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .center,
+                                                                children: [
+                                                                  Text(
+                                                                    ex['name'] ??
+                                                                        '',
+                                                                    style: const TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontSize:
+                                                                          16,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .bold,
+                                                                      shadows:
+                                                                          [],
+                                                                    ),
+                                                                  ),
+                                                                  ...sets.map(
+                                                                    (s) => Text(
+                                                                      '${s['lbs']} lbs × ${s['reps']} reps',
+                                                                      style: TextStyle(
+                                                                        color: Colors
+                                                                            .grey[500],
+                                                                        fontSize:
+                                                                            12,
+                                                                        shadows:
+                                                                            const [],
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      );
+                                                    })),
+                                                  ],
                                                 ),
                                               ),
                                               const Divider(
@@ -880,10 +933,12 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                                               Center(
                                                 child: TextButton(
                                                   onPressed: () async {
-                                                    await _supabase
-                                                        .from('user_workouts')
-                                                        .delete()
-                                                        .eq('id', w['id']);
+                                                    SyncService.instance.removeFromCachedList('user_workouts_$_dayKey', _userId!, 'id', w['id'].toString());
+                                                    try {
+                                                      await _supabase.from('user_workouts').delete().eq('id', w['id']);
+                                                    } catch (_) {
+                                                      SyncService.instance.enqueue(table: 'user_workouts', type: 'delete', data: {}, match: {'id': w['id']});
+                                                    }
                                                     await _loadWorkoutsForDay();
                                                   },
                                                   style: TextButton.styleFrom(

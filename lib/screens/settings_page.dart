@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:avatar_maker/avatar_maker.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_sync.dart';
-import 'app_picker_page.dart';
 // import 'package:app_settings/app_settings.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
@@ -478,8 +479,15 @@ class _ProfileState extends State<_Profile> {
     final sync = SyncService.instance;
     final cached = sync.getCachedSingle('profiles', user.id);
     final cachedName = (cached?['username'] ?? '').toString();
-    if (cachedName.isNotEmpty && cachedName != _username && mounted) {
-      setState(() { _username = cachedName; _usernameController.text = _username; });
+    final cachedSvg = (cached?['avatar_svg'] ?? '').toString();
+    if (mounted && (cachedName.isNotEmpty || cachedSvg.isNotEmpty)) {
+      setState(() {
+        if (cachedName.isNotEmpty && cachedName != _username) {
+          _username = cachedName;
+          _usernameController.text = _username;
+        }
+        if (cachedSvg.isNotEmpty && _avatarSvg.isEmpty) _avatarSvg = cachedSvg;
+      });
     }
     try {
       final row = await _client
@@ -490,9 +498,14 @@ class _ProfileState extends State<_Profile> {
       if (row != null) sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
       if (!mounted) return;
       final fetched = (row?['username'] ?? '').toString();
-      if (fetched.isNotEmpty && fetched != _username) {
-        setState(() { _username = fetched; _usernameController.text = _username; });
-      }
+      final fetchedSvg = (row?['avatar_svg'] ?? '').toString();
+      setState(() {
+        if (fetched.isNotEmpty && fetched != _username) {
+          _username = fetched;
+          _usernameController.text = _username;
+        }
+        if (fetchedSvg.isNotEmpty) _avatarSvg = fetchedSvg;
+      });
     } catch (_) {}
   }
 
@@ -516,7 +529,81 @@ class _ProfileState extends State<_Profile> {
     );
   }
 
-    void _showEditUsernameDialog() {
+  Future<void> _openAvatarMaker() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    String? newAvatarSvg;
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Customize Avatar',
+                      style: TextStyle(color: _neonGreen, fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.72),
+                child: AvatarMakerCustomizer(key: _avatarMakerKey),
+              ),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        final controller = Get.find<AvatarMakerController>();
+                        await controller.saveAvatarSVG();
+                        newAvatarSvg = controller.displayedAvatarSVG.value;
+                      } catch (e) {
+                        newAvatarSvg = null;
+                      }
+                      Navigator.pop(ctx);
+                    },
+                    child: Text('Save', style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (newAvatarSvg == null || newAvatarSvg!.isEmpty) return;
+    setState(() => _saving = true);
+    final data = {'id': user.id, 'avatar_svg': newAvatarSvg};
+    SyncService.instance.patchCachedSingle('profiles', user.id, {'avatar_svg': newAvatarSvg});
+    try {
+      await _client.from('profiles').upsert(data, onConflict: 'id');
+    } catch (_) {
+      SyncService.instance.enqueue(table: 'profiles', type: 'upsert', data: data);
+    }
+    if (!mounted) return;
+    setState(() { _avatarSvg = newAvatarSvg!; _saving = false; });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Avatar updated!', style: TextStyle(color: _neonGreen)),
+      backgroundColor: Colors.grey[900],
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  void _showEditUsernameDialog() {
     _usernameController.text = _username;
     showDialog(
       context: context,
