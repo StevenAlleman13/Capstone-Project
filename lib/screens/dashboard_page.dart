@@ -282,7 +282,7 @@ class _DashboardPageState extends State<DashboardPage>
 
             const SizedBox(height: 10),
 
-            // ── Activity Rings ────────────────────────────────────────────
+            // ── Activity Bars ────────────────────────────────────────────
             _ActivityRingsWidget(
               eventRing: _eventRing,
               taskRing: _taskRing,
