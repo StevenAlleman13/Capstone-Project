@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:avatar_maker/avatar_maker.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:avatar_maker/avatar_maker.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import '../services/offline_sync.dart';
 // import 'package:app_settings/app_settings.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
@@ -331,6 +332,119 @@ class _SectionFrame extends StatelessWidget {
   }
 }
 
+
+/* -------------------------- ADVANCED SECTION FRAME -------------------------- */
+
+
+
+class _AdvancedSettings extends StatefulWidget {
+  const _AdvancedSettings();
+
+  @override
+  State<_AdvancedSettings> createState() => _AdvancedSettingsState();
+}
+
+class _AdvancedSettingsState extends State<_AdvancedSettings> {
+  final _screentimeController = TextEditingController();
+  int? _maxScreentime;
+
+  SupabaseClient get _client => Supabase.instance.client;
+
+  @override
+  void dispose() {
+    _screentimeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveMaxScreentime(int screentimeLimit) async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+
+    final data = {'user_id': user.id, 'max_screentime': screentimeLimit};
+    SyncService.instance.patchCachedSingle('settings', user.id, data);
+    try {
+      await _client.from('settings').upsert(data, onConflict: 'user_id');
+    } catch (_) {
+      SyncService.instance.enqueue(table: 'settings', type: 'upsert', data: data);
+    }
+    if (mounted) setState(() => _maxScreentime = screentimeLimit);
+  }
+
+  void _showSetScreentimeDialog() {
+    _screentimeController.clear();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: _neonGreen, width: 1.5),
+          borderRadius: BorderRadius.circular(_cornerRadius),
+        ),
+        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),        content: TextField(
+          controller: _screentimeController,
+          cursorColor: Colors.white,
+          keyboardType: TextInputType.numberWithOptions(decimal: true),
+          style: TextStyle(color: _neonGreen),
+          decoration: InputDecoration(
+            labelText: 'Max Screentime (minutes)',
+            labelStyle: TextStyle(color: _neonGreen),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _neonGreen),
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _neonGreen, width: 2),
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final timevar = int.tryParse(_screentimeController.text.trim());
+              if (timevar != null) _saveMaxScreentime(timevar);
+            },
+            child: Text(
+              'Set',
+              style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        OutlinedButton(
+          onPressed: _showSetScreentimeDialog,          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_cornerRadius),
+            ),
+          ),
+          child: Text(
+            _maxScreentime != null
+                ? 'Set Max Screentime (${_maxScreentime!} min)'
+                : 'Set Max Screentime',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+
 /* -------------------------- USER PROFILE SECTION FRAME -------------------------- */
 
 class _Profile extends StatefulWidget {
@@ -362,81 +476,63 @@ class _ProfileState extends State<_Profile> {
   }  Future<void> _loadProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-
+    final sync = SyncService.instance;
+    final cached = sync.getCachedSingle('profiles', user.id);
+    final cachedName = (cached?['username'] ?? '').toString();
+    final cachedSvg = (cached?['avatar_svg'] ?? '').toString();
+    if (mounted && (cachedName.isNotEmpty || cachedSvg.isNotEmpty)) {
+      setState(() {
+        if (cachedName.isNotEmpty && cachedName != _username) {
+          _username = cachedName;
+          _usernameController.text = _username;
+        }
+        if (cachedSvg.isNotEmpty && _avatarSvg.isEmpty) _avatarSvg = cachedSvg;
+      });
+    }
     try {
       final row = await _client
           .from('profiles')
           .select('username, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
-
+      if (row != null) sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
       if (!mounted) return;
       final fetched = (row?['username'] ?? '').toString();
-      final avatarSvg = (row?['avatar_svg'] ?? '').toString();
-      
-      if (fetched.isNotEmpty) {
-        setState(() {
+      final fetchedSvg = (row?['avatar_svg'] ?? '').toString();
+      setState(() {
+        if (fetched.isNotEmpty && fetched != _username) {
           _username = fetched;
           _usernameController.text = _username;
-          if (avatarSvg.isNotEmpty) {
-            _avatarSvg = avatarSvg;
-          }
-        });
-      }
-    } catch (_) {
-      // keep current _username as-is
-    }
+        }
+        if (fetchedSvg.isNotEmpty) _avatarSvg = fetchedSvg;
+      });
+    } catch (_) {}
   }
 
   Future<void> _saveUsername() async {
     final newName = _usernameController.text.trim();
     if (newName.isEmpty || newName == _username) return;
-
     final user = _client.auth.currentUser;
     if (user == null) return;
-
     setState(() => _saving = true);
-
+    final data = {'id': user.id, 'username': newName};
+    SyncService.instance.patchCachedSingle('profiles', user.id, {'username': newName});
     try {
-      await _client.from('profiles').upsert({
-        'id': user.id,
-        'username': newName,
-      }, onConflict: 'id');
-
-      if (!mounted) return;
-      setState(() {
-        _username = newName;
-        _saving = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Username updated!',
-            style: TextStyle(color: _neonGreen),
-          ),
-          backgroundColor: Colors.grey[900],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not update username.',
-            style: TextStyle(color: Colors.red),
-          ),
-          backgroundColor: Colors.grey[900],
-        ),      );
+      await _client.from('profiles').upsert(data, onConflict: 'id');
+    } catch (_) {
+      SyncService.instance.enqueue(table: 'profiles', type: 'upsert', data: data);
     }
-  }  Future<void> _openAvatarMaker() async {
+    if (!mounted) return;
+    setState(() { _username = newName; _saving = false; });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Username updated!', style: TextStyle(color: _neonGreen)), backgroundColor: Colors.grey[900]),
+    );
+  }
+
+  Future<void> _openAvatarMaker() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-
     String? newAvatarSvg;
-
-    // Open avatar maker customizer in a dialog
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -446,26 +542,21 @@ class _ProfileState extends State<_Profile> {
           shape: RoundedRectangleBorder(
             side: BorderSide(color: _neonGreen, width: 1.5),
             borderRadius: BorderRadius.circular(_cornerRadius),
-          ),          child: Column(
+          ),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Customize Avatar',
-                    style: TextStyle(color: _neonGreen, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                  child: Text('Customize Avatar',
+                      style: TextStyle(color: _neonGreen, fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
               ),
               ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.72,
-                ),
-                child: AvatarMakerCustomizer(
-                  key: _avatarMakerKey,
-                ),
+                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.72),
+                child: AvatarMakerCustomizer(key: _avatarMakerKey),
               ),
               OverflowBar(
                 alignment: MainAxisAlignment.end,
@@ -485,10 +576,7 @@ class _ProfileState extends State<_Profile> {
                       }
                       Navigator.pop(ctx);
                     },
-                    child: Text(
-                      'Save',
-                      style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
-                    ),
+                    child: Text('Save', style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -497,52 +585,25 @@ class _ProfileState extends State<_Profile> {
         ),
       ),
     );
-
-    // Save avatar SVG if we got one
     if (newAvatarSvg == null || newAvatarSvg!.isEmpty) return;
-
+    setState(() => _saving = true);
+    final data = {'id': user.id, 'avatar_svg': newAvatarSvg};
+    SyncService.instance.patchCachedSingle('profiles', user.id, {'avatar_svg': newAvatarSvg});
     try {
-      setState(() => _saving = true);
-      
-      await _client.from('profiles').upsert({
-        'id': user.id,
-        'avatar_svg': newAvatarSvg,
-      }, onConflict: 'id');
-
-      if (!mounted) return;
-      setState(() {
-        _avatarSvg = newAvatarSvg!;
-        _saving = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Avatar updated!',
-            style: TextStyle(color: _neonGreen),
-          ),
-          backgroundColor: Colors.grey[900],
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      print('Error saving avatar: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to save avatar: $e',
-            style: TextStyle(color: Colors.red),
-          ),
-          backgroundColor: Colors.grey[900],
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      await _client.from('profiles').upsert(data, onConflict: 'id');
+    } catch (_) {
+      SyncService.instance.enqueue(table: 'profiles', type: 'upsert', data: data);
     }
+    if (!mounted) return;
+    setState(() { _avatarSvg = newAvatarSvg!; _saving = false; });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Avatar updated!', style: TextStyle(color: _neonGreen)),
+      backgroundColor: Colors.grey[900],
+      duration: const Duration(seconds: 2),
+    ));
   }
 
-    void _showEditUsernameDialog() {
+  void _showEditUsernameDialog() {
     _usernameController.text = _username;
     showDialog(
       context: context,
