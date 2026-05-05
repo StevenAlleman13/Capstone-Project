@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_sync.dart';
 import 'package:http/http.dart' as http;
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 class HealthPage extends StatefulWidget {
   const HealthPage({super.key, this.onRecipeTap});
@@ -57,15 +56,6 @@ class HealthPageState extends State<HealthPage> {
   }
 
   // ── Public deep-link methods (called from Quick Insert FAB) ──────────────
-
-  /// Expands Ingredients and opens the barcode scanner.
-  void openBarcodeScanner() {
-    setState(() => _ingredientsExpanded = true);
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (mounted) _openBarcodeScanner();
-    });
-  }
-
   /// Expands Ingredients and opens the add-ingredient dialog.
   void openAddIngredient() {
     setState(() => _ingredientsExpanded = true);
@@ -357,11 +347,12 @@ class HealthPageState extends State<HealthPage> {
       }
     } catch (_) {
       SyncService.instance.enqueue(table: 'ingredients', type: 'insert', data: ingDataFallback);
-    }
-
-    await _loadIngredients();
+    }    await _loadIngredients();
     await _syncIngredientNutrition(result.name, result.amount, result.unit);
+    _lastRecipeIngredientKey = null; // force recipe refresh
     await _loadIngredients();
+    await _loadHealthFacts();
+    await _loadRecipes();
   }
 
   Future<void> _removeIngredient(String name) async {
@@ -376,21 +367,6 @@ class HealthPageState extends State<HealthPage> {
     }
     await _loadIngredients();
   }
-
-  Future<void> _openBarcodeScanner() async {
-    if (!mounted) return;
-
-    final scannedBarcode = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (context) => const _BarcodeScannerPage()),
-    );
-
-    if (scannedBarcode == null || scannedBarcode.isEmpty) return;
-
-    // Use the barcode as the ingredient search query
-    await _syncIngredientNutritionByName(scannedBarcode);
-    await _loadIngredients();
-  }
-
   Future<void> _syncIngredientNutrition(
     String name,
     double amount,
@@ -430,44 +406,115 @@ class HealthPageState extends State<HealthPage> {
           .eq('name', name);
     } catch (_) {}
   }
-
-  // Keep old name as a shim so barcode scanner still works
-  Future<void> _syncIngredientNutritionByName(String name) =>
-      _syncIngredientNutrition(name, 100, 'g');
-
   /* -------------------------- HEALTH FACTS -------------------------- */
   void _buildAndSetHealthFacts(List<IngredientRow> items) {
     if (!mounted) return;
     final facts = _buildFactsFromIngredients(items);
     setState(() => _healthFacts = facts);
-  }
-
-  Future<void> _loadHealthFacts() async {
+  }  Future<void> _loadHealthFacts() async {
     try {
       if (mounted) setState(() => _loadingFacts = true);
 
-      final ingredientFacts = _ingredients.isNotEmpty
-          ? _buildFactsFromIngredients(_ingredients)
-          : <String>[];
+      final facts = <String>[];
 
-      final triviaFacts = _getHealthTrivia();
+      for (final ing in _ingredients) {
+        // Nutrition summary fact (already covers the basics)
+        final nutritionFact = _buildNutritionFact(ing);
+        if (nutritionFact != null) facts.add(nutritionFact);
 
-      final allFacts = [...ingredientFacts, ...triviaFacts];
-      if (allFacts.length > 12) {
-        allFacts.shuffle();
-        allFacts.removeRange(12, allFacts.length);
+        // Smart insight fact based on standout nutrient values
+        final insightFact = _buildInsightFact(ing);
+        if (insightFact != null) facts.add(insightFact);
+      }
+
+      // If no synced nutrition yet, fall back to a prompt
+      if (facts.isEmpty && _ingredients.isNotEmpty) {
+        for (final ing in _ingredients) {
+          facts.add(
+            '${_title(ing.name)}: nutrition not yet synced — add it again or wait a moment.',
+          );
+        }
+      }
+
+      if (facts.length > 12) {
+        facts.shuffle();
+        facts.removeRange(12, facts.length);
       }
 
       if (!mounted) return;
-      setState(() => _healthFacts = allFacts);
+      setState(() => _healthFacts = facts);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error loading health facts: $e')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error loading health facts: $e')));
     } finally {
       if (mounted) setState(() => _loadingFacts = false);
     }
+  }
+
+  /// Returns a short nutrition summary sentence for [ing], or null if no data.
+  String? _buildNutritionFact(IngredientRow ing) {
+    final parts = <String>[];
+    if (ing.calories != null) parts.add('${_fmt0(ing.calories)} cal');
+    if (ing.carbsG != null) parts.add('${_fmt1(ing.carbsG)}g carbs');
+    if (ing.proteinG != null) parts.add('${_fmt1(ing.proteinG)}g protein');
+    if (ing.fatG != null) parts.add('${_fmt1(ing.fatG)}g fat');
+    if (parts.isEmpty) return null;
+
+    String servingLabel = 'per 100g';
+    if (ing.servingAmount != null) {
+      final amt = ing.servingAmount!;
+      final display = amt == amt.truncate()
+          ? amt.toInt().toString()
+          : amt.toStringAsFixed(1);
+      servingLabel = 'per $display ${ing.servingUnit}';
+    }
+    return '${_title(ing.name)} ($servingLabel): ${parts.join(' • ')}.';
+  }
+
+  /// Returns one meaningful health insight based on the ingredient's
+  /// standout nutrient, derived from Spoonacular nutrition data.
+  String? _buildInsightFact(IngredientRow ing) {
+    final name = _title(ing.name);
+
+    // High protein (>= 10g per serving)
+    if (ing.proteinG != null && ing.proteinG! >= 10) {
+      return '$name is high in protein (${_fmt1(ing.proteinG)}g), '
+          'which supports muscle repair and growth.';
+    }
+    // High fiber (>= 3g)
+    if (ing.fiberG != null && ing.fiberG! >= 3) {
+      return '$name is a good source of fiber (${_fmt1(ing.fiberG)}g), '
+          'which aids digestion and helps you feel full.';
+    }
+    // Low calorie (< 50 cal and has cal data)
+    if (ing.calories != null && ing.calories! < 50 && ing.calories! > 0) {
+      return '$name is low in calories (${_fmt0(ing.calories)} cal), '
+          'making it a great choice for a calorie-conscious diet.';
+    }
+    // High healthy fat (>= 10g fat, low sugar)
+    if (ing.fatG != null &&
+        ing.fatG! >= 10 &&
+        (ing.sugarG == null || ing.sugarG! < 5)) {
+      return '$name contains healthy fats (${_fmt1(ing.fatG)}g) '
+          'that support brain and heart health.';
+    }
+    // Low sugar (< 2g and has data)
+    if (ing.sugarG != null && ing.sugarG! < 2 && ing.carbsG != null) {
+      return '$name is low in sugar (${_fmt1(ing.sugarG)}g), '
+          'helping to keep blood sugar levels stable.';
+    }
+    // High sodium warning (>= 400mg)
+    if (ing.sodiumMg != null && ing.sodiumMg! >= 400) {
+      return '$name is relatively high in sodium (${_fmt0(ing.sodiumMg)}mg) — '
+          'consider balancing with low-sodium foods.';
+    }
+    // High carb energy source (>= 30g carbs)
+    if (ing.carbsG != null && ing.carbsG! >= 30) {
+      return '$name is a good energy source with ${_fmt1(ing.carbsG)}g of carbs, '
+          'ideal before workouts.';
+    }
+    return null;
   }
 
   List<String> _buildFactsFromIngredients(List<IngredientRow> items) {
@@ -514,28 +561,6 @@ class HealthPageState extends State<HealthPage> {
     if (t.isEmpty) return t;
     return t[0].toUpperCase() + t.substring(1);
   }
-
-  List<String> _getHealthTrivia() {
-    return [
-      'Drink at least 8 glasses of water daily to stay hydrated.',
-      'Aim for 150 minutes of moderate cardio exercise per week.',
-      'Include protein in every meal to help build and repair muscle.',
-      'Eat a variety of colorful vegetables to get different nutrients.',
-      'Limit added sugars to less than 10% of your daily calories.',
-      'Get 7-9 hours of quality sleep each night for optimal recovery.',
-      'Fiber helps with digestion and keeps you feeling full longer.',
-      'Omega-3 fatty acids support heart and brain health.',
-      'Start your day with a healthy breakfast to boost metabolism.',
-      'Eat slowly and mindfully to improve digestion and satiety.',
-      'Whole grains are better than refined grains for sustained energy.',
-      'Include healthy fats like avocado, nuts, and olive oil in your diet.',
-      'Reduce sodium intake to help maintain healthy blood pressure.',
-      'Fresh fruits and vegetables are more nutritious than canned versions.',
-      'Combine carbs with protein for stable blood sugar levels.',
-      'Regular exercise improves mood, energy, and overall health.',
-    ];
-  }
-
   /* -------------------------- RECIPES -------------------------- */
 
   Future<void> _loadRecipes() async {
@@ -863,20 +888,9 @@ class HealthPageState extends State<HealthPage> {
                   'Add ingredients using the plus button on the top right. You may view the ingredients added once they are logged and also remove them with the X icon on the top right of each ingredient shown.',
               expanded: _ingredientsExpanded,
               onToggle: () =>
-                  setState(() => _ingredientsExpanded = !_ingredientsExpanded),
-              rightAction: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onTap: _openBarcodeScanner,
-                    child: const Icon(Icons.qr_code_scanner, size: 22),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: _addIngredientDialog,
-                    child: const Icon(Icons.add, size: 22),
-                  ),
-                ],
+                  setState(() => _ingredientsExpanded = !_ingredientsExpanded),              rightAction: GestureDetector(
+                onTap: _addIngredientDialog,
+                child: const Icon(Icons.add, size: 22),
               ),
               child: _loadingIngredients
                   ? const _EmptyHint(text: 'Loading ingredients...')
@@ -1772,39 +1786,4 @@ class _InfoButton extends StatelessWidget {
   }
 }
 
-/* -------------------------- BARCODE SCANNER -------------------------- */
 
-class _BarcodeScannerPage extends StatefulWidget {
-  const _BarcodeScannerPage();
-
-  @override
-  State<_BarcodeScannerPage> createState() => _BarcodeScannerPageState();
-}
-
-class _BarcodeScannerPageState extends State<_BarcodeScannerPage> {
-  bool _scanned = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan Barcode'),
-        backgroundColor: Colors.black,
-      ),
-      backgroundColor: Colors.black,
-      body: MobileScanner(
-        onDetect: (BarcodeCapture capture) {
-          if (_scanned) return;
-          final Barcode? barcode = capture.barcodes.isNotEmpty
-              ? capture.barcodes.first
-              : null;
-          final String? code = barcode?.rawValue;
-          if (code != null && code.isNotEmpty) {
-            _scanned = true;
-            Navigator.of(context).pop(code);
-          }
-        },
-      ),
-    );
-  }
-}

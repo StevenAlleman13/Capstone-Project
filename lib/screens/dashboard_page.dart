@@ -25,12 +25,11 @@ class _DashboardPageState extends State<DashboardPage>
     with WidgetsBindingObserver {  // ── profile ──────────────────────────────────────────────────────────────
   String _username = '';
   String _avatarSvg = '';
-  int _coins = 0;
-  // ── ring data ─────────────────────────────────────────────────────────────
-  double _eventRing = 0;
-  double _taskRing = 0;
-  double _macroRing = 0;
-  double _weightRing = 0;
+  int _coins = 0;  // ── bar data ──────────────────────────────────────────────────────────────
+  double _eventBar = 0;
+  double _taskBar = 0;
+  double _macroBar = 0;
+  double _weightBar = 0;
   final _supabase = Supabase.instance.client;
   Timer? _ringRefreshTimer;
 
@@ -39,9 +38,9 @@ class _DashboardPageState extends State<DashboardPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
-    // Refresh activity rings every 2 seconds to catch task updates from journal
+  // Refresh activity bars every 2 seconds to catch task updates from journal
     _ringRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (mounted) _loadRings();
+      if (mounted) _loadBars();
     });
   }
 
@@ -59,7 +58,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   Future<void> _load() async {
     await SyncService.instance.flushQueue();
-    await Future.wait([_loadProfile(), _loadRings()]);
+    await Future.wait([_loadProfile(), _loadBars()]);
   }
 
   // ── profile ───────────────────────────────────────────────────────────────
@@ -93,9 +92,8 @@ class _DashboardPageState extends State<DashboardPage>
       if (cached == null) setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
     }
   }
-
-  // ── rings ─────────────────────────────────────────────────────────────────
-  Future<void> _loadRings() async {
+  // ── bars ──────────────────────────────────────────────────────────────────
+  Future<void> _loadBars() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
     final todayStr = _todayKey();
@@ -175,9 +173,8 @@ class _DashboardPageState extends State<DashboardPage>
               }
             }
           }
-          if (!mounted) return;
-          setState(
-            () => _eventRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
+          if (!mounted) return;          setState(
+            () => _eventBar = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
           );
         } catch (_) {}
       }(),
@@ -202,9 +199,8 @@ class _DashboardPageState extends State<DashboardPage>
               }
             }
           }
-          if (!mounted) return;
-          setState(
-            () => _taskRing = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
+          if (!mounted) return;          setState(
+            () => _taskBar = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
           );
         } catch (_) {}
       }(),
@@ -230,9 +226,8 @@ class _DashboardPageState extends State<DashboardPage>
             total += (l['calories'] is num)
                 ? (l['calories'] as num).toDouble()
                 : 0;
-          }
-          if (!mounted) return;
-          setState(() => _macroRing = (total / goal).clamp(0.0, 1.0));
+          }          if (!mounted) return;
+          setState(() => _macroBar = (total / goal).clamp(0.0, 1.0));
         } catch (_) {}
       }(),
 
@@ -244,9 +239,8 @@ class _DashboardPageState extends State<DashboardPage>
               .select('entry_date')
               .eq('user_id', user.id)
               .eq('entry_date', todayStr)
-              .maybeSingle();
-          if (!mounted) return;
-          setState(() => _weightRing = row != null ? 1.0 : 0.0);
+              .maybeSingle();          if (!mounted) return;
+          setState(() => _weightBar = row != null ? 1.0 : 0.0);
         } catch (_) {}
       }(),
     ]);
@@ -280,21 +274,19 @@ class _DashboardPageState extends State<DashboardPage>
               onSettingsReturn: _loadProfile,
             ),
 
-            const SizedBox(height: 10),
-
-            // ── Activity Bars ────────────────────────────────────────────
-            _ActivityRingsWidget(
-              eventRing: _eventRing,
-              taskRing: _taskRing,
-              macroRing: _macroRing,
-              weightRing: _weightRing,
+            const SizedBox(height: 10),            // ── Activity Bars ────────────────────────────────────────────
+            _ActivityBarsWidget(
+              eventBar: _eventBar,
+              taskBar: _taskBar,
+              macroBar: _macroBar,
+              weightBar: _weightBar,
             ),
             const SizedBox(height: 10),
             // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
               flex: 1,
               child: _DailyTasksWidget(onTasksChanged: () {
-                _loadRings();
+                _loadBars();
                 _loadProfile();
               }),
             ),
@@ -401,20 +393,20 @@ class _ProfileWidget extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ACTIVITY RINGS WIDGET
+//  ACTIVITY BARS WIDGET
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ActivityRingsWidget extends StatelessWidget {
-  final double eventRing;
-  final double taskRing;
-  final double macroRing;
-  final double weightRing;
+class _ActivityBarsWidget extends StatelessWidget {
+  final double eventBar;
+  final double taskBar;
+  final double macroBar;
+  final double weightBar;
 
-  const _ActivityRingsWidget({
-    required this.eventRing,
-    required this.taskRing,
-    required this.macroRing,
-    required this.weightRing,
+  const _ActivityBarsWidget({
+    required this.eventBar,
+    required this.taskBar,
+    required this.macroBar,
+    required this.weightBar,
   });
 
   @override
@@ -443,25 +435,25 @@ class _ActivityRingsWidget extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           _ProgressBarItem(
-            value: eventRing,
+            value: eventBar,
             label: 'Events',
             color: const Color(0xFF00FF66),
           ),
           const SizedBox(height: 12),
           _ProgressBarItem(
-            value: taskRing,
+            value: taskBar,
             label: 'Tasks',
             color: const Color(0xFF00FF66),
           ),
           const SizedBox(height: 12),
           _ProgressBarItem(
-            value: macroRing,
+            value: macroBar,
             label: 'Macros',
             color: const Color(0xFFFF9500),
           ),
           const SizedBox(height: 12),
           _ProgressBarItem(
-            value: weightRing,
+            value: weightBar,
             label: 'Weight',
             color: const Color(0xFF2196F3),
           ),
