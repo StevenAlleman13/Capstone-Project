@@ -384,8 +384,9 @@ class EventsPageState extends State<EventsPage> {
           final isRepeating = days.isNotEmpty;
           if (isRepeating) {
             // Hide if end_time has passed today (time-based, no in-memory state needed)
-            if (dayStr == todayStr && _isRepeatingEventCompletedToday(ev))
+            if (dayStr == todayStr && _isRepeatingEventCompletedToday(ev)) {
               return false;
+            }
             final eventDate = DateTime.tryParse(ev['date'] ?? '');
             if (eventDate == null) return false;
             final eventDateOnly = DateTime(
@@ -713,6 +714,39 @@ class EventsPageState extends State<EventsPage> {
                   _showEditEventDialog(event);
                 },
                 onEventDelete: (event) async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFF00FF66), width: 1.5),
+                        ),
+                        title: const Text('Delete Event'),
+                        actionsAlignment: MainAxisAlignment.center,
+                        actionsPadding: const EdgeInsets.only(bottom: 16),
+                        actions: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFF00FF66)),
+                            ),
+                            child: const Text('Cancel', style: TextStyle(color: Color(0xFF00FF66))),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.red),
+                            ),
+                            child: const Text('Confirm', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+
+                  if (confirmed != true) return;
+
                   final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
                   setState(() => _events.removeWhere((e) => e['id'] == event['id']));
                   SyncService.instance.removeFromCachedList('user_events', userId, 'id', event['id'].toString());
@@ -734,16 +768,27 @@ class EventsPageState extends State<EventsPage> {
                       context: context,
                       builder: (BuildContext context) {
                         return AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFF00FF66), width: 1.5),
+                          ),
                           title: const Text('Delete Task'),
-                          content: Text('Are you sure you want to delete "${task['name']}"?'),
+                          actionsAlignment: MainAxisAlignment.center,
+                          actionsPadding: const EdgeInsets.only(bottom: 16),
                           actions: [
-                            TextButton(
+                            OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('Cancel'),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF00FF66)),
+                              ),
+                              child: const Text('Cancel', style: TextStyle(color: Color(0xFF00FF66))),
                             ),
-                            TextButton(
+                            OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.red),
+                              ),
+                              child: const Text('Confirm', style: TextStyle(color: Colors.red)),
                             ),
                           ],
                         );
@@ -1094,7 +1139,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
             top: BorderSide(
-              color: const Color(0xFF39FF14).withOpacity(0.3),
+              color: const Color(0xFF00FF66),
               width: 1,
             ),
           ),
@@ -1118,7 +1163,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                         child: const Text(
                           'Cancel',
                           style: TextStyle(
-                            color: Color(0xFF39FF14),
+                            color: Color(0xFF00FF66),
                             fontSize: 16,
                             shadows: [],
                           ),
@@ -1128,7 +1173,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                       Text(
                         _tab == 0 ? 'New Event' : 'New Task',
                         style: const TextStyle(
-                          color: Color(0xFF39FF14),
+                          color: Color(0xFF00FF66),
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
                           shadows: [],
@@ -1144,7 +1189,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                                 (_titleCtl.text.trim().isEmpty ||
                                     (_tab == 0 && !_isTimeValid))
                                 ? Colors.grey[700]
-                                : const Color(0xFF39FF14),
+                                : const Color(0xFF00FF66),
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             shadows: [],
@@ -1319,10 +1364,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                color: sel ? const Color(0xFF00FF66) : Colors.grey[900],
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2),
+                  color: const Color(0xFF00FF66).withOpacity(sel ? 0.6 : 0.2),
                 ),
               ),
               alignment: Alignment.center,
@@ -1385,19 +1430,19 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
                 ),
                 decoration: BoxDecoration(
                   color: isExpanded
-                      ? const Color(0xFF39FF14).withOpacity(0.15)
+                      ? const Color(0xFF00FF66).withOpacity(0.15)
                       : Colors.grey[900],
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: const Color(
-                      0xFF39FF14,
+                      0xFF00FF66,
                     ).withOpacity(isExpanded ? 0.4 : 0.2),
                   ),
                 ),
                 child: Text(
                   widget.formatTime(time),
                   style: const TextStyle(
-                    color: Color(0xFF39FF14),
+                    color: Color(0xFF00FF66),
                     fontSize: 14,
                     shadows: [],
                   ),
@@ -1429,10 +1474,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
               height: 38,
               margin: const EdgeInsets.symmetric(horizontal: 24),
               decoration: BoxDecoration(
-                color: const Color(0xFF39FF14).withOpacity(0.06),
+                color: const Color(0xFF00FF66).withOpacity(0.06),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: const Color(0xFF39FF14).withOpacity(0.25),
+                  color: const Color(0xFF00FF66).withOpacity(0.25),
                   width: 1,
                 ),
               ),
@@ -1572,10 +1617,6 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
           // Title
           _card(children: [_textField(_titleCtl, 'Title')]),
           const SizedBox(height: 16),
-          // End Date (optional)
-          _card(children: [_taskOptionalEndDateRow()]),
-          const SizedBox(height: 16),
-          //
           _card(
             children: [
               const Padding(
@@ -1595,6 +1636,9 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
               _customRepeatDays(),
             ],
           ),
+          const SizedBox(height: 16),
+          // End Date (optional)
+          _card(children: [_taskOptionalEndDateRow()]),
         ],
       ),
     );
@@ -1607,7 +1651,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       decoration: BoxDecoration(
         color: const Color(0xFF121212),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+        border: Border.all(color: const Color(0xFF00FF66)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -1647,7 +1691,7 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: const Color(0xFF39FF14),
+            activeThumbColor: const Color(0xFF00FF66),
           ),
         ],
       ),
@@ -1662,12 +1706,12 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
         decoration: BoxDecoration(
           color: Colors.grey[900],
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFF00FF66)),
         ),
         child: Text(
           text,
           style: const TextStyle(
-            color: Color(0xFF39FF14),
+            color: Color(0xFF00FF66),
             fontSize: 14,
             shadows: [],
           ),
@@ -1739,10 +1783,10 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                color: sel ? const Color(0xFF00FF66) : Colors.grey[900],
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2),
+                  color: const Color(0xFF00FF66).withOpacity(sel ? 0.6 : 0.2),
                 ),
               ),
               alignment: Alignment.center,
@@ -1942,7 +1986,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
             top: BorderSide(
-              color: const Color(0xFF39FF14).withOpacity(0.3),
+              color: const Color(0xFF00FF66),
               width: 1,
             ),
           ),
@@ -1966,7 +2010,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                         child: const Text(
                           'Cancel',
                           style: TextStyle(
-                            color: Color(0xFF39FF14),
+                            color: Color(0xFF00FF66),
                             fontSize: 16,
                             shadows: [],
                           ),
@@ -1976,7 +2020,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                       const Text(
                         'Edit Task',
                         style: TextStyle(
-                          color: Color(0xFF39FF14),
+                          color: Color(0xFF00FF66),
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
                           shadows: [],
@@ -2005,7 +2049,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
                           'Save',
                           style: TextStyle(
                             color: canSave
-                                ? const Color(0xFF39FF14)
+                                ? const Color(0xFF00FF66)
                                 : Colors.grey[700],
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -2066,7 +2110,7 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
       decoration: BoxDecoration(
         color: const Color(0xFF121212),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+        border: Border.all(color: const Color(0xFF00FF66)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -2097,12 +2141,12 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
         decoration: BoxDecoration(
           color: Colors.grey[900],
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFF00FF66)),
         ),
         child: Text(
           text,
           style: const TextStyle(
-            color: Color(0xFF39FF14),
+            color: Color(0xFF00FF66),
             fontSize: 14,
             shadows: [],
           ),
@@ -2173,10 +2217,10 @@ class _EditTaskSheetState extends State<_EditTaskSheet> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: sel ? const Color(0xFF39FF14) : Colors.grey[900],
+                color: sel ? const Color(0xFF00FF66) : Colors.grey[900],
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFF39FF14).withOpacity(sel ? 0.6 : 0.2),
+                  color: const Color(0xFF00FF66).withOpacity(sel ? 0.6 : 0.2),
                 ),
               ),
               alignment: Alignment.center,
@@ -2366,7 +2410,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           border: Border(
             top: BorderSide(
-              color: const Color(0xFF39FF14).withOpacity(0.3),
+              color: const Color(0xFF00FF66),
               width: 1,
             ),
           ),
@@ -2390,7 +2434,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                         child: const Text(
                           'Cancel',
                           style: TextStyle(
-                            color: Color(0xFF39FF14),
+                            color: Color(0xFF00FF66),
                             fontSize: 16,
                             shadows: [],
                           ),
@@ -2400,7 +2444,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                       const Text(
                         'Edit Event',
                         style: TextStyle(
-                          color: Color(0xFF39FF14),
+                          color: Color(0xFF00FF66),
                           fontSize: 17,
                           fontWeight: FontWeight.w600,
                           shadows: [],
@@ -2431,7 +2475,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                           'Save',
                           style: TextStyle(
                             color: canSave
-                                ? const Color(0xFF39FF14)
+                                ? const Color(0xFF00FF66)
                                 : Colors.grey[700],
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -2478,8 +2522,9 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                             (d) {
                               setState(() {
                                 _startDate = d;
-                                if (_endDate.isBefore(_startDate))
+                                if (_endDate.isBefore(_startDate)) {
                                   _endDate = _startDate;
+                                }
                               });
                             },
                           ),
@@ -2522,7 +2567,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       decoration: BoxDecoration(
         color: const Color(0xFF121212),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.15)),
+        border: Border.all(color: const Color(0xFF00FF66)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -2562,7 +2607,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: const Color(0xFF39FF14),
+            activeThumbColor: const Color(0xFF00FF66),
           ),
         ],
       ),
@@ -2577,12 +2622,12 @@ class _EditEventSheetState extends State<_EditEventSheet> {
         decoration: BoxDecoration(
           color: Colors.grey[900],
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFF39FF14).withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFF00FF66)),
         ),
         child: Text(
           text,
           style: const TextStyle(
-            color: Color(0xFF39FF14),
+            color: Color(0xFF00FF66),
             fontSize: 14,
             shadows: [],
           ),
@@ -2635,19 +2680,19 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                 ),
                 decoration: BoxDecoration(
                   color: isExpanded
-                      ? const Color(0xFF39FF14).withOpacity(0.15)
+                      ? const Color(0xFF00FF66).withOpacity(0.15)
                       : Colors.grey[900],
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: const Color(
-                      0xFF39FF14,
+                      0xFF00FF66,
                     ).withOpacity(isExpanded ? 0.4 : 0.2),
                   ),
                 ),
                 child: Text(
                   widget.formatTime(time),
                   style: const TextStyle(
-                    color: Color(0xFF39FF14),
+                    color: Color(0xFF00FF66),
                     fontSize: 14,
                     shadows: [],
                   ),
