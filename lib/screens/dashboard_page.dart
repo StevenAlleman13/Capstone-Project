@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'events_page.dart' as events;
+import '../services/offline_sync.dart';
 
 const double _cornerRadius = 18.0;
 
@@ -23,6 +26,7 @@ class _DashboardPageState extends State<DashboardPage>
     with WidgetsBindingObserver {
   // ── profile ──────────────────────────────────────────────────────────────
   String _username = '';
+  String _avatarSvg = '';
   int _coins = 0;
   // ── ring data ─────────────────────────────────────────────────────────────
   double _eventRing = 0;
@@ -56,6 +60,7 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<void> _load() async {
+    await SyncService.instance.flushQueue();
     await Future.wait([_loadProfile(), _loadRings()]);
   }
 
@@ -63,20 +68,35 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _loadProfile() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
+    final sync = SyncService.instance;
+    final cached = sync.getCachedSingle('profiles', user.id);
+    if (cached != null && mounted) {
+      setState(() {
+        _username = (cached['username'] ?? user.email ?? 'User').toString();
+        _coins = (cached['coins'] is num)
+            ? (cached['coins'] as num).toInt()
+            : 0;
+        _avatarSvg = (cached['avatar_svg'] ?? '').toString();
+      });
+    }
     try {
       final row = await _supabase
           .from('profiles')
-          .select('username, coins')
+          .select('username, coins, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
+      if (row != null)
+        sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
       if (!mounted) return;
       setState(() {
         _username = (row?['username'] ?? user.email ?? 'User').toString();
         _coins = (row?['coins'] is num) ? (row!['coins'] as num).toInt() : 0;
+        _avatarSvg = (row?['avatar_svg'] ?? '').toString();
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
+      if (cached == null)
+        setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
     }
   }
 
@@ -119,8 +139,9 @@ class _DashboardPageState extends State<DashboardPage>
                   final endH = int.parse(parts[0]);
                   final endM = int.parse(parts[1]);
                   if (now.hour > endH ||
-                      (now.hour == endH && now.minute >= endM))
+                      (now.hour == endH && now.minute >= endM)) {
                     done++;
+                  }
                 } catch (_) {}
               }
             } else {
@@ -131,8 +152,9 @@ class _DashboardPageState extends State<DashboardPage>
               final allDay = r['all_day'] == true;
               if (allDay) {
                 // All-day events complete at end of day (23:59:59)
-                if (now.hour == 23 && now.minute == 59 && now.second >= 59)
+                if (now.hour == 23 && now.minute == 59 && now.second >= 59) {
                   done++;
+                }
               } else {
                 final endTime = (r['end_time'] ?? '').toString();
                 if (endTime.isNotEmpty) {
@@ -140,10 +162,12 @@ class _DashboardPageState extends State<DashboardPage>
                     final parts = endTime.split(':');
                     int endH = int.parse(parts[0].trim());
                     int endM = int.parse(parts[1].trim().split(' ')[0]);
-                    if (endTime.toUpperCase().contains('PM') && endH < 12)
+                    if (endTime.toUpperCase().contains('PM') && endH < 12) {
                       endH += 12;
-                    if (endTime.toUpperCase().contains('AM') && endH == 12)
+                    }
+                    if (endTime.toUpperCase().contains('AM') && endH == 12) {
                       endH = 0;
+                    }
                     final eventEnd = DateTime(
                       now.year,
                       now.month,
@@ -246,7 +270,8 @@ class _DashboardPageState extends State<DashboardPage>
     return names[(weekday - 1).clamp(0, 6)];
   }
 
-  // ── build ─────────────────────────────────────────────────────────────────  @override
+  // ── build ─────────────────────────────────────────────────────────────────
+  @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
@@ -258,8 +283,10 @@ class _DashboardPageState extends State<DashboardPage>
             _ProfileWidget(
               username: _username,
               coins: _coins,
+              avatarSvg: _avatarSvg,
               onSettingsReturn: _loadProfile,
             ),
+
             const SizedBox(height: 10),
 
             // ── Activity Rings ────────────────────────────────────────────
@@ -269,12 +296,16 @@ class _DashboardPageState extends State<DashboardPage>
               macroRing: _macroRing,
               weightRing: _weightRing,
             ),
-            const SizedBox(
-              height: 10,
-            ), // ── Daily Tasks (expands to fill remaining space) ─────────────
+            const SizedBox(height: 10),
+            // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
               flex: 1,
-              child: _DailyTasksWidget(onTasksChanged: () => _loadRings()),
+              child: _DailyTasksWidget(
+                onTasksChanged: () {
+                  _loadRings();
+                  _loadProfile();
+                },
+              ),
             ),
           ],
         ),
@@ -290,11 +321,13 @@ class _DashboardPageState extends State<DashboardPage>
 class _ProfileWidget extends StatelessWidget {
   final String username;
   final int coins;
+  final String avatarSvg;
   final VoidCallback? onSettingsReturn;
 
   const _ProfileWidget({
     required this.username,
     required this.coins,
+    this.avatarSvg = '',
     this.onSettingsReturn,
   });
 
@@ -312,11 +345,20 @@ class _ProfileWidget extends StatelessWidget {
       child: Row(
         children: [
           // Left: Profile avatar
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: neon.withOpacity(0.15),
-            child: Icon(Icons.person, color: neon, size: 26),
-          ),
+          avatarSvg.isNotEmpty
+              ? ClipOval(
+                  child: SvgPicture.string(
+                    avatarSvg,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              : CircleAvatar(
+                  radius: 22,
+                  backgroundColor: neon.withOpacity(0.15),
+                  child: Icon(Icons.person, color: neon, size: 26),
+                ),
           const SizedBox(width: 12),
           // Middle: Profile info
           Expanded(
@@ -400,8 +442,17 @@ class _ActivityRingsWidget extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              Icon(Icons.bar_chart, color: neon, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'DAILY PROGRESS',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: Colors.white),
+                ),
+              ),
               _InfoButton(
                 infoText:
                     'Use this to track progress on your set Events, Tasks, Macros, and Weight from the Journal and Fitness tabs. Once you complete all of the daily requirements for each component, the progression bars will fill up.',
@@ -409,7 +460,7 @@ class _ActivityRingsWidget extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           _ProgressBarItem(
             value: eventRing,
             label: 'Events',
@@ -592,42 +643,52 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       if (mounted) setState(() => _loading = false);
       return;
     }
+    final sync = SyncService.instance;
+    final cachedRaw = sync.getCachedList('user_tasks_dash', user.id);
+    if (cachedRaw.isNotEmpty) _applyTaskData(cachedRaw);
     try {
       final rows = await _supabase
           .from('user_tasks')
           .select()
           .eq('user_id', user.id);
-      final todayWeekday = _weekdayName(DateTime.now().weekday);
-      final tasks = (rows as List)
-          .map(
-            (r) => {
-              'id': r['id'],
-              'name': r['name'].toString(),
-              'days': List<String>.from(r['days'] ?? []),
-              'end_date': r['end_date'],
-              'completed_dates': List<String>.from(r['completed_dates'] ?? []),
-              'user_id': r['user_id'],
-              'is_challenge': (r['is_challenge'] as bool?) ?? false,
-            },
-          )
-          .where((t) {
-            final isChallenge = t['is_challenge'] as bool;
-            if (isChallenge) {
-              // Challenges are only shown today if they're added
-              return true;
-            }
-            final days = t['days'] as List<String>;
-            return days.isEmpty || days.contains(todayWeekday);
-          })
-          .toList();
-      if (!mounted) return;
-      setState(() {
-        _tasks = tasks;
-        _loading = false;
-      });
+      sync.cacheList(
+        'user_tasks_dash',
+        user.id,
+        List<Map<String, dynamic>>.from(rows as List),
+      );
+      _applyTaskData(rows as List);
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (cachedRaw.isEmpty && mounted) setState(() => _loading = false);
     }
+  }
+
+  void _applyTaskData(List rows) {
+    final today = _todayKey();
+    final todayWeekday = _weekdayName(DateTime.now().weekday);
+    final tasks = rows
+        .map(
+          (r) => <String, dynamic>{
+            'id': r['id'],
+            'name': r['name'].toString(),
+            'days': List<String>.from(r['days'] ?? []),
+            'end_date': r['end_date']?.toString(),
+            'completed_dates': List<String>.from(r['completed_dates'] ?? []),
+            'user_id': r['user_id'],
+            'is_challenge': (r['is_challenge'] as bool?) ?? false,
+          },
+        )
+        .where((t) {
+          final isChallenge = t['is_challenge'] as bool;
+          if (isChallenge) return (t['end_date'] as String?) == today;
+          final days = t['days'] as List<String>;
+          return days.isEmpty || days.contains(todayWeekday);
+        })
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _tasks = tasks;
+      _loading = false;
+    });
   }
 
   Future<void> _toggleChallenge(Map<String, dynamic> challenge) async {
@@ -635,28 +696,62 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     final completed = List<String>.from(
       challenge['completed_dates'] as List? ?? [],
     );
-    if (completed.contains(today)) {
+    final wasCompleted = completed.contains(today);
+    if (wasCompleted) {
       completed.remove(today);
     } else {
       completed.add(today);
     }
     setState(() => challenge['completed_dates'] = completed);
+    SyncService.instance.patchCachedList(
+      'user_tasks_dash',
+      _supabase.auth.currentUser?.id ?? '',
+      'id',
+      challenge['id'].toString(),
+      {'completed_dates': completed},
+    );
     try {
       await _supabase
           .from('user_tasks')
           .update({'completed_dates': completed})
           .eq('id', challenge['id']);
+      await _updateCoins(wasCompleted ? -5 : 5);
       widget.onTasksChanged();
-    } catch (_) {}
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'update',
+        data: {'completed_dates': completed},
+        match: {'id': challenge['id']},
+      );
+    }
   }
 
   Future<void> _showAddChallengeDialog() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    // Get challenges not already added today
-    final alreadyAdded = _tasks
+    final today = _todayKey();
+
+    // Count challenges already added today (end_date used as creation date)
+    final todaysChallenges = _tasks
         .where((t) => (t['is_challenge'] as bool?) ?? false)
+        .where((t) => (t['end_date'] as String?) == today)
+        .toList();
+
+    if (todaysChallenges.length >= 3) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only add 3 daily challenges per day!'),
+          backgroundColor: Colors.deepOrange,
+        ),
+      );
+      return;
+    }
+
+    // Get challenges not already added today
+    final alreadyAdded = todaysChallenges
         .map((t) => t['name'] as String)
         .toList();
 
@@ -665,7 +760,6 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         .toList();
 
     if (availableChallenges.isEmpty) {
-      // All challenges already added
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -684,7 +778,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       'id': id,
       'name': selected,
       'days': <String>[],
-      'end_date': null,
+      'end_date': today, // stamp creation date so we can filter by day
       'completed_dates': <String>[],
       'user_id': user.id,
       'is_challenge': true,
@@ -694,44 +788,85 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       _tasks.add(newChallenge);
     });
 
+    final challengeData = {
+      'id': id,
+      'name': selected,
+      'days': <String>[],
+      'end_date': today,
+      'completed_dates': <String>[],
+      'user_id': user.id,
+      'is_challenge': true,
+    };
+    SyncService.instance.addToCachedList(
+      'user_tasks_dash',
+      user.id,
+      challengeData,
+    );
     try {
-      await _supabase.from('user_tasks').insert({
-        'id': id,
-        'name': selected,
-        'days': [],
-        'end_date': null,
-        'completed_dates': [],
-        'user_id': user.id,
-        'is_challenge': true,
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to add challenge: $e')));
-      // Remove from local list if database insert failed
-      setState(() => _tasks.removeWhere((t) => t['id'] == id));
+      await _supabase.from('user_tasks').insert(challengeData);
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'insert',
+        data: challengeData,
+      );
     }
   }
 
   bool _isCompletedToday(Map<String, dynamic> task) =>
       (task['completed_dates'] as List<String>? ?? []).contains(_todayKey());
+
+  /// Adds [delta] coins to the current user's profile (can be negative to remove).
+  Future<void> _updateCoins(int delta) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await _supabase
+          .from('profiles')
+          .select('coins')
+          .eq('id', user.id)
+          .maybeSingle();
+      final current = (row?['coins'] as num?)?.toInt() ?? 0;
+      final updated = (current + delta).clamp(0, 999999);
+      await _supabase
+          .from('profiles')
+          .update({'coins': updated})
+          .eq('id', user.id);
+    } catch (_) {}
+  }
+
   Future<void> _toggleTask(Map<String, dynamic> task) async {
     final today = _todayKey();
     final completed = List<String>.from(task['completed_dates'] as List);
-    if (completed.contains(today)) {
+    final wasCompleted = completed.contains(today);
+    if (wasCompleted) {
       completed.remove(today);
     } else {
       completed.add(today);
     }
     setState(() => task['completed_dates'] = completed);
+    SyncService.instance.patchCachedList(
+      'user_tasks_dash',
+      _supabase.auth.currentUser?.id ?? '',
+      'id',
+      task['id'].toString(),
+      {'completed_dates': completed},
+    );
     try {
       await _supabase
           .from('user_tasks')
           .update({'completed_dates': completed})
           .eq('id', task['id']);
+      await _updateCoins(wasCompleted ? -1 : 1);
       widget.onTasksChanged();
-    } catch (_) {}
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'update',
+        data: {'completed_dates': completed},
+        match: {'id': task['id']},
+      );
+    }
   }
 
   void _addTask() {
@@ -748,23 +883,30 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         onEventAdded: (_) {},
         onTaskAdded: (task) async {
           final id = const Uuid().v4();
+          final taskData = {
+            'id': id,
+            'name': task['name'],
+            'days': task['days'] ?? [],
+            'end_date': task['end_date'],
+            'completed_dates': <String>[],
+            'user_id': user.id,
+          };
+          SyncService.instance.addToCachedList(
+            'user_tasks_dash',
+            user.id,
+            taskData,
+          );
           try {
-            await _supabase.from('user_tasks').insert({
-              'id': id,
-              'name': task['name'],
-              'days': task['days'] ?? [],
-              'end_date': task['end_date'],
-              'completed_dates': [],
-              'user_id': user.id,
-            });
-            setState(() => _loadTasks());
-            widget.onTasksChanged();
+            await _supabase.from('user_tasks').insert(taskData);
           } catch (_) {
-            if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to save task.')),
+            SyncService.instance.enqueue(
+              table: 'user_tasks',
+              type: 'insert',
+              data: taskData,
             );
           }
+          setState(() => _loadTasks());
+          widget.onTasksChanged();
         },
         formatTime: events.eventsFormatTime,
       ),
@@ -1041,6 +1183,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);

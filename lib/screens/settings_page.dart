@@ -1,14 +1,11 @@
-// import 'dart:ffi';
-
-// import 'dart:convert';
-// import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:avatar_maker/avatar_maker.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'app_picker_page.dart';
+import '../services/offline_sync.dart';
 // import 'package:app_settings/app_settings.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 const Color _neonGreen = Color(0xFF00FF66);
 const double _cornerRadius = 4.0;
@@ -166,16 +163,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Use on the pencil button at the bottom right of the profile image to change your profile character. Use the other pencil button on the right to change your username.',
             child: _Profile(),
           ),
-
-          /* DIFFICULTY TAB */
-          const SizedBox(height: 14),
-          const _SectionFrame(
-            title: 'DIFFICULTY',
-            infoText:
-                'Set your level of difficulty for screen time. Each difficulty will allow you more or less time on other distracting apps you set.',
-            child: _DifficultySelector(),
-          ),
-
           /* THEME TAB */
           const SizedBox(height: 14),
           const _SectionFrame(
@@ -184,50 +171,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Change your theme from dark, light, or custom mode for the app appearance.',
             child: _ThemeSelector(),
           ),
-
-          /* ADVANCED TAB */
           const SizedBox(height: 14),
-          const _SectionFrame(
-            title: 'ADVANCED',
-            infoText: 'Edit the amount of screentime you allow for yourself.',
-            child: _AdvancedSettings(),
-          ),
 
-          /* PERMISSIONS TAB */
-          const SizedBox(height: 14),
-          _SectionFrame(
-            title: 'PERMISSIONS',
-            infoText:
-                'Edit the distracting apps that you would like to lock, allow or disable app overlay by toggling the slider, and allow or disable notifications from Lock In by toggling the slider.',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Locked Apps',
-                    style: TextStyle(color: Colors.white, fontSize: 15),
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white38,
-                  ),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AppPickerPage()),
-                  ),
-                ),
-
-                const Divider(color: Colors.white12, height: 20),
-
-                const _OverlayPermissionButton(),
-
-                const Divider(color: Colors.white12, height: 20),
-
-                const _NotificationButton(),
-              ],
-            ),
-          ),
+          /* INFO BUTTONS TOGGLE */
+          _SectionFrame(title: 'INFO BUTTONS', child: _InfoButtonsToggle()),
           const SizedBox(height: 14),
 
           /* LOG OUT */
@@ -251,250 +198,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-/* ----------------------- OVERLAY PERMISSION BUTTON ----------------------- */
-
-class _OverlayPermissionButton extends StatefulWidget {
-  const _OverlayPermissionButton();
-
-  @override
-  State<_OverlayPermissionButton> createState() =>
-      _OverlayPermissionButtonState();
-}
-
-class _OverlayPermissionButtonState extends State<_OverlayPermissionButton>
-    with WidgetsBindingObserver {
-  static final _channel = MethodChannel('lockin/monitor');
-  bool _granted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _checkPermission();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _checkPermission();
-  }
-
-  Future<void> _checkPermission() async {
-    try {
-      final granted =
-          await _channel.invokeMethod<bool>('hasOverlayPermission') ?? false;
-      if (mounted) setState(() => _granted = granted);
-    } catch (_) {}
-  }
-
-  Future<void> _request() async {
-    await _channel.invokeMethod('requestOverlayPermission');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        'App Overlay',
-        style: TextStyle(color: Colors.white, fontSize: 15),
-      ),
-      trailing: Switch(
-        value: _granted,
-        onChanged: _granted ? null : (_) => _request(),
-        activeThumbColor: neon,
-      ),
-    );
-  }
-}
-
-/* ----------------------- NOTIFICATIONS PERMISSION BUTTON ----------------------- */
-
-class _NotificationButton extends StatefulWidget {
-  const _NotificationButton();
-
-  @override
-  State<_NotificationButton> createState() => _NotificationButtonState();
-}
-
-class _NotificationButtonState extends State<_NotificationButton>
-    with WidgetsBindingObserver {
-  bool _granted = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _checkPermission();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _checkPermission();
-  }
-
-  // checks permission settings for notifications
-  // attempts to redirect user
-  Future<bool> _checkNotificationSettings() async {
-    PermissionStatus status = await Permission.notification.status;
-
-    if (status.isGranted) {
-      return true;
-    } else if (status.isDenied) {
-      // requests permission
-      await _request();
-      return false;
-    } else if (status.isPermanentlyDenied) {
-      // redirect user to app settings
-      await openAppSettings();
-      return false;
-    } else {
-      return false;
-    }
-  }
-
-  // updates '_granted' var based on return value
-  Future<void> _checkPermission() async {
-    try {
-      final granted = await _checkNotificationSettings();
-      if (mounted) setState(() => _granted = granted);
-    } catch (_) {}
-  }
-
-  Future<void> _request() async {
-    await Permission.notification.request();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(
-        'Notifications',
-        style: TextStyle(color: Colors.white, fontSize: 15),
-      ),
-      trailing: Switch(
-        value: _granted,
-        onChanged: _granted ? null : (_) => _request(),
-        activeThumbColor: neon,
-      ),
-    );
-  }
-}
-
-/* -------------------------- DIFFICULTY SELECTOR --------------------------- */
-
-class _DifficultySelector extends StatefulWidget {
-  const _DifficultySelector();
-
-  @override
-  State<_DifficultySelector> createState() => _DifficultySelectorState();
-}
-
-class _DifficultySelectorState extends State<_DifficultySelector> {
-  String _difficulty = 'normal';
-
-  static const _options = [
-    ('easy', 'Easy', '4 hrs'),
-    ('normal', 'Normal', '2 hrs'),
-    ('hardcore', 'Hardcore', '1 hr'),
-    ('custom', 'Custom', '? hrs'),
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _difficulty =
-        Hive.box('selected_apps').get('difficulty', defaultValue: 'normal')
-            as String;
-  }
-
-  void _select(String value) {
-    Hive.box('selected_apps').put('difficulty', value);
-    setState(() => _difficulty = value);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final neon = Theme.of(context).colorScheme.secondary;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: _options.map((opt) {
-          final (value, label, hours) = opt;
-          final isSelected = _difficulty == value;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: GestureDetector(
-              onTap: () => _select(value),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isSelected ? neon : Colors.grey.shade700,
-                    width: isSelected ? 1.8 : 1.0,
-                  ),
-                  color: isSelected
-                      ? neon.withValues(alpha: 0.08)
-                      : Colors.transparent,
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: isSelected ? neon : Colors.white,
-                        shadows: [],
-                        fontWeight: isSelected
-                            ? FontWeight.w700
-                            : FontWeight.normal,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      hours,
-                      style: TextStyle(
-                        color: isSelected
-                            ? neon.withValues(alpha: 0.8)
-                            : Colors.white70,
-                        fontSize: 11,
-                        shadows: [],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-/* -------------------------- SHARED SECTION FRAME -------------------------- */
-
-/* --------------------------- THEME SELECTOR ----------------------------- */
+/* -------------------------- THEME SELECTOR ----------------------------- */
 
 class _ThemeSelector extends StatefulWidget {
   const _ThemeSelector();
@@ -659,25 +363,18 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
     final user = _client.auth.currentUser;
     if (user == null) return;
 
+    final data = {'user_id': user.id, 'max_screentime': screentimeLimit};
+    SyncService.instance.patchCachedSingle('settings', user.id, data);
     try {
-      await _client.from('settings').upsert({
-        'user_id': user.id,
-        'max_screentime': screentimeLimit,
-      }, onConflict: 'user_id');
-
-      if (mounted) setState(() => _maxScreentime = screentimeLimit);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not save max screentime.',
-              style: TextStyle(color: _neonGreen),
-            ),
-          ),
-        );
-      }
+      await _client.from('settings').upsert(data, onConflict: 'user_id');
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'settings',
+        type: 'upsert',
+        data: data,
+      );
     }
+    if (mounted) setState(() => _maxScreentime = screentimeLimit);
   }
 
   void _showSetScreentimeDialog() {
@@ -766,8 +463,10 @@ class _Profile extends StatefulWidget {
 
 class _ProfileState extends State<_Profile> {
   final _usernameController = TextEditingController();
+  final _avatarMakerKey = GlobalKey();
   String _username = '...';
   bool _saving = false;
+  String _avatarSvg = ''; // Store avatar SVG as string
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -786,70 +485,172 @@ class _ProfileState extends State<_Profile> {
   Future<void> _loadProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-
+    final sync = SyncService.instance;
+    final cached = sync.getCachedSingle('profiles', user.id);
+    final cachedName = (cached?['username'] ?? '').toString();
+    final cachedSvg = (cached?['avatar_svg'] ?? '').toString();
+    if (mounted && (cachedName.isNotEmpty || cachedSvg.isNotEmpty)) {
+      setState(() {
+        if (cachedName.isNotEmpty && cachedName != _username) {
+          _username = cachedName;
+          _usernameController.text = _username;
+        }
+        if (cachedSvg.isNotEmpty && _avatarSvg.isEmpty) _avatarSvg = cachedSvg;
+      });
+    }
     try {
       final row = await _client
           .from('profiles')
-          .select('username')
+          .select('username, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
-
+      if (row != null)
+        sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
       if (!mounted) return;
       final fetched = (row?['username'] ?? '').toString();
-      if (fetched.isNotEmpty && fetched != _username) {
-        setState(() {
+      final fetchedSvg = (row?['avatar_svg'] ?? '').toString();
+      setState(() {
+        if (fetched.isNotEmpty && fetched != _username) {
           _username = fetched;
           _usernameController.text = _username;
-        });
-      }
-    } catch (_) {
-      // keep current _username as-is
-    }
+        }
+        if (fetchedSvg.isNotEmpty) _avatarSvg = fetchedSvg;
+      });
+    } catch (_) {}
   }
 
   Future<void> _saveUsername() async {
     final newName = _usernameController.text.trim();
     if (newName.isEmpty || newName == _username) return;
-
     final user = _client.auth.currentUser;
     if (user == null) return;
-
     setState(() => _saving = true);
-
+    final data = {'id': user.id, 'username': newName};
+    SyncService.instance.patchCachedSingle('profiles', user.id, {
+      'username': newName,
+    });
     try {
-      await _client.from('profiles').upsert({
-        'id': user.id,
-        'username': newName,
-      }, onConflict: 'id');
-
-      if (!mounted) return;
-      setState(() {
-        _username = newName;
-        _saving = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Username updated!',
-            style: TextStyle(color: _neonGreen),
-          ),
-          backgroundColor: Colors.grey[900],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not update username.',
-            style: TextStyle(color: Colors.red),
-          ),
-          backgroundColor: Colors.grey[900],
-        ),
+      await _client.from('profiles').upsert(data, onConflict: 'id');
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'profiles',
+        type: 'upsert',
+        data: data,
       );
     }
+    if (!mounted) return;
+    setState(() {
+      _username = newName;
+      _saving = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Username updated!', style: TextStyle(color: _neonGreen)),
+        backgroundColor: Colors.grey[900],
+      ),
+    );
+  }
+
+  Future<void> _openAvatarMaker() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    String? newAvatarSvg;
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 24,
+          ),
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Customize Avatar',
+                    style: TextStyle(
+                      color: _neonGreen,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.72,
+                ),
+                child: AvatarMakerCustomizer(key: _avatarMakerKey),
+              ),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        final controller = Get.find<AvatarMakerController>();
+                        await controller.saveAvatarSVG();
+                        newAvatarSvg = controller.displayedAvatarSVG.value;
+                      } catch (e) {
+                        newAvatarSvg = null;
+                      }
+                      Navigator.pop(ctx);
+                    },
+                    child: Text(
+                      'Save',
+                      style: TextStyle(
+                        color: _neonGreen,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (newAvatarSvg == null || newAvatarSvg!.isEmpty) return;
+    setState(() => _saving = true);
+    final data = {'id': user.id, 'avatar_svg': newAvatarSvg};
+    SyncService.instance.patchCachedSingle('profiles', user.id, {
+      'avatar_svg': newAvatarSvg,
+    });
+    try {
+      await _client.from('profiles').upsert(data, onConflict: 'id');
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'profiles',
+        type: 'upsert',
+        data: data,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _avatarSvg = newAvatarSvg!;
+      _saving = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Avatar updated!', style: TextStyle(color: _neonGreen)),
+        backgroundColor: Colors.grey[900],
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _showEditUsernameDialog() {
@@ -905,30 +706,60 @@ class _ProfileState extends State<_Profile> {
   @override
   Widget build(BuildContext context) {
     final displayName = _saving ? 'Saving...' : _username;
+    final userInitial = _username.isNotEmpty ? _username[0].toUpperCase() : '?';
 
     return Row(
       children: [
         // ── Profile picture (left) ──
         GestureDetector(
-          onTap: () {
-            // TODO: implement profile picture upload
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Profile picture upload coming soon!',
-                  style: TextStyle(color: _neonGreen),
-                ),
-                backgroundColor: Colors.grey[900],
-              ),
-            );
-          },
+          onTap: _openAvatarMaker,
           child: Stack(
             alignment: Alignment.bottomRight,
             children: [
-              CircleAvatar(
-                backgroundColor: const Color.fromARGB(255, 46, 46, 46),
-                radius: 45,
-                child: const Icon(Icons.person, size: 49, color: Colors.grey),
+              SizedBox(
+                width: 90,
+                height: 90,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(50),
+                  child: _avatarSvg.isNotEmpty
+                      ? Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _neonGreen, width: 2),
+                          ),
+                          child: SvgPicture.string(
+                            _avatarSvg,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                _neonGreen.withValues(alpha: 0.3),
+                                _neonGreen.withValues(alpha: 0.1),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            border: Border.all(color: _neonGreen, width: 2),
+                          ),
+                          child: Center(
+                            child: Text(
+                              userInitial,
+                              style: const TextStyle(
+                                color: _neonGreen,
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(color: _neonGreen, blurRadius: 8.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
               ),
               Container(
                 padding: const EdgeInsets.all(5),
@@ -979,6 +810,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);
@@ -1025,6 +871,48 @@ class _InfoButton extends StatelessWidget {
         overlay.insert(entry);
       },
       child: Icon(Icons.help, color: iconColor, size: 20),
+    );
+  }
+}
+
+class _InfoButtonsToggle extends StatefulWidget {
+  const _InfoButtonsToggle();
+
+  @override
+  State<_InfoButtonsToggle> createState() => _InfoButtonsToggleState();
+}
+
+class _InfoButtonsToggleState extends State<_InfoButtonsToggle> {
+  bool _showInfo = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _showInfo =
+        Hive.box('selected_apps').get('show_info_buttons', defaultValue: true)
+            as bool;
+  }
+
+  void _toggle(bool value) {
+    Hive.box('selected_apps').put('show_info_buttons', value);
+    setState(() => _showInfo = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final neon = Theme.of(context).colorScheme.secondary;
+    return Row(
+      children: [
+        Icon(Icons.help_outline, color: neon, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Show info (?) buttons on all pages',
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+        Switch(value: _showInfo, onChanged: _toggle, activeColor: neon),
+      ],
     );
   }
 }
