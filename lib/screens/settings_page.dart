@@ -162,7 +162,8 @@ class _SettingsPageState extends State<SettingsPage> {
             infoText:
                 'Use on the pencil button at the bottom right of the profile image to change your profile character. Use the other pencil button on the right to change your username.',
             child: _Profile(),
-          ),          /* THEME TAB */
+          ),
+          /* THEME TAB */
           const SizedBox(height: 14),
           const _SectionFrame(
             title: 'THEME',
@@ -170,6 +171,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Change your theme from dark, light, or custom mode for the app appearance.',
             child: _ThemeSelector(),
           ),
+          const SizedBox(height: 14),
+
+          /* INFO BUTTONS TOGGLE */
+          _SectionFrame(title: 'INFO BUTTONS', child: _InfoButtonsToggle()),
           const SizedBox(height: 14),
 
           /* LOG OUT */
@@ -328,14 +333,12 @@ class _SectionFrame extends StatelessWidget {
                 ),
               ),
         ],
-      ),    );
+      ),
+    );
   }
 }
 
-
 /* -------------------------- ADVANCED SECTION FRAME -------------------------- */
-
-
 
 class _AdvancedSettings extends StatefulWidget {
   const _AdvancedSettings();
@@ -365,7 +368,11 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
     try {
       await _client.from('settings').upsert(data, onConflict: 'user_id');
     } catch (_) {
-      SyncService.instance.enqueue(table: 'settings', type: 'upsert', data: data);
+      SyncService.instance.enqueue(
+        table: 'settings',
+        type: 'upsert',
+        data: data,
+      );
     }
     if (mounted) setState(() => _maxScreentime = screentimeLimit);
   }
@@ -380,7 +387,8 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
           side: BorderSide(color: _neonGreen, width: 1.5),
           borderRadius: BorderRadius.circular(_cornerRadius),
         ),
-        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),        content: TextField(
+        title: Text('Set Max Screentime', style: TextStyle(color: _neonGreen)),
+        content: TextField(
           controller: _screentimeController,
           cursorColor: Colors.white,
           keyboardType: TextInputType.numberWithOptions(decimal: true),
@@ -425,7 +433,8 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         OutlinedButton(
-          onPressed: _showSetScreentimeDialog,          style: OutlinedButton.styleFrom(
+          onPressed: _showSetScreentimeDialog,
+          style: OutlinedButton.styleFrom(
             side: BorderSide(color: _neonGreen, width: 1.5),
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
@@ -442,8 +451,6 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
     );
   }
 }
-
-
 
 /* -------------------------- USER PROFILE SECTION FRAME -------------------------- */
 
@@ -473,7 +480,9 @@ class _ProfileState extends State<_Profile> {
   void dispose() {
     _usernameController.dispose();
     super.dispose();
-  }  Future<void> _loadProfile() async {
+  }
+
+  Future<void> _loadProfile() async {
     final user = _client.auth.currentUser;
     if (user == null) return;
     final sync = SyncService.instance;
@@ -495,7 +504,8 @@ class _ProfileState extends State<_Profile> {
           .select('username, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
-      if (row != null) sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
+      if (row != null)
+        sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
       if (!mounted) return;
       final fetched = (row?['username'] ?? '').toString();
       final fetchedSvg = (row?['avatar_svg'] ?? '').toString();
@@ -516,16 +526,28 @@ class _ProfileState extends State<_Profile> {
     if (user == null) return;
     setState(() => _saving = true);
     final data = {'id': user.id, 'username': newName};
-    SyncService.instance.patchCachedSingle('profiles', user.id, {'username': newName});
+    SyncService.instance.patchCachedSingle('profiles', user.id, {
+      'username': newName,
+    });
     try {
       await _client.from('profiles').upsert(data, onConflict: 'id');
     } catch (_) {
-      SyncService.instance.enqueue(table: 'profiles', type: 'upsert', data: data);
+      SyncService.instance.enqueue(
+        table: 'profiles',
+        type: 'upsert',
+        data: data,
+      );
     }
     if (!mounted) return;
-    setState(() { _username = newName; _saving = false; });
+    setState(() {
+      _username = newName;
+      _saving = false;
+    });
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Username updated!', style: TextStyle(color: _neonGreen)), backgroundColor: Colors.grey[900]),
+      SnackBar(
+        content: Text('Username updated!', style: TextStyle(color: _neonGreen)),
+        backgroundColor: Colors.grey[900],
+      ),
     );
   }
 
@@ -537,7 +559,10 @@ class _ProfileState extends State<_Profile> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) => Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 24,
+          ),
           backgroundColor: Colors.black,
           shape: RoundedRectangleBorder(
             side: BorderSide(color: _neonGreen, width: 1.5),
@@ -550,12 +575,20 @@ class _ProfileState extends State<_Profile> {
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Customize Avatar',
-                      style: TextStyle(color: _neonGreen, fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    'Customize Avatar',
+                    style: TextStyle(
+                      color: _neonGreen,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
               ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.72),
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.72,
+                ),
                 child: AvatarMakerCustomizer(key: _avatarMakerKey),
               ),
               OverflowBar(
@@ -576,7 +609,13 @@ class _ProfileState extends State<_Profile> {
                       }
                       Navigator.pop(ctx);
                     },
-                    child: Text('Save', style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      'Save',
+                      style: TextStyle(
+                        color: _neonGreen,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -588,19 +627,30 @@ class _ProfileState extends State<_Profile> {
     if (newAvatarSvg == null || newAvatarSvg!.isEmpty) return;
     setState(() => _saving = true);
     final data = {'id': user.id, 'avatar_svg': newAvatarSvg};
-    SyncService.instance.patchCachedSingle('profiles', user.id, {'avatar_svg': newAvatarSvg});
+    SyncService.instance.patchCachedSingle('profiles', user.id, {
+      'avatar_svg': newAvatarSvg,
+    });
     try {
       await _client.from('profiles').upsert(data, onConflict: 'id');
     } catch (_) {
-      SyncService.instance.enqueue(table: 'profiles', type: 'upsert', data: data);
+      SyncService.instance.enqueue(
+        table: 'profiles',
+        type: 'upsert',
+        data: data,
+      );
     }
     if (!mounted) return;
-    setState(() { _avatarSvg = newAvatarSvg!; _saving = false; });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Avatar updated!', style: TextStyle(color: _neonGreen)),
-      backgroundColor: Colors.grey[900],
-      duration: const Duration(seconds: 2),
-    ));
+    setState(() {
+      _avatarSvg = newAvatarSvg!;
+      _saving = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Avatar updated!', style: TextStyle(color: _neonGreen)),
+        backgroundColor: Colors.grey[900],
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _showEditUsernameDialog() {
@@ -646,7 +696,8 @@ class _ProfileState extends State<_Profile> {
             child: Text(
               'Save',
               style: TextStyle(color: _neonGreen, fontWeight: FontWeight.bold),
-            ),          ),
+            ),
+          ),
         ],
       ),
     );
@@ -702,10 +753,7 @@ class _ProfileState extends State<_Profile> {
                                 fontSize: 36,
                                 fontWeight: FontWeight.bold,
                                 shadows: [
-                                  Shadow(
-                                    color: _neonGreen,
-                                    blurRadius: 8.0,
-                                  )
+                                  Shadow(color: _neonGreen, blurRadius: 8.0),
                                 ],
                               ),
                             ),
@@ -755,6 +803,48 @@ class _ProfileState extends State<_Profile> {
   }
 }
 
+class _InfoButtonsToggle extends StatefulWidget {
+  const _InfoButtonsToggle();
+
+  @override
+  State<_InfoButtonsToggle> createState() => _InfoButtonsToggleState();
+}
+
+class _InfoButtonsToggleState extends State<_InfoButtonsToggle> {
+  bool _showInfo = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _showInfo =
+        Hive.box('selected_apps').get('show_info_buttons', defaultValue: true)
+            as bool;
+  }
+
+  void _toggle(bool value) {
+    Hive.box('selected_apps').put('show_info_buttons', value);
+    setState(() => _showInfo = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final neon = Theme.of(context).colorScheme.secondary;
+    return Row(
+      children: [
+        Icon(Icons.help_outline, color: neon, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Show info (?) buttons on all pages',
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+        Switch(value: _showInfo, onChanged: _toggle, activeColor: neon),
+      ],
+    );
+  }
+}
+
 class _InfoButton extends StatelessWidget {
   final String? infoText;
   final Color iconColor;
@@ -762,6 +852,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);

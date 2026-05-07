@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -40,7 +41,7 @@ class _DashboardPageState extends State<DashboardPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
-  // Refresh activity bars every 2 seconds to catch task updates from journal
+    // Refresh activity bars every 2 seconds to catch task updates from journal
     _ringRefreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (mounted) _loadBars();
     });
@@ -72,7 +73,9 @@ class _DashboardPageState extends State<DashboardPage>
     if (cached != null && mounted) {
       setState(() {
         _username = (cached['username'] ?? user.email ?? 'User').toString();
-        _coins = (cached['coins'] is num) ? (cached['coins'] as num).toInt() : 0;
+        _coins = (cached['coins'] is num)
+            ? (cached['coins'] as num).toInt()
+            : 0;
         _avatarSvg = (cached['avatar_svg'] ?? '').toString();
       });
     }
@@ -82,7 +85,8 @@ class _DashboardPageState extends State<DashboardPage>
           .select('username, coins, avatar_svg')
           .eq('id', user.id)
           .maybeSingle();
-      if (row != null) sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
+      if (row != null)
+        sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
       if (!mounted) return;
       setState(() {
         _username = (row?['username'] ?? user.email ?? 'User').toString();
@@ -91,16 +95,19 @@ class _DashboardPageState extends State<DashboardPage>
       });
     } catch (_) {
       if (!mounted) return;
-      if (cached == null) setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
+      if (cached == null)
+        setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
     }
   }
+
   // ── bars ──────────────────────────────────────────────────────────────────
   Future<void> _loadBars() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
     final todayStr = _todayKey();
 
-    await Future.wait([      // Event ring
+    await Future.wait([
+      // Event ring
       () async {
         try {
           final rows = await _supabase
@@ -119,13 +126,13 @@ class _DashboardPageState extends State<DashboardPage>
           ];
           final todayWeekday = fullWeekdays[now.weekday % 7];
           int total = 0, done = 0;
-          
+
           for (final r in rows) {
             final List<String> days = List<String>.from(r['days'] ?? []);
             final isRepeating = days.isNotEmpty;
             bool isScheduledForToday = false;
             bool isCompleted = false;
-            
+
             // Check if event is scheduled for today
             if (isRepeating) {
               if (!days.contains(todayWeekday)) continue;
@@ -135,14 +142,14 @@ class _DashboardPageState extends State<DashboardPage>
               if (!eventDate.startsWith(todayStr)) continue;
               isScheduledForToday = true;
             }
-            
+
             if (isScheduledForToday) {
               total++;
-              
+
               // Check if event is completed (time has passed)
               final allDay = r['all_day'] == true;
               final endTime = (r['end_time'] ?? '').toString();
-              
+
               if (allDay) {
                 // All-day events complete at end of day (23:59:59)
                 if (now.hour == 23 && now.minute == 59 && now.second >= 59) {
@@ -169,11 +176,11 @@ class _DashboardPageState extends State<DashboardPage>
                   if (eventEnd.isBefore(now)) isCompleted = true;
                 } catch (_) {}
               }
-              
+
               if (isCompleted) done++;
             }
           }
-          
+
           if (!mounted) return;
           final newEventBar = total == 0 ? 0.0 : (done / total).clamp(0.0, 1.0);
           setState(() {
@@ -186,7 +193,7 @@ class _DashboardPageState extends State<DashboardPage>
             }
           });
         } catch (_) {}
-      }(),      // Task ring
+      }(), // Task ring
       () async {
         try {
           final rows = await _supabase
@@ -199,7 +206,7 @@ class _DashboardPageState extends State<DashboardPage>
             // Only count regular tasks (not challenges)
             final isChallenge = (r['is_challenge'] as bool?) ?? false;
             if (isChallenge) continue;
-            
+
             final days = List<String>.from(r['days'] ?? []);
             if (days.isEmpty || days.contains(todayWeekday)) {
               total++;
@@ -244,7 +251,9 @@ class _DashboardPageState extends State<DashboardPage>
           for (final l in logs) {
             total += (l['calories'] is num)
                 ? (l['calories'] as num).toDouble()
-                : 0;          }          if (!mounted) return;
+                : 0;
+          }
+          if (!mounted) return;
           final newMacroBar = (total / goal).clamp(0.0, 1.0);
           setState(() {
             final oldMacroBar = _macroBar;
@@ -265,7 +274,9 @@ class _DashboardPageState extends State<DashboardPage>
               .from('weight_entries')
               .select('entry_date')
               .eq('user_id', user.id)
-              .eq('entry_date', todayStr)              .maybeSingle();          if (!mounted) return;
+              .eq('entry_date', todayStr)
+              .maybeSingle();
+          if (!mounted) return;
           final newWeightBar = row != null ? 1.0 : 0.0;
           setState(() {
             final oldWeightBar = _weightBar;
@@ -287,6 +298,7 @@ class _DashboardPageState extends State<DashboardPage>
         '${n.month.toString().padLeft(2, '0')}-'
         '${n.day.toString().padLeft(2, '0')}';
   }
+
   String _weekdayName(int weekday) {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
@@ -298,13 +310,19 @@ class _DashboardPageState extends State<DashboardPage>
         backgroundColor: Colors.black,
         duration: Duration(seconds: 4),
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: Theme.of(context).colorScheme.secondary, width: 1.5),
+          side: BorderSide(
+            color: Theme.of(context).colorScheme.secondary,
+            width: 1.5,
+          ),
           borderRadius: BorderRadius.circular(12),
         ),
         behavior: SnackBarBehavior.floating,
         content: Row(
           children: [
-            Icon(Icons.emoji_events, color: Theme.of(context).colorScheme.secondary),
+            Icon(
+              Icons.emoji_events,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
             SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -338,7 +356,9 @@ class _DashboardPageState extends State<DashboardPage>
               onSettingsReturn: _loadProfile,
             ),
 
-            const SizedBox(height: 10),            // ── Activity Bars ────────────────────────────────────────────
+            const SizedBox(
+              height: 10,
+            ), // ── Activity Bars ────────────────────────────────────────────
             _ActivityBarsWidget(
               eventBar: _eventBar,
               taskBar: _taskBar,
@@ -349,10 +369,12 @@ class _DashboardPageState extends State<DashboardPage>
             // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
               flex: 1,
-              child: _DailyTasksWidget(onTasksChanged: () {
-                _loadBars();
-                _loadProfile();
-              }),
+              child: _DailyTasksWidget(
+                onTasksChanged: () {
+                  _loadBars();
+                  _loadProfile();
+                },
+              ),
             ),
           ],
         ),
@@ -390,7 +412,8 @@ class _ProfileWidget extends StatelessWidget {
         color: Colors.black,
       ),
       child: Row(
-        children: [          // Left: Profile avatar
+        children: [
+          // Left: Profile avatar
           avatarSvg.isNotEmpty
               ? ClipOval(
                   child: SvgPicture.string(
@@ -483,16 +506,18 @@ class _ActivityBarsWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
         color: Colors.black,
-      ),      child: Column(
+      ),
+      child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [          // Header
+        children: [
+          // Header
           Row(
             children: [
               Icon(Icons.trending_up, color: neon, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'PROGRESS',
+                  'DAILY PROGRESS',
                   style: Theme.of(
                     context,
                   ).textTheme.titleMedium?.copyWith(color: Colors.white),
@@ -504,7 +529,8 @@ class _ActivityBarsWidget extends StatelessWidget {
                 iconColor: neon,
               ),
             ],
-          ),          const SizedBox(height: 12),
+          ),
+          const SizedBox(height: 12),
           _ProgressBarItem(
             value: taskBar,
             label: 'Tasks',
@@ -680,6 +706,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
   }
+
   Future<void> _loadTasks() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -694,7 +721,11 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .from('user_tasks')
           .select()
           .eq('user_id', user.id);
-      sync.cacheList('user_tasks_dash', user.id, List<Map<String, dynamic>>.from(rows as List));
+      sync.cacheList(
+        'user_tasks_dash',
+        user.id,
+        List<Map<String, dynamic>>.from(rows as List),
+      );
       _applyTaskData(rows as List);
     } catch (_) {
       if (cachedRaw.isEmpty && mounted) setState(() => _loading = false);
@@ -705,15 +736,17 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     final today = _todayKey();
     final todayWeekday = _weekdayName(DateTime.now().weekday);
     final tasks = rows
-        .map((r) => <String, dynamic>{
-              'id': r['id'],
-              'name': r['name'].toString(),
-              'days': List<String>.from(r['days'] ?? []),
-              'end_date': r['end_date']?.toString(),
-              'completed_dates': List<String>.from(r['completed_dates'] ?? []),
-              'user_id': r['user_id'],
-              'is_challenge': (r['is_challenge'] as bool?) ?? false,
-            })
+        .map(
+          (r) => <String, dynamic>{
+            'id': r['id'],
+            'name': r['name'].toString(),
+            'days': List<String>.from(r['days'] ?? []),
+            'end_date': r['end_date']?.toString(),
+            'completed_dates': List<String>.from(r['completed_dates'] ?? []),
+            'user_id': r['user_id'],
+            'is_challenge': (r['is_challenge'] as bool?) ?? false,
+          },
+        )
         .where((t) {
           final isChallenge = t['is_challenge'] as bool;
           if (isChallenge) return (t['end_date'] as String?) == today;
@@ -727,6 +760,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       _loading = false;
     });
   }
+
   Future<void> _toggleChallenge(Map<String, dynamic> challenge) async {
     final today = _todayKey();
     final completed = List<String>.from(
@@ -739,7 +773,13 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       completed.add(today);
     }
     setState(() => challenge['completed_dates'] = completed);
-    SyncService.instance.patchCachedList('user_tasks_dash', _supabase.auth.currentUser?.id ?? '', 'id', challenge['id'].toString(), {'completed_dates': completed});
+    SyncService.instance.patchCachedList(
+      'user_tasks_dash',
+      _supabase.auth.currentUser?.id ?? '',
+      'id',
+      challenge['id'].toString(),
+      {'completed_dates': completed},
+    );
     try {
       await _supabase
           .from('user_tasks')
@@ -748,9 +788,15 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       await _updateCoins(wasCompleted ? -5 : 5);
       widget.onTasksChanged();
     } catch (_) {
-      SyncService.instance.enqueue(table: 'user_tasks', type: 'update', data: {'completed_dates': completed}, match: {'id': challenge['id']});
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'update',
+        data: {'completed_dates': completed},
+        match: {'id': challenge['id']},
+      );
     }
   }
+
   Future<void> _showAddChallengeDialog() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
@@ -786,7 +832,9 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     if (availableChallenges.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All challenges already added for today!')),
+        const SnackBar(
+          content: Text('All challenges already added for today!'),
+        ),
       );
       return;
     }
@@ -811,16 +859,30 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     });
 
     final challengeData = {
-      'id': id, 'name': selected, 'days': <String>[], 'end_date': today,
-      'completed_dates': <String>[], 'user_id': user.id, 'is_challenge': true,
+      'id': id,
+      'name': selected,
+      'days': <String>[],
+      'end_date': today,
+      'completed_dates': <String>[],
+      'user_id': user.id,
+      'is_challenge': true,
     };
-    SyncService.instance.addToCachedList('user_tasks_dash', user.id, challengeData);
+    SyncService.instance.addToCachedList(
+      'user_tasks_dash',
+      user.id,
+      challengeData,
+    );
     try {
       await _supabase.from('user_tasks').insert(challengeData);
     } catch (_) {
-      SyncService.instance.enqueue(table: 'user_tasks', type: 'insert', data: challengeData);
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'insert',
+        data: challengeData,
+      );
     }
   }
+
   bool _isCompletedToday(Map<String, dynamic> task) =>
       (task['completed_dates'] as List<String>? ?? []).contains(_todayKey());
 
@@ -842,6 +904,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .eq('id', user.id);
     } catch (_) {}
   }
+
   Future<void> _toggleTask(Map<String, dynamic> task) async {
     final today = _todayKey();
     final completed = List<String>.from(task['completed_dates'] as List);
@@ -852,7 +915,13 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       completed.add(today);
     }
     setState(() => task['completed_dates'] = completed);
-    SyncService.instance.patchCachedList('user_tasks_dash', _supabase.auth.currentUser?.id ?? '', 'id', task['id'].toString(), {'completed_dates': completed});
+    SyncService.instance.patchCachedList(
+      'user_tasks_dash',
+      _supabase.auth.currentUser?.id ?? '',
+      'id',
+      task['id'].toString(),
+      {'completed_dates': completed},
+    );
     try {
       await _supabase
           .from('user_tasks')
@@ -861,7 +930,12 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       await _updateCoins(wasCompleted ? -1 : 1);
       widget.onTasksChanged();
     } catch (_) {
-      SyncService.instance.enqueue(table: 'user_tasks', type: 'update', data: {'completed_dates': completed}, match: {'id': task['id']});
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'update',
+        data: {'completed_dates': completed},
+        match: {'id': task['id']},
+      );
     }
   }
 
@@ -880,14 +954,26 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         onTaskAdded: (task) async {
           final id = const Uuid().v4();
           final taskData = {
-            'id': id, 'name': task['name'], 'days': task['days'] ?? [],
-            'end_date': task['end_date'], 'completed_dates': <String>[], 'user_id': user.id,
+            'id': id,
+            'name': task['name'],
+            'days': task['days'] ?? [],
+            'end_date': task['end_date'],
+            'completed_dates': <String>[],
+            'user_id': user.id,
           };
-          SyncService.instance.addToCachedList('user_tasks_dash', user.id, taskData);
+          SyncService.instance.addToCachedList(
+            'user_tasks_dash',
+            user.id,
+            taskData,
+          );
           try {
             await _supabase.from('user_tasks').insert(taskData);
           } catch (_) {
-            SyncService.instance.enqueue(table: 'user_tasks', type: 'insert', data: taskData);
+            SyncService.instance.enqueue(
+              table: 'user_tasks',
+              type: 'insert',
+              data: taskData,
+            );
           }
           setState(() => _loadTasks());
           widget.onTasksChanged();
@@ -1167,6 +1253,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);
