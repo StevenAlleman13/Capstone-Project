@@ -112,7 +112,7 @@ class _DashboardPageState extends State<DashboardPage>
         try {
           final rows = await _supabase
               .from('user_events')
-              .select('date, days, end_time, all_day')
+              .select('start_date, days, end_time, all_day')
               .eq('user_id', user.id);
           final now = DateTime.now();
           const fullWeekdays = [
@@ -138,7 +138,7 @@ class _DashboardPageState extends State<DashboardPage>
               if (!days.contains(todayWeekday)) continue;
               isScheduledForToday = true;
             } else {
-              final eventDate = (r['date'] ?? '').toString();
+              final eventDate = (r['start_date'] ?? '').toString();
               if (!eventDate.startsWith(todayStr)) continue;
               isScheduledForToday = true;
             }
@@ -953,11 +953,12 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         onEventAdded: (_) {},
         onTaskAdded: (task) async {
           final id = const Uuid().v4();
+          final endDate = task['end_date'] ?? DateTime.now().toIso8601String().substring(0, 10);
           final taskData = {
             'id': id,
             'name': task['name'],
             'days': task['days'] ?? [],
-            'end_date': task['end_date'],
+            'end_date': endDate,
             'completed_dates': <String>[],
             'user_id': user.id,
           };

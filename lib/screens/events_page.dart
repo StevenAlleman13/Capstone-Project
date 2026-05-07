@@ -86,7 +86,7 @@ class EventsPageState extends State<EventsPage> {
             final updateData = {
               'title': updatedEvent['title'],
               'description': updatedEvent['description'],
-              'date': updatedEvent['date'],
+              'start_date': updatedEvent['start_date'],
               'start_time': updatedEvent['start_time'],
               'end_time': updatedEvent['end_time'],
               'all_day': updatedEvent['all_day'],
@@ -179,7 +179,7 @@ class EventsPageState extends State<EventsPage> {
           .from('user_events')
           .select()
           .eq('user_id', userId)
-          .order('date', ascending: true);
+          .order('start_date', ascending: true);
       final data = List<Map<String, dynamic>>.from(response);
       sync.cacheList('user_events', userId, data);
       if (mounted) setState(() => _events = data);
@@ -284,7 +284,7 @@ class EventsPageState extends State<EventsPage> {
   bool _isEventCompleted(Map event) {
     if (event['all_day'] == true) {
       final eventDate =
-          DateTime.tryParse(event['date'] ?? '') ?? DateTime.now();
+          DateTime.tryParse(event['start_date'] ?? '') ?? DateTime.now();
       final now = DateTime.now();
       if (eventDate.isBefore(DateTime(now.year, now.month, now.day))) {
         return true;
@@ -296,7 +296,7 @@ class EventsPageState extends State<EventsPage> {
       }
       return false;
     }
-    final date = event['date'] ?? '';
+    final date = event['start_date'] ?? '';
     final endTime = event['end_time'] ?? '';
     if (date.isEmpty || endTime.isEmpty) return false;
     try {
@@ -387,7 +387,7 @@ class EventsPageState extends State<EventsPage> {
             if (dayStr == todayStr && _isRepeatingEventCompletedToday(ev)) {
               return false;
             }
-            final eventDate = DateTime.tryParse(ev['date'] ?? '');
+            final eventDate = DateTime.tryParse(ev['start_date'] ?? '');
             if (eventDate == null) return false;
             final eventDateOnly = DateTime(
               eventDate.year,
@@ -396,10 +396,15 @@ class EventsPageState extends State<EventsPage> {
             );
             final dayOnly = DateTime(day.year, day.month, day.day);
             if (dayOnly.isBefore(eventDateOnly)) return false;
+            final endDateStr = ev['end_date'];
+            if (endDateStr != null) {
+              final endDate = DateTime.tryParse(endDateStr);
+              if (endDate != null && dayOnly.isAfter(DateTime(endDate.year, endDate.month, endDate.day))) return false;
+            }
             return days.contains(fullWeekdays[day.weekday % 7]);
           } else {
             if (_isEventCompleted(ev)) return false;
-            return ev['date']?.substring(0, 10) == dayStr;
+            return ev['start_date']?.substring(0, 10) == dayStr;
           }
         })
         .cast<Map>()
@@ -428,7 +433,7 @@ class EventsPageState extends State<EventsPage> {
             // Completed if end_time has passed today (time-based, no in-memory state needed)
             if (dayStr != todayStr) return false;
             if (!_isRepeatingEventCompletedToday(ev)) return false;
-            final eventDate = DateTime.tryParse(ev['date'] ?? '');
+            final eventDate = DateTime.tryParse(ev['start_date'] ?? '');
             if (eventDate == null) return false;
             final eventDateOnly = DateTime(
               eventDate.year,
@@ -437,10 +442,15 @@ class EventsPageState extends State<EventsPage> {
             );
             final dayOnly = DateTime(day.year, day.month, day.day);
             if (dayOnly.isBefore(eventDateOnly)) return false;
+            final endDateStr = ev['end_date'];
+            if (endDateStr != null) {
+              final endDate = DateTime.tryParse(endDateStr);
+              if (endDate != null && dayOnly.isAfter(DateTime(endDate.year, endDate.month, endDate.day))) return false;
+            }
             return days.contains(fullWeekdays[day.weekday % 7]);
           } else {
             if (!_isEventCompleted(ev)) return false;
-            return ev['date']?.substring(0, 10) == dayStr;
+            return ev['start_date']?.substring(0, 10) == dayStr;
           }
         })
         .cast<Map>()
@@ -565,12 +575,13 @@ class EventsPageState extends State<EventsPage> {
         onEventAdded: (event) async {
           final id = Uuid().v4();
           final userId = Supabase.instance.client.auth.currentUser?.id;
-          final eventDate = event['date'] as DateTime? ?? _selectedDay;
+          final eventDate = event['start_date'] as DateTime? ?? _selectedDay;
           final fullEvent = {
             'id': id,
             'title': event['title'],
             'description': event['description'] ?? '',
-            'date': eventDate.toIso8601String(),
+            'start_date': eventDate.toIso8601String(),
+            'end_date': event['end_date'],
             'user_id': userId,
             'start_time': event['start_time'] ?? '00:00',
             'end_time': event['end_time'] ?? '23:59',
@@ -582,7 +593,8 @@ class EventsPageState extends State<EventsPage> {
             'id': id,
             'title': event['title'],
             'description': event['description'] ?? '',
-            'date': eventDate.toIso8601String(),
+            'start_date': eventDate.toIso8601String(),
+            'end_date': event['end_date'],
             'user_id': userId,
             'start_time': event['start_time'] ?? '00:00',
             'end_time': event['end_time'] ?? '23:59',
@@ -600,11 +612,12 @@ class EventsPageState extends State<EventsPage> {
         onTaskAdded: (task) async {
           final id = Uuid().v4();
           final userId = Supabase.instance.client.auth.currentUser?.id;
+          final endDate = task['end_date'] ?? _selectedDay.toIso8601String().substring(0, 10);
           final newTask = {
             'id': id,
             'name': task['name'],
             'days': task['days'] ?? [],
-            'end_date': task['end_date'],
+            'end_date': endDate,
             'completedDates': <String>[],
             'user_id': userId,
           };
@@ -613,7 +626,7 @@ class EventsPageState extends State<EventsPage> {
             'id': id,
             'name': task['name'],
             'days': task['days'] ?? [],
-            'end_date': task['end_date'],
+            'end_date': endDate,
             'completed_dates': <String>[],
             'user_id': userId,
           };
@@ -1848,7 +1861,8 @@ class _AddEventTaskSheetState extends State<AddEventTaskSheet> {
       widget.onEventAdded({
         'title': _titleCtl.text.trim(),
         'description': _locationCtl.text.trim(),
-        'date': _startDate,
+        'start_date': _startDate,
+        'end_date': _endDate.toIso8601String(),
         'all_day': _allDay,
         'start_time': _allDay ? '00:00' : _timeToString(_startTime),
         'end_time': _allDay ? '23:59' : _timeToString(_endTime),
@@ -2293,8 +2307,8 @@ class _EditEventSheetState extends State<_EditEventSheet> {
       text: widget.event['description'] ?? '',
     );
     _allDay = widget.event['all_day'] ?? false;
-    _startDate = widget.event['date'] != null
-        ? DateTime.parse(widget.event['date'])
+    _startDate = widget.event['start_date'] != null
+        ? DateTime.parse(widget.event['start_date'])
         : DateTime.now();
     _endDate = _startDate;
 
@@ -2458,7 +2472,7 @@ class _EditEventSheetState extends State<_EditEventSheet> {
                                   ...widget.event,
                                   'title': _titleCtl.text.trim(),
                                   'description': _locationCtl.text.trim(),
-                                  'date': _startDate.toIso8601String(),
+                                  'start_date': _startDate.toIso8601String(),
                                   'all_day': _allDay,
                                   'start_time': _allDay
                                       ? '00:00'
