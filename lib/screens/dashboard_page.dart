@@ -22,10 +22,12 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage>
-    with WidgetsBindingObserver {  // ── profile ──────────────────────────────────────────────────────────────
+    with WidgetsBindingObserver {
+  // ── profile ──────────────────────────────────────────────────────────────
   String _username = '';
   String _avatarSvg = '';
-  int _coins = 0;  // ── bar data ──────────────────────────────────────────────────────────────
+  int _coins = 0;
+  // ── bar data ──────────────────────────────────────────────────────────────
   double _eventBar = 0;
   double _taskBar = 0;
   double _macroBar = 0;
@@ -98,8 +100,7 @@ class _DashboardPageState extends State<DashboardPage>
     if (user == null) return;
     final todayStr = _todayKey();
 
-    await Future.wait([
-      // Event ring
+    await Future.wait([      // Event ring
       () async {
         try {
           final rows = await _supabase
@@ -118,77 +119,87 @@ class _DashboardPageState extends State<DashboardPage>
           ];
           final todayWeekday = fullWeekdays[now.weekday % 7];
           int total = 0, done = 0;
+          
           for (final r in rows) {
             final List<String> days = List<String>.from(r['days'] ?? []);
             final isRepeating = days.isNotEmpty;
+            bool isScheduledForToday = false;
+            bool isCompleted = false;
+            
+            // Check if event is scheduled for today
             if (isRepeating) {
               if (!days.contains(todayWeekday)) continue;
-              total++;
-              final endTime = (r['end_time'] ?? '').toString();
-              if (endTime.isNotEmpty) {
-                try {
-                  final parts = endTime.split(':');
-                  final endH = int.parse(parts[0]);
-                  final endM = int.parse(parts[1]);
-                  if (now.hour > endH ||
-                      (now.hour == endH && now.minute >= endM)) {
-                    done++;
-                  }
-                } catch (_) {}
-              }
+              isScheduledForToday = true;
             } else {
               final eventDate = (r['date'] ?? '').toString();
               if (!eventDate.startsWith(todayStr)) continue;
+              isScheduledForToday = true;
+            }
+            
+            if (isScheduledForToday) {
               total++;
-              // Time-based completion — same logic as _isEventCompleted in events_page
+              
+              // Check if event is completed (time has passed)
               final allDay = r['all_day'] == true;
+              final endTime = (r['end_time'] ?? '').toString();
+              
               if (allDay) {
                 // All-day events complete at end of day (23:59:59)
                 if (now.hour == 23 && now.minute == 59 && now.second >= 59) {
-                  done++;
+                  isCompleted = true;
                 }
-              } else {
-                final endTime = (r['end_time'] ?? '').toString();
-                if (endTime.isNotEmpty) {
-                  try {
-                    final parts = endTime.split(':');
-                    int endH = int.parse(parts[0].trim());
-                    int endM = int.parse(parts[1].trim().split(' ')[0]);
-                    if (endTime.toUpperCase().contains('PM') && endH < 12) {
-                      endH += 12;
-                    }
-                    if (endTime.toUpperCase().contains('AM') && endH == 12) {
-                      endH = 0;
-                    }
-                    final eventEnd = DateTime(
-                      now.year,
-                      now.month,
-                      now.day,
-                      endH,
-                      endM,
-                    );
-                    if (eventEnd.isBefore(now)) done++;
-                  } catch (_) {}
-                }
+              } else if (endTime.isNotEmpty) {
+                try {
+                  final parts = endTime.split(':');
+                  int endH = int.parse(parts[0].trim());
+                  int endM = int.parse(parts[1].trim().split(' ')[0]);
+                  if (endTime.toUpperCase().contains('PM') && endH < 12) {
+                    endH += 12;
+                  }
+                  if (endTime.toUpperCase().contains('AM') && endH == 12) {
+                    endH = 0;
+                  }
+                  final eventEnd = DateTime(
+                    now.year,
+                    now.month,
+                    now.day,
+                    endH,
+                    endM,
+                  );
+                  if (eventEnd.isBefore(now)) isCompleted = true;
+                } catch (_) {}
               }
+              
+              if (isCompleted) done++;
             }
           }
-          if (!mounted) return;          setState(
-            () => _eventBar = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
-          );
+          
+          if (!mounted) return;
+          final newEventBar = total == 0 ? 0.0 : (done / total).clamp(0.0, 1.0);
+          setState(() {
+            final oldEventBar = _eventBar;
+            _eventBar = newEventBar;
+            if (oldEventBar < 1.0 && newEventBar >= 1.0) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _showGoalReachedBanner('Events');
+              });
+            }
+          });
         } catch (_) {}
-      }(),
-
-      // Task ring
+      }(),      // Task ring
       () async {
         try {
           final rows = await _supabase
               .from('user_tasks')
-              .select('days, completed_dates')
+              .select('days, completed_dates, is_challenge')
               .eq('user_id', user.id);
           final todayWeekday = _weekdayName(DateTime.now().weekday);
           int total = 0, done = 0;
           for (final r in rows) {
+            // Only count regular tasks (not challenges)
+            final isChallenge = (r['is_challenge'] as bool?) ?? false;
+            if (isChallenge) continue;
+            
             final days = List<String>.from(r['days'] ?? []);
             if (days.isEmpty || days.contains(todayWeekday)) {
               total++;
@@ -199,9 +210,17 @@ class _DashboardPageState extends State<DashboardPage>
               }
             }
           }
-          if (!mounted) return;          setState(
-            () => _taskBar = total == 0 ? 0 : (done / total).clamp(0.0, 1.0),
-          );
+          if (!mounted) return;
+          final newTaskBar = total == 0 ? 0.0 : (done / total).clamp(0.0, 1.0);
+          setState(() {
+            final oldTaskBar = _taskBar;
+            _taskBar = newTaskBar;
+            if (oldTaskBar < 1.0 && newTaskBar >= 1.0) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _showGoalReachedBanner('Tasks');
+              });
+            }
+          });
         } catch (_) {}
       }(),
 
@@ -225,9 +244,17 @@ class _DashboardPageState extends State<DashboardPage>
           for (final l in logs) {
             total += (l['calories'] is num)
                 ? (l['calories'] as num).toDouble()
-                : 0;
-          }          if (!mounted) return;
-          setState(() => _macroBar = (total / goal).clamp(0.0, 1.0));
+                : 0;          }          if (!mounted) return;
+          final newMacroBar = (total / goal).clamp(0.0, 1.0);
+          setState(() {
+            final oldMacroBar = _macroBar;
+            _macroBar = newMacroBar;
+            if (oldMacroBar < 1.0 && newMacroBar >= 1.0) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _showGoalReachedBanner('Macros');
+              });
+            }
+          });
         } catch (_) {}
       }(),
 
@@ -238,9 +265,17 @@ class _DashboardPageState extends State<DashboardPage>
               .from('weight_entries')
               .select('entry_date')
               .eq('user_id', user.id)
-              .eq('entry_date', todayStr)
-              .maybeSingle();          if (!mounted) return;
-          setState(() => _weightBar = row != null ? 1.0 : 0.0);
+              .eq('entry_date', todayStr)              .maybeSingle();          if (!mounted) return;
+          final newWeightBar = row != null ? 1.0 : 0.0;
+          setState(() {
+            final oldWeightBar = _weightBar;
+            _weightBar = newWeightBar;
+            if (oldWeightBar < 1.0 && newWeightBar >= 1.0) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _showGoalReachedBanner('Weight');
+              });
+            }
+          });
         } catch (_) {}
       }(),
     ]);
@@ -252,11 +287,40 @@ class _DashboardPageState extends State<DashboardPage>
         '${n.month.toString().padLeft(2, '0')}-'
         '${n.day.toString().padLeft(2, '0')}';
   }
-
   String _weekdayName(int weekday) {
     const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return names[(weekday - 1).clamp(0, 6)];
   }
+
+  void _showGoalReachedBanner(String barName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.black,
+        duration: Duration(seconds: 4),
+        shape: RoundedRectangleBorder(
+          side: BorderSide(color: Theme.of(context).colorScheme.secondary, width: 1.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        behavior: SnackBarBehavior.floating,
+        content: Row(
+          children: [
+            Icon(Icons.emoji_events, color: Theme.of(context).colorScheme.secondary),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Congratulations! You completed $barName!',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.secondary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -419,30 +483,37 @@ class _ActivityBarsWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(_cornerRadius),
         border: Border.all(color: neon, width: 2),
         color: Colors.black,
-      ),
-      child: Column(
+      ),      child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [
+        children: [          // Header
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              Icon(Icons.trending_up, color: neon, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'PROGRESS',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: Colors.white),
+                ),
+              ),
               _InfoButton(
                 infoText:
                     'Use this to track progress on your set Events, Tasks, Macros, and Weight from the Journal and Fitness tabs. Once you complete all of the daily requirements for each component, the progression bars will fill up.',
                 iconColor: neon,
               ),
             ],
-          ),
-          const SizedBox(height: 4),
-          _ProgressBarItem(
-            value: eventBar,
-            label: 'Events',
-            color: const Color(0xFF00FF66),
-          ),
-          const SizedBox(height: 12),
+          ),          const SizedBox(height: 12),
           _ProgressBarItem(
             value: taskBar,
             label: 'Tasks',
+            color: const Color(0xFFFFD700),
+          ),
+          const SizedBox(height: 12),
+          _ProgressBarItem(
+            value: eventBar,
+            label: 'Events',
             color: const Color(0xFF00FF66),
           ),
           const SizedBox(height: 12),
