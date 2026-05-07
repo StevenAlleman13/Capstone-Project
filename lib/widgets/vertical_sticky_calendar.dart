@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -79,12 +80,34 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
   Future<void> _loadWorkoutsForDay() async {
     if (_userId == null) return;
     setState(() => _loadingWorkouts = true);
+<<<<<<< Updated upstream
     final rows = await _supabase
         .from('user_workouts')
         .select()
         .eq('user_id', _userId!)
         .eq('workout_date', _dayKey)
         .order('created_at', ascending: true);
+=======
+    final sync = SyncService.instance;
+    final cacheKey = 'user_workouts_$_dayKey';
+    final cachedWorkouts = sync.getCachedList(cacheKey, _userId!);
+    List<dynamic> rows = cachedWorkouts;
+    try {
+      await SyncService.instance.flushQueue();
+      final fresh = await _supabase
+          .from('user_workouts')
+          .select()
+          .eq('user_id', _userId!)
+          .eq('workout_date', _dayKey)
+          .order('created_at', ascending: true);
+      sync.cacheList(
+        cacheKey,
+        _userId!,
+        List<Map<String, dynamic>>.from(fresh),
+      );
+      rows = fresh;
+    } catch (_) {}
+>>>>>>> Stashed changes
     setState(() {
       _savedWorkoutsForDay
         ..clear()
@@ -140,6 +163,7 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
     };
 
     if (_editingWorkoutId != null) {
+<<<<<<< Updated upstream
       await _supabase
           .from('user_workouts')
           .update(payload)
@@ -150,6 +174,49 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
         'user_id': _userId,
         'workout_date': _dayKey,
       });
+=======
+      SyncService.instance.patchCachedList(
+        'user_workouts_$_dayKey',
+        _userId!,
+        'id',
+        _editingWorkoutId!,
+        payload,
+      );
+      try {
+        await _supabase
+            .from('user_workouts')
+            .update(payload)
+            .eq('id', _editingWorkoutId!);
+      } catch (_) {
+        SyncService.instance.enqueue(
+          table: 'user_workouts',
+          type: 'update',
+          data: payload,
+          match: {'id': _editingWorkoutId!},
+        );
+      }
+    } else {
+      final insertData = {
+        ...payload,
+        'id': const Uuid().v4(),
+        'user_id': _userId,
+        'workout_date': _dayKey,
+      };
+      SyncService.instance.addToCachedList(
+        'user_workouts_$_dayKey',
+        _userId!,
+        Map<String, dynamic>.from(insertData),
+      );
+      try {
+        await _supabase.from('user_workouts').insert(insertData);
+      } catch (_) {
+        SyncService.instance.enqueue(
+          table: 'user_workouts',
+          type: 'insert',
+          data: Map<String, dynamic>.from(insertData),
+        );
+      }
+>>>>>>> Stashed changes
     }
 
     setState(() {
@@ -918,10 +985,37 @@ class VerticalStickyCalendarState extends State<VerticalStickyCalendar> {
                                               Center(
                                                 child: TextButton(
                                                   onPressed: () async {
+<<<<<<< Updated upstream
                                                     await _supabase
                                                         .from('user_workouts')
                                                         .delete()
                                                         .eq('id', w['id']);
+=======
+                                                    SyncService.instance
+                                                        .removeFromCachedList(
+                                                          'user_workouts_$_dayKey',
+                                                          _userId!,
+                                                          'id',
+                                                          w['id'].toString(),
+                                                        );
+                                                    try {
+                                                      await _supabase
+                                                          .from('user_workouts')
+                                                          .delete()
+                                                          .eq('id', w['id']);
+                                                    } catch (_) {
+                                                      SyncService.instance
+                                                          .enqueue(
+                                                            table:
+                                                                'user_workouts',
+                                                            type: 'delete',
+                                                            data: {},
+                                                            match: {
+                                                              'id': w['id'],
+                                                            },
+                                                          );
+                                                    }
+>>>>>>> Stashed changes
                                                     await _loadWorkoutsForDay();
                                                   },
                                                   style: TextButton.styleFrom(
@@ -2081,6 +2175,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);

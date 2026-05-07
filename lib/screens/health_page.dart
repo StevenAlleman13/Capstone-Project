@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -112,10 +113,24 @@ class HealthPageState extends State<HealthPage> {
     }
 
     try {
+<<<<<<< Updated upstream
       if (mounted) setState(() => _loadingIngredients = true);
 
       // Try to fetch with serving columns first; fall back without them if the
       // migration hasn't been run yet
+=======
+      final sync = SyncService.instance;
+      final cachedIng = sync.getCachedList('ingredients', user.id);
+      if (cachedIng.isNotEmpty && mounted) {
+        setState(() {
+          _ingredients = cachedIng
+              .map((r) => IngredientRow.fromMap(r as Map<String, dynamic>))
+              .where((x) => x.name.trim().isNotEmpty)
+              .toList();
+          _loadingIngredients = false;
+        });
+      }
+>>>>>>> Stashed changes
       List<dynamic> rows;
       try {
         rows = await _supabase
@@ -127,6 +142,7 @@ class HealthPageState extends State<HealthPage> {
             )
             .eq('user_id', user.id)
             .order('created_at');
+<<<<<<< Updated upstream
       } catch (_) {
         // Columns not yet migrated — fetch without them
         rows = await _supabase
@@ -137,6 +153,31 @@ class HealthPageState extends State<HealthPage> {
             )
             .eq('user_id', user.id)
             .order('created_at');
+=======
+        sync.cacheList(
+          'ingredients',
+          user.id,
+          List<Map<String, dynamic>>.from(rows),
+        );
+      } catch (_) {
+        try {
+          rows = await _supabase
+              .from('ingredients')
+              .select(
+                'name, spoonacular_id, image_url, calories, carbs_g, protein_g,'
+                ' fat_g, fiber_g, sugar_g, sodium_mg, last_nutrition_sync',
+              )
+              .eq('user_id', user.id)
+              .order('created_at');
+          sync.cacheList(
+            'ingredients',
+            user.id,
+            List<Map<String, dynamic>>.from(rows),
+          );
+        } catch (_) {
+          rows = sync.getCachedList('ingredients', user.id);
+        }
+>>>>>>> Stashed changes
       }
       final list = rows
           .map((r) => IngredientRow.fromMap(r as Map<String, dynamic>))
@@ -334,6 +375,17 @@ class HealthPageState extends State<HealthPage> {
           ),
         );
     if (result == null) return;
+<<<<<<< Updated upstream
+=======
+    final ingData = {
+      'user_id': user.id,
+      'name': result.name,
+      'serving_amount': result.amount,
+      'serving_unit': result.unit,
+    };
+    final ingDataFallback = {'user_id': user.id, 'name': result.name};
+    SyncService.instance.addToCachedList('ingredients', user.id, ingData);
+>>>>>>> Stashed changes
     try {
       await _supabase.from('ingredients').insert({
         'user_id': user.id,
@@ -342,11 +394,19 @@ class HealthPageState extends State<HealthPage> {
         'serving_unit': result.unit,
       });
     } catch (_) {
+<<<<<<< Updated upstream
       // Fall back without serving columns if migration hasn't run yet
       await _supabase.from('ingredients').insert({
         'user_id': user.id,
         'name': result.name,
       });
+=======
+      SyncService.instance.enqueue(
+        table: 'ingredients',
+        type: 'insert',
+        data: ingDataFallback,
+      );
+>>>>>>> Stashed changes
     }
 
     await _loadIngredients();
@@ -358,12 +418,35 @@ class HealthPageState extends State<HealthPage> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
+<<<<<<< Updated upstream
     await _supabase
         .from('ingredients')
         .delete()
         .eq('user_id', user.id)
         .eq('name', name);
 
+=======
+    SyncService.instance.removeFromCachedList(
+      'ingredients',
+      user.id,
+      'name',
+      name,
+    );
+    try {
+      await _supabase
+          .from('ingredients')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('name', name);
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'ingredients',
+        type: 'delete',
+        data: {},
+        match: {'user_id': user.id, 'name': name},
+      );
+    }
+>>>>>>> Stashed changes
     await _loadIngredients();
   }
 
@@ -612,12 +695,30 @@ class HealthPageState extends State<HealthPage> {
     if (user == null) return;
 
     try {
+<<<<<<< Updated upstream
       if (mounted) setState(() => _loadingFavorites = true);
 
       final rows = await _supabase
           .from('favorite_recipes')
           .select('recipe_id, title, image_url, ingredients')
           .eq('user_id', user.id);
+=======
+      final sync = SyncService.instance;
+      final cachedFavs = sync.getCachedList('favorite_recipes', user.id);
+      List<dynamic> rows = cachedFavs;
+      try {
+        final fresh = await _supabase
+            .from('favorite_recipes')
+            .select('recipe_id, title, image_url, ingredients')
+            .eq('user_id', user.id);
+        sync.cacheList(
+          'favorite_recipes',
+          user.id,
+          List<Map<String, dynamic>>.from(fresh),
+        );
+        rows = fresh;
+      } catch (_) {}
+>>>>>>> Stashed changes
 
       final ids = <int>{};
       final cards = <RecipeCardUi>[];
@@ -675,23 +776,68 @@ class HealthPageState extends State<HealthPage> {
 
     try {
       if (isFav) {
+<<<<<<< Updated upstream
         await _supabase
             .from('favorite_recipes')
             .delete()
             .eq('user_id', user.id)
             .eq('recipe_id', id);
+=======
+        SyncService.instance.removeFromCachedList(
+          'favorite_recipes',
+          user.id,
+          'recipe_id',
+          id.toString(),
+        );
+        try {
+          await _supabase
+              .from('favorite_recipes')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('recipe_id', id);
+        } catch (_) {
+          SyncService.instance.enqueue(
+            table: 'favorite_recipes',
+            type: 'delete',
+            data: {},
+            match: {'user_id': user.id, 'recipe_id': id},
+          );
+        }
+>>>>>>> Stashed changes
         _favoriteRecipeIds.remove(id);
       } else {
         // Serialize all ingredients (both missing and used)
         final ingredientsJson = jsonEncode(recipe.missingIngredients);
+<<<<<<< Updated upstream
 
         await _supabase.from('favorite_recipes').insert({
+=======
+        final favData = {
+>>>>>>> Stashed changes
           'user_id': user.id,
           'recipe_id': id,
           'title': recipe.title,
           'image_url': recipe.imageUrl,
           'ingredients': ingredientsJson,
+<<<<<<< Updated upstream
         });
+=======
+        };
+        SyncService.instance.addToCachedList(
+          'favorite_recipes',
+          user.id,
+          favData,
+        );
+        try {
+          await _supabase.from('favorite_recipes').insert(favData);
+        } catch (_) {
+          SyncService.instance.enqueue(
+            table: 'favorite_recipes',
+            type: 'insert',
+            data: favData,
+          );
+        }
+>>>>>>> Stashed changes
         _favoriteRecipeIds.add(id);
       }
       if (!mounted) return;
@@ -1704,6 +1850,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);

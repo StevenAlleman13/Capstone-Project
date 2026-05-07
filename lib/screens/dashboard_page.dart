@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -63,12 +64,31 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _loadProfile() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
+<<<<<<< Updated upstream
+=======
+    final sync = SyncService.instance;
+    final cached = sync.getCachedSingle('profiles', user.id);
+    if (cached != null && mounted) {
+      setState(() {
+        _username = (cached['username'] ?? user.email ?? 'User').toString();
+        _coins = (cached['coins'] is num)
+            ? (cached['coins'] as num).toInt()
+            : 0;
+        _avatarSvg = (cached['avatar_svg'] ?? '').toString();
+      });
+    }
+>>>>>>> Stashed changes
     try {
       final row = await _supabase
           .from('profiles')
           .select('username, coins')
           .eq('id', user.id)
           .maybeSingle();
+<<<<<<< Updated upstream
+=======
+      if (row != null)
+        sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
+>>>>>>> Stashed changes
       if (!mounted) return;
       setState(() {
         _username = (row?['username'] ?? user.email ?? 'User').toString();
@@ -76,7 +96,12 @@ class _DashboardPageState extends State<DashboardPage>
       });
     } catch (_) {
       if (!mounted) return;
+<<<<<<< Updated upstream
       setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
+=======
+      if (cached == null)
+        setState(() => _username = _supabase.auth.currentUser?.email ?? 'User');
+>>>>>>> Stashed changes
     }
   }
 
@@ -246,7 +271,12 @@ class _DashboardPageState extends State<DashboardPage>
     return names[(weekday - 1).clamp(0, 6)];
   }
 
+<<<<<<< Updated upstream
   // ── build ─────────────────────────────────────────────────────────────────  @override
+=======
+  // ── build ─────────────────────────────────────────────────────────────────
+  @override
+>>>>>>> Stashed changes
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
@@ -274,7 +304,16 @@ class _DashboardPageState extends State<DashboardPage>
             ), // ── Daily Tasks (expands to fill remaining space) ─────────────
             Expanded(
               flex: 1,
+<<<<<<< Updated upstream
               child: _DailyTasksWidget(onTasksChanged: () => _loadRings()),
+=======
+              child: _DailyTasksWidget(
+                onTasksChanged: () {
+                  _loadRings();
+                  _loadProfile();
+                },
+              ),
+>>>>>>> Stashed changes
             ),
           ],
         ),
@@ -312,11 +351,28 @@ class _ProfileWidget extends StatelessWidget {
       child: Row(
         children: [
           // Left: Profile avatar
+<<<<<<< Updated upstream
           CircleAvatar(
             radius: 22,
             backgroundColor: neon.withOpacity(0.15),
             child: Icon(Icons.person, color: neon, size: 26),
           ),
+=======
+          avatarSvg.isNotEmpty
+              ? ClipOval(
+                  child: SvgPicture.string(
+                    avatarSvg,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              : CircleAvatar(
+                  radius: 22,
+                  backgroundColor: neon.withOpacity(0.15),
+                  child: Icon(Icons.person, color: neon, size: 26),
+                ),
+>>>>>>> Stashed changes
           const SizedBox(width: 12),
           // Middle: Profile info
           Expanded(
@@ -400,8 +456,17 @@ class _ActivityRingsWidget extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              Icon(Icons.bar_chart, color: neon, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'DAILY PROGRESS',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: Colors.white),
+                ),
+              ),
               _InfoButton(
                 infoText:
                     'Use this to track progress on your set Events, Tasks, Macros, and Weight from the Journal and Fitness tabs. Once you complete all of the daily requirements for each component, the progression bars will fill up.',
@@ -409,7 +474,7 @@ class _ActivityRingsWidget extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           _ProgressBarItem(
             value: eventRing,
             label: 'Events',
@@ -597,6 +662,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
           .from('user_tasks')
           .select()
           .eq('user_id', user.id);
+<<<<<<< Updated upstream
       final todayWeekday = _weekdayName(DateTime.now().weekday);
       final tasks = (rows as List)
           .map(
@@ -628,6 +694,46 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
+=======
+      sync.cacheList(
+        'user_tasks_dash',
+        user.id,
+        List<Map<String, dynamic>>.from(rows as List),
+      );
+      _applyTaskData(rows as List);
+    } catch (_) {
+      if (cachedRaw.isEmpty && mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _applyTaskData(List rows) {
+    final today = _todayKey();
+    final todayWeekday = _weekdayName(DateTime.now().weekday);
+    final tasks = rows
+        .map(
+          (r) => <String, dynamic>{
+            'id': r['id'],
+            'name': r['name'].toString(),
+            'days': List<String>.from(r['days'] ?? []),
+            'end_date': r['end_date']?.toString(),
+            'completed_dates': List<String>.from(r['completed_dates'] ?? []),
+            'user_id': r['user_id'],
+            'is_challenge': (r['is_challenge'] as bool?) ?? false,
+          },
+        )
+        .where((t) {
+          final isChallenge = t['is_challenge'] as bool;
+          if (isChallenge) return (t['end_date'] as String?) == today;
+          final days = t['days'] as List<String>;
+          return days.isEmpty || days.contains(todayWeekday);
+        })
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _tasks = tasks;
+      _loading = false;
+    });
+>>>>>>> Stashed changes
   }
 
   Future<void> _toggleChallenge(Map<String, dynamic> challenge) async {
@@ -641,13 +747,34 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       completed.add(today);
     }
     setState(() => challenge['completed_dates'] = completed);
+<<<<<<< Updated upstream
+=======
+    SyncService.instance.patchCachedList(
+      'user_tasks_dash',
+      _supabase.auth.currentUser?.id ?? '',
+      'id',
+      challenge['id'].toString(),
+      {'completed_dates': completed},
+    );
+>>>>>>> Stashed changes
     try {
       await _supabase
           .from('user_tasks')
           .update({'completed_dates': completed})
           .eq('id', challenge['id']);
       widget.onTasksChanged();
+<<<<<<< Updated upstream
     } catch (_) {}
+=======
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'update',
+        data: {'completed_dates': completed},
+        match: {'id': challenge['id']},
+      );
+    }
+>>>>>>> Stashed changes
   }
 
   Future<void> _showAddChallengeDialog() async {
@@ -694,6 +821,7 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       _tasks.add(newChallenge);
     });
 
+<<<<<<< Updated upstream
     try {
       await _supabase.from('user_tasks').insert({
         'id': id,
@@ -711,11 +839,58 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       ).showSnackBar(SnackBar(content: Text('Failed to add challenge: $e')));
       // Remove from local list if database insert failed
       setState(() => _tasks.removeWhere((t) => t['id'] == id));
+=======
+    final challengeData = {
+      'id': id,
+      'name': selected,
+      'days': <String>[],
+      'end_date': today,
+      'completed_dates': <String>[],
+      'user_id': user.id,
+      'is_challenge': true,
+    };
+    SyncService.instance.addToCachedList(
+      'user_tasks_dash',
+      user.id,
+      challengeData,
+    );
+    try {
+      await _supabase.from('user_tasks').insert(challengeData);
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'insert',
+        data: challengeData,
+      );
+>>>>>>> Stashed changes
     }
   }
 
   bool _isCompletedToday(Map<String, dynamic> task) =>
       (task['completed_dates'] as List<String>? ?? []).contains(_todayKey());
+<<<<<<< Updated upstream
+=======
+
+  /// Adds [delta] coins to the current user's profile (can be negative to remove).
+  Future<void> _updateCoins(int delta) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final row = await _supabase
+          .from('profiles')
+          .select('coins')
+          .eq('id', user.id)
+          .maybeSingle();
+      final current = (row?['coins'] as num?)?.toInt() ?? 0;
+      final updated = (current + delta).clamp(0, 999999);
+      await _supabase
+          .from('profiles')
+          .update({'coins': updated})
+          .eq('id', user.id);
+    } catch (_) {}
+  }
+
+>>>>>>> Stashed changes
   Future<void> _toggleTask(Map<String, dynamic> task) async {
     final today = _todayKey();
     final completed = List<String>.from(task['completed_dates'] as List);
@@ -725,13 +900,34 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
       completed.add(today);
     }
     setState(() => task['completed_dates'] = completed);
+<<<<<<< Updated upstream
+=======
+    SyncService.instance.patchCachedList(
+      'user_tasks_dash',
+      _supabase.auth.currentUser?.id ?? '',
+      'id',
+      task['id'].toString(),
+      {'completed_dates': completed},
+    );
+>>>>>>> Stashed changes
     try {
       await _supabase
           .from('user_tasks')
           .update({'completed_dates': completed})
           .eq('id', task['id']);
       widget.onTasksChanged();
+<<<<<<< Updated upstream
     } catch (_) {}
+=======
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'user_tasks',
+        type: 'update',
+        data: {'completed_dates': completed},
+        match: {'id': task['id']},
+      );
+    }
+>>>>>>> Stashed changes
   }
 
   void _addTask() {
@@ -748,6 +944,22 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
         onEventAdded: (_) {},
         onTaskAdded: (task) async {
           final id = const Uuid().v4();
+<<<<<<< Updated upstream
+=======
+          final taskData = {
+            'id': id,
+            'name': task['name'],
+            'days': task['days'] ?? [],
+            'end_date': task['end_date'],
+            'completed_dates': <String>[],
+            'user_id': user.id,
+          };
+          SyncService.instance.addToCachedList(
+            'user_tasks_dash',
+            user.id,
+            taskData,
+          );
+>>>>>>> Stashed changes
           try {
             await _supabase.from('user_tasks').insert({
               'id': id,
@@ -760,9 +972,16 @@ class _DailyTasksWidgetState extends State<_DailyTasksWidget> {
             setState(() => _loadTasks());
             widget.onTasksChanged();
           } catch (_) {
+<<<<<<< Updated upstream
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Failed to save task.')),
+=======
+            SyncService.instance.enqueue(
+              table: 'user_tasks',
+              type: 'insert',
+              data: taskData,
+>>>>>>> Stashed changes
             );
           }
         },
@@ -1041,6 +1260,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);

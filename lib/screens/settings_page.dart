@@ -166,6 +166,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 'Use on the pencil button at the bottom right of the profile image to change your profile character. Use the other pencil button on the right to change your username.',
             child: _Profile(),
           ),
+<<<<<<< Updated upstream
 
           /* DIFFICULTY TAB */
           const SizedBox(height: 14),
@@ -176,6 +177,8 @@ class _SettingsPageState extends State<SettingsPage> {
             child: _DifficultySelector(),
           ),
 
+=======
+>>>>>>> Stashed changes
           /* THEME TAB */
           const SizedBox(height: 14),
           const _SectionFrame(
@@ -228,6 +231,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: 14),
+
+          /* INFO BUTTONS TOGGLE */
+          _SectionFrame(title: 'INFO BUTTONS', child: _InfoButtonsToggle()),
           const SizedBox(height: 14),
 
           /* LOG OUT */
@@ -660,6 +667,7 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
     if (user == null) return;
 
     try {
+<<<<<<< Updated upstream
       await _client.from('settings').upsert({
         'user_id': user.id,
         'max_screentime': screentimeLimit,
@@ -677,6 +685,15 @@ class _AdvancedSettingsState extends State<_AdvancedSettings> {
           ),
         );
       }
+=======
+      await _client.from('settings').upsert(data, onConflict: 'user_id');
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'settings',
+        type: 'upsert',
+        data: data,
+      );
+>>>>>>> Stashed changes
     }
   }
 
@@ -793,7 +810,12 @@ class _ProfileState extends State<_Profile> {
           .select('username')
           .eq('id', user.id)
           .maybeSingle();
+<<<<<<< Updated upstream
 
+=======
+      if (row != null)
+        sync.cacheSingle('profiles', user.id, Map<String, dynamic>.from(row));
+>>>>>>> Stashed changes
       if (!mounted) return;
       final fetched = (row?['username'] ?? '').toString();
       if (fetched.isNotEmpty && fetched != _username) {
@@ -810,9 +832,41 @@ class _ProfileState extends State<_Profile> {
   Future<void> _saveUsername() async {
     final newName = _usernameController.text.trim();
     if (newName.isEmpty || newName == _username) return;
+<<<<<<< Updated upstream
+=======
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    setState(() => _saving = true);
+    final data = {'id': user.id, 'username': newName};
+    SyncService.instance.patchCachedSingle('profiles', user.id, {
+      'username': newName,
+    });
+    try {
+      await _client.from('profiles').upsert(data, onConflict: 'id');
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'profiles',
+        type: 'upsert',
+        data: data,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _username = newName;
+      _saving = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Username updated!', style: TextStyle(color: _neonGreen)),
+        backgroundColor: Colors.grey[900],
+      ),
+    );
+  }
+>>>>>>> Stashed changes
 
     final user = _client.auth.currentUser;
     if (user == null) return;
+<<<<<<< Updated upstream
 
     setState(() => _saving = true);
 
@@ -850,6 +904,105 @@ class _ProfileState extends State<_Profile> {
         ),
       );
     }
+=======
+    String? newAvatarSvg;
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 24,
+          ),
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: _neonGreen, width: 1.5),
+            borderRadius: BorderRadius.circular(_cornerRadius),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Customize Avatar',
+                    style: TextStyle(
+                      color: _neonGreen,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.72,
+                ),
+                child: AvatarMakerCustomizer(key: _avatarMakerKey),
+              ),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text('Cancel', style: TextStyle(color: _neonGreen)),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      try {
+                        final controller = Get.find<AvatarMakerController>();
+                        await controller.saveAvatarSVG();
+                        newAvatarSvg = controller.displayedAvatarSVG.value;
+                      } catch (e) {
+                        newAvatarSvg = null;
+                      }
+                      Navigator.pop(ctx);
+                    },
+                    child: Text(
+                      'Save',
+                      style: TextStyle(
+                        color: _neonGreen,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (newAvatarSvg == null || newAvatarSvg!.isEmpty) return;
+    setState(() => _saving = true);
+    final data = {'id': user.id, 'avatar_svg': newAvatarSvg};
+    SyncService.instance.patchCachedSingle('profiles', user.id, {
+      'avatar_svg': newAvatarSvg,
+    });
+    try {
+      await _client.from('profiles').upsert(data, onConflict: 'id');
+    } catch (_) {
+      SyncService.instance.enqueue(
+        table: 'profiles',
+        type: 'upsert',
+        data: data,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _avatarSvg = newAvatarSvg!;
+      _saving = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Avatar updated!', style: TextStyle(color: _neonGreen)),
+        backgroundColor: Colors.grey[900],
+        duration: const Duration(seconds: 2),
+      ),
+    );
+>>>>>>> Stashed changes
   }
 
   void _showEditUsernameDialog() {
@@ -925,10 +1078,57 @@ class _ProfileState extends State<_Profile> {
           child: Stack(
             alignment: Alignment.bottomRight,
             children: [
+<<<<<<< Updated upstream
               CircleAvatar(
                 backgroundColor: const Color.fromARGB(255, 46, 46, 46),
                 radius: 45,
                 child: const Icon(Icons.person, size: 49, color: Colors.grey),
+=======
+              SizedBox(
+                width: 90,
+                height: 90,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(50),
+                  child: _avatarSvg.isNotEmpty
+                      ? Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _neonGreen, width: 2),
+                          ),
+                          child: SvgPicture.string(
+                            _avatarSvg,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                _neonGreen.withValues(alpha: 0.3),
+                                _neonGreen.withValues(alpha: 0.1),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            border: Border.all(color: _neonGreen, width: 2),
+                          ),
+                          child: Center(
+                            child: Text(
+                              userInitial,
+                              style: const TextStyle(
+                                color: _neonGreen,
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(color: _neonGreen, blurRadius: 8.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                ),
+>>>>>>> Stashed changes
               ),
               Container(
                 padding: const EdgeInsets.all(5),
@@ -979,6 +1179,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);
@@ -1025,6 +1240,48 @@ class _InfoButton extends StatelessWidget {
         overlay.insert(entry);
       },
       child: Icon(Icons.help, color: iconColor, size: 20),
+    );
+  }
+}
+
+class _InfoButtonsToggle extends StatefulWidget {
+  const _InfoButtonsToggle();
+
+  @override
+  State<_InfoButtonsToggle> createState() => _InfoButtonsToggleState();
+}
+
+class _InfoButtonsToggleState extends State<_InfoButtonsToggle> {
+  bool _showInfo = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _showInfo =
+        Hive.box('selected_apps').get('show_info_buttons', defaultValue: true)
+            as bool;
+  }
+
+  void _toggle(bool value) {
+    Hive.box('selected_apps').put('show_info_buttons', value);
+    setState(() => _showInfo = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final neon = Theme.of(context).colorScheme.secondary;
+    return Row(
+      children: [
+        Icon(Icons.help_outline, color: neon, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Show info (?) buttons on all pages',
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ),
+        Switch(value: _showInfo, onChanged: _toggle, activeColor: neon),
+      ],
     );
   }
 }
