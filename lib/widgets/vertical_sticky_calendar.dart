@@ -2097,7 +2097,18 @@ class _TaskDismissibleOverlayState extends State<_TaskDismissibleOverlay>
                         ),
                         if ((widget.task['days'] as List?)?.isNotEmpty ?? false)
                           Text(
-                            'Repeats on: ${(widget.task['days'] as List).join(", ")}',
+                            'Repeats on: ${(widget.task['days'] as List).map((d) {
+                              const abbr = {
+                                'Monday': 'Mo', 'Mon': 'Mo',
+                                'Tuesday': 'Tu', 'Tue': 'Tu',
+                                'Wednesday': 'We', 'Wed': 'We',
+                                'Thursday': 'Th', 'Thu': 'Th',
+                                'Friday': 'Fr', 'Fri': 'Fr',
+                                'Saturday': 'Sa', 'Sat': 'Sa',
+                                'Sunday': 'Su', 'Sun': 'Su',
+                              };
+                              return abbr[d] ?? d;
+                            }).join(", ")}',
                             style: TextStyle(
                               color: widget.isCompleted
                                   ? Colors.grey[700]
