@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_sync.dart';
 import 'package:http/http.dart' as http;
@@ -109,7 +110,10 @@ class HealthPageState extends State<HealthPage> {
       final cachedIng = sync.getCachedList('ingredients', user.id);
       if (cachedIng.isNotEmpty && mounted) {
         setState(() {
-          _ingredients = cachedIng.map((r) => IngredientRow.fromMap(r as Map<String, dynamic>)).where((x) => x.name.trim().isNotEmpty).toList();
+          _ingredients = cachedIng
+              .map((r) => IngredientRow.fromMap(r as Map<String, dynamic>))
+              .where((x) => x.name.trim().isNotEmpty)
+              .toList();
           _loadingIngredients = false;
         });
       }
@@ -124,7 +128,11 @@ class HealthPageState extends State<HealthPage> {
             )
             .eq('user_id', user.id)
             .order('created_at');
-        sync.cacheList('ingredients', user.id, List<Map<String, dynamic>>.from(rows));
+        sync.cacheList(
+          'ingredients',
+          user.id,
+          List<Map<String, dynamic>>.from(rows),
+        );
       } catch (_) {
         try {
           rows = await _supabase
@@ -135,7 +143,11 @@ class HealthPageState extends State<HealthPage> {
               )
               .eq('user_id', user.id)
               .order('created_at');
-          sync.cacheList('ingredients', user.id, List<Map<String, dynamic>>.from(rows));
+          sync.cacheList(
+            'ingredients',
+            user.id,
+            List<Map<String, dynamic>>.from(rows),
+          );
         } catch (_) {
           rows = sync.getCachedList('ingredients', user.id);
         }
@@ -336,7 +348,12 @@ class HealthPageState extends State<HealthPage> {
           ),
         );
     if (result == null) return;
-    final ingData = {'user_id': user.id, 'name': result.name, 'serving_amount': result.amount, 'serving_unit': result.unit};
+    final ingData = {
+      'user_id': user.id,
+      'name': result.name,
+      'serving_amount': result.amount,
+      'serving_unit': result.unit,
+    };
     final ingDataFallback = {'user_id': user.id, 'name': result.name};
     SyncService.instance.addToCachedList('ingredients', user.id, ingData);
     try {
@@ -346,8 +363,13 @@ class HealthPageState extends State<HealthPage> {
         await _supabase.from('ingredients').insert(ingDataFallback);
       }
     } catch (_) {
-      SyncService.instance.enqueue(table: 'ingredients', type: 'insert', data: ingDataFallback);
-    }    await _loadIngredients();
+      SyncService.instance.enqueue(
+        table: 'ingredients',
+        type: 'insert',
+        data: ingDataFallback,
+      );
+    }
+    await _loadIngredients();
     await _syncIngredientNutrition(result.name, result.amount, result.unit);
     _lastRecipeIngredientKey = null; // force recipe refresh
     await _loadIngredients();
@@ -359,14 +381,29 @@ class HealthPageState extends State<HealthPage> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
-    SyncService.instance.removeFromCachedList('ingredients', user.id, 'name', name);
+    SyncService.instance.removeFromCachedList(
+      'ingredients',
+      user.id,
+      'name',
+      name,
+    );
     try {
-      await _supabase.from('ingredients').delete().eq('user_id', user.id).eq('name', name);
+      await _supabase
+          .from('ingredients')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('name', name);
     } catch (_) {
-      SyncService.instance.enqueue(table: 'ingredients', type: 'delete', data: {}, match: {'user_id': user.id, 'name': name});
+      SyncService.instance.enqueue(
+        table: 'ingredients',
+        type: 'delete',
+        data: {},
+        match: {'user_id': user.id, 'name': name},
+      );
     }
     await _loadIngredients();
   }
+
   Future<void> _syncIngredientNutrition(
     String name,
     double amount,
@@ -406,12 +443,15 @@ class HealthPageState extends State<HealthPage> {
           .eq('name', name);
     } catch (_) {}
   }
+
   /* -------------------------- HEALTH FACTS -------------------------- */
   void _buildAndSetHealthFacts(List<IngredientRow> items) {
     if (!mounted) return;
     final facts = _buildFactsFromIngredients(items);
     setState(() => _healthFacts = facts);
-  }  Future<void> _loadHealthFacts() async {
+  }
+
+  Future<void> _loadHealthFacts() async {
     try {
       if (mounted) setState(() => _loadingFacts = true);
 
@@ -445,8 +485,9 @@ class HealthPageState extends State<HealthPage> {
       setState(() => _healthFacts = facts);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error loading health facts: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading health facts: $e')));
     } finally {
       if (mounted) setState(() => _loadingFacts = false);
     }
@@ -656,7 +697,11 @@ class HealthPageState extends State<HealthPage> {
             .from('favorite_recipes')
             .select('recipe_id, title, image_url, ingredients')
             .eq('user_id', user.id);
-        sync.cacheList('favorite_recipes', user.id, List<Map<String, dynamic>>.from(fresh));
+        sync.cacheList(
+          'favorite_recipes',
+          user.id,
+          List<Map<String, dynamic>>.from(fresh),
+        );
         rows = fresh;
       } catch (_) {}
 
@@ -716,24 +761,49 @@ class HealthPageState extends State<HealthPage> {
 
     try {
       if (isFav) {
-        SyncService.instance.removeFromCachedList('favorite_recipes', user.id, 'recipe_id', id.toString());
+        SyncService.instance.removeFromCachedList(
+          'favorite_recipes',
+          user.id,
+          'recipe_id',
+          id.toString(),
+        );
         try {
-          await _supabase.from('favorite_recipes').delete().eq('user_id', user.id).eq('recipe_id', id);
+          await _supabase
+              .from('favorite_recipes')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('recipe_id', id);
         } catch (_) {
-          SyncService.instance.enqueue(table: 'favorite_recipes', type: 'delete', data: {}, match: {'user_id': user.id, 'recipe_id': id});
+          SyncService.instance.enqueue(
+            table: 'favorite_recipes',
+            type: 'delete',
+            data: {},
+            match: {'user_id': user.id, 'recipe_id': id},
+          );
         }
         _favoriteRecipeIds.remove(id);
       } else {
         final ingredientsJson = jsonEncode(recipe.missingIngredients);
         final favData = {
-          'user_id': user.id, 'recipe_id': id, 'title': recipe.title,
-          'image_url': recipe.imageUrl, 'ingredients': ingredientsJson,
+          'user_id': user.id,
+          'recipe_id': id,
+          'title': recipe.title,
+          'image_url': recipe.imageUrl,
+          'ingredients': ingredientsJson,
         };
-        SyncService.instance.addToCachedList('favorite_recipes', user.id, favData);
+        SyncService.instance.addToCachedList(
+          'favorite_recipes',
+          user.id,
+          favData,
+        );
         try {
           await _supabase.from('favorite_recipes').insert(favData);
         } catch (_) {
-          SyncService.instance.enqueue(table: 'favorite_recipes', type: 'insert', data: favData);
+          SyncService.instance.enqueue(
+            table: 'favorite_recipes',
+            type: 'insert',
+            data: favData,
+          );
         }
         _favoriteRecipeIds.add(id);
       }
@@ -888,7 +958,8 @@ class HealthPageState extends State<HealthPage> {
                   'Add ingredients using the plus button on the top right. You may view the ingredients added once they are logged and also remove them with the X icon on the top right of each ingredient shown.',
               expanded: _ingredientsExpanded,
               onToggle: () =>
-                  setState(() => _ingredientsExpanded = !_ingredientsExpanded),              rightAction: GestureDetector(
+                  setState(() => _ingredientsExpanded = !_ingredientsExpanded),
+              rightAction: GestureDetector(
                 onTap: _addIngredientDialog,
                 child: const Icon(Icons.add, size: 22),
               ),
@@ -1736,6 +1807,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);
@@ -1785,5 +1871,3 @@ class _InfoButton extends StatelessWidget {
     );
   }
 }
-
-

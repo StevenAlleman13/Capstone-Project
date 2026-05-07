@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/offline_sync.dart';
@@ -116,7 +117,11 @@ class FitnessPageState extends State<FitnessPage> {
     if (user == null) return;
     final sync = SyncService.instance;
     final cachedSettings = sync.getCachedSingle('user_settings', user.id);
-    if (cachedSettings != null && mounted) setState(() => _suppressResumeWarning = cachedSettings['suppress_resume_warning'] == true);
+    if (cachedSettings != null && mounted)
+      setState(
+        () => _suppressResumeWarning =
+            cachedSettings['suppress_resume_warning'] == true,
+      );
     try {
       final row = await _client
           .from('user_settings')
@@ -124,8 +129,16 @@ class FitnessPageState extends State<FitnessPage> {
           .eq('user_id', user.id)
           .maybeSingle();
       if (row != null) {
-        sync.cacheSingle('user_settings', user.id, Map<String, dynamic>.from(row));
-        if (mounted) setState(() => _suppressResumeWarning = row['suppress_resume_warning'] == true);
+        sync.cacheSingle(
+          'user_settings',
+          user.id,
+          Map<String, dynamic>.from(row),
+        );
+        if (mounted)
+          setState(
+            () =>
+                _suppressResumeWarning = row['suppress_resume_warning'] == true,
+          );
       }
     } catch (_) {}
   }
@@ -134,12 +147,19 @@ class FitnessPageState extends State<FitnessPage> {
     final user = _client.auth.currentUser;
     if (user == null) return;
     if (mounted) setState(() => _suppressResumeWarning = suppressResumeWarning);
-    final data = {'user_id': user.id, 'suppress_resume_warning': suppressResumeWarning};
+    final data = {
+      'user_id': user.id,
+      'suppress_resume_warning': suppressResumeWarning,
+    };
     SyncService.instance.patchCachedSingle('user_settings', user.id, data);
     try {
       await _client.from('user_settings').upsert(data, onConflict: 'user_id');
     } catch (_) {
-      SyncService.instance.enqueue(table: 'user_settings', type: 'upsert', data: data);
+      SyncService.instance.enqueue(
+        table: 'user_settings',
+        type: 'upsert',
+        data: data,
+      );
     }
   }
 
@@ -153,7 +173,10 @@ class FitnessPageState extends State<FitnessPage> {
     }
 
     final sync = SyncService.instance;
-    Map<String, dynamic>? row = sync.getCachedSingle('weight_tracker_settings', user.id);
+    Map<String, dynamic>? row = sync.getCachedSingle(
+      'weight_tracker_settings',
+      user.id,
+    );
     if (row != null) _applyGraphSettings(row);
     try {
       final fresh = await _client
@@ -162,7 +185,11 @@ class FitnessPageState extends State<FitnessPage> {
           .eq('user_id', user.id)
           .maybeSingle();
       if (fresh != null) {
-        sync.cacheSingle('weight_tracker_settings', user.id, Map<String, dynamic>.from(fresh));
+        sync.cacheSingle(
+          'weight_tracker_settings',
+          user.id,
+          Map<String, dynamic>.from(fresh),
+        );
         _applyGraphSettings(fresh);
       }
     } catch (_) {}
@@ -172,9 +199,15 @@ class FitnessPageState extends State<FitnessPage> {
     final minRaw = row['weight_graph_min'];
     final maxRaw = row['weight_graph_max'];
     final goalRaw = row['goal_weight'];
-    final minVal = (minRaw is num) ? minRaw.toDouble() : double.tryParse('$minRaw');
-    final maxVal = (maxRaw is num) ? maxRaw.toDouble() : double.tryParse('$maxRaw');
-    final goalVal = (goalRaw is num) ? goalRaw.toDouble() : double.tryParse('$goalRaw');
+    final minVal = (minRaw is num)
+        ? minRaw.toDouble()
+        : double.tryParse('$minRaw');
+    final maxVal = (maxRaw is num)
+        ? maxRaw.toDouble()
+        : double.tryParse('$maxRaw');
+    final goalVal = (goalRaw is num)
+        ? goalRaw.toDouble()
+        : double.tryParse('$goalRaw');
     if (!mounted) return;
     setState(() {
       _graphMin = minVal;
@@ -204,12 +237,22 @@ class FitnessPageState extends State<FitnessPage> {
       'weight_graph_max': maxVal,
       if (_goalWeight != null) 'goal_weight': _goalWeight,
     };
-    SyncService.instance.patchCachedSingle('weight_tracker_settings', user.id, data);
+    SyncService.instance.patchCachedSingle(
+      'weight_tracker_settings',
+      user.id,
+      data,
+    );
     try {
-      await _client.from('weight_tracker_settings').upsert(data, onConflict: 'user_id');
+      await _client
+          .from('weight_tracker_settings')
+          .upsert(data, onConflict: 'user_id');
       if (mounted) setState(() => _statusText = null);
     } catch (_) {
-      SyncService.instance.enqueue(table: 'weight_tracker_settings', type: 'upsert', data: data);
+      SyncService.instance.enqueue(
+        table: 'weight_tracker_settings',
+        type: 'upsert',
+        data: data,
+      );
     }
   }
 
@@ -222,11 +265,21 @@ class FitnessPageState extends State<FitnessPage> {
       if (_graphMin != null) 'weight_graph_min': _graphMin,
       if (_graphMax != null) 'weight_graph_max': _graphMax,
     };
-    SyncService.instance.patchCachedSingle('weight_tracker_settings', user.id, data);
+    SyncService.instance.patchCachedSingle(
+      'weight_tracker_settings',
+      user.id,
+      data,
+    );
     try {
-      await _client.from('weight_tracker_settings').upsert(data, onConflict: 'user_id');
+      await _client
+          .from('weight_tracker_settings')
+          .upsert(data, onConflict: 'user_id');
     } catch (_) {
-      SyncService.instance.enqueue(table: 'weight_tracker_settings', type: 'upsert', data: data);
+      SyncService.instance.enqueue(
+        table: 'weight_tracker_settings',
+        type: 'upsert',
+        data: data,
+      );
     }
   }
 
@@ -255,7 +308,11 @@ class FitnessPageState extends State<FitnessPage> {
         final wv = (w is num) ? w.toDouble() : double.tryParse(w.toString());
         if (wv != null) _weightsByDay[date] = wv;
       }
-      if (mounted) setState(() { _loading = false; _statusText = _weightsByDay.isEmpty ? 'No weight entries yet.' : null; });
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _statusText = _weightsByDay.isEmpty ? 'No weight entries yet.' : null;
+        });
     }
     List<dynamic> rows;
     try {
@@ -264,7 +321,11 @@ class FitnessPageState extends State<FitnessPage> {
           .select('entry_date, weight')
           .eq('user_id', user.id)
           .order('entry_date', ascending: true);
-      sync.cacheList('weight_entries', user.id, List<Map<String, dynamic>>.from(rows));
+      sync.cacheList(
+        'weight_entries',
+        user.id,
+        List<Map<String, dynamic>>.from(rows),
+      );
     } catch (_) {
       rows = cachedRows;
     }
@@ -274,7 +335,9 @@ class FitnessPageState extends State<FitnessPage> {
       final date = (dateRaw ?? '').toString().substring(0, 10);
       final w = r['weight'];
       if (date.isEmpty) continue;
-      final weightVal = (w is num) ? w.toDouble() : double.tryParse(w.toString());
+      final weightVal = (w is num)
+          ? w.toDouble()
+          : double.tryParse(w.toString());
       if (weightVal == null) continue;
       _weightsByDay[date] = weightVal;
     }
@@ -296,11 +359,17 @@ class FitnessPageState extends State<FitnessPage> {
     if (weight == null) return;
 
     final dateKey = _todayKey();
-    final weightData = {'user_id': user.id, 'entry_date': dateKey, 'weight': weight};
+    final weightData = {
+      'user_id': user.id,
+      'entry_date': dateKey,
+      'weight': weight,
+    };
     // Upsert into cache: update existing entry for today or add new one
     final sync = SyncService.instance;
     final wList = sync.getCachedList('weight_entries', user.id);
-    final wIdx = wList.indexWhere((e) => e['entry_date']?.toString().startsWith(dateKey) ?? false);
+    final wIdx = wList.indexWhere(
+      (e) => e['entry_date']?.toString().startsWith(dateKey) ?? false,
+    );
     if (wIdx != -1) {
       wList[wIdx] = {...wList[wIdx], 'weight': weight};
       sync.cacheList('weight_entries', user.id, wList);
@@ -308,7 +377,9 @@ class FitnessPageState extends State<FitnessPage> {
       sync.addToCachedList('weight_entries', user.id, weightData);
     }
     try {
-      await _client.from('weight_entries').upsert(weightData, onConflict: 'user_id,entry_date');
+      await _client
+          .from('weight_entries')
+          .upsert(weightData, onConflict: 'user_id,entry_date');
     } catch (_) {
       sync.enqueue(table: 'weight_entries', type: 'upsert', data: weightData);
     }
@@ -318,7 +389,8 @@ class FitnessPageState extends State<FitnessPage> {
         _weightController.clear();
         _statusText = null;
       });
-      if (_goalWeight != null && weight <= _goalWeight!) _showGoalReachedBanner();
+      if (_goalWeight != null && weight <= _goalWeight!)
+        _showGoalReachedBanner();
     }
     await _loadWeightsFromSupabase();
   }
@@ -538,14 +610,30 @@ class FitnessPageState extends State<FitnessPage> {
     final user = _client.auth.currentUser;
     if (user == null) return;
 
-    final data = {'user_id': user.id, 'calorie_goal': cal, 'carbs_goal': carbs, 'fat_goal': fat, 'protein_goal': protein};
+    final data = {
+      'user_id': user.id,
+      'calorie_goal': cal,
+      'carbs_goal': carbs,
+      'fat_goal': fat,
+      'protein_goal': protein,
+    };
     SyncService.instance.patchCachedSingle('macro_goals', user.id, data);
     try {
       await _client.from('macro_goals').upsert(data, onConflict: 'user_id');
     } catch (_) {
-      SyncService.instance.enqueue(table: 'macro_goals', type: 'upsert', data: data);
+      SyncService.instance.enqueue(
+        table: 'macro_goals',
+        type: 'upsert',
+        data: data,
+      );
     }
-    if (mounted) setState(() { _goalCalories = cal; _goalCarbs = carbs; _goalFat = fat; _goalProtein = protein; });
+    if (mounted)
+      setState(() {
+        _goalCalories = cal;
+        _goalCarbs = carbs;
+        _goalFat = fat;
+        _goalProtein = protein;
+      });
   }
 
   void _showSetMacroGoalsDialog() {
@@ -653,12 +741,28 @@ class FitnessPageState extends State<FitnessPage> {
     if (mounted) setState(() => _logsLoading = true);
     final sync = SyncService.instance;
     final todayKey = _todayKey();
-    final cachedLogs = sync.getCachedList('daily_macro_logs_$todayKey', user.id);
+    final cachedLogs = sync.getCachedList(
+      'daily_macro_logs_$todayKey',
+      user.id,
+    );
     if (cachedLogs.isNotEmpty) {
       final cl = cachedLogs.map((r) => _MacroLogEntry.fromMap(r)).toList();
       double cc = 0, ccarbs = 0, cfat = 0, cprot = 0;
-      for (final l in cl) { cc += l.calories; ccarbs += l.carbs; cfat += l.fat; cprot += l.protein; }
-      if (mounted) setState(() { _todayLogs = cl; _todayCalories = cc; _todayCarbs = ccarbs; _todayFat = cfat; _todayProtein = cprot; _logsLoading = false; });
+      for (final l in cl) {
+        cc += l.calories;
+        ccarbs += l.carbs;
+        cfat += l.fat;
+        cprot += l.protein;
+      }
+      if (mounted)
+        setState(() {
+          _todayLogs = cl;
+          _todayCalories = cc;
+          _todayCarbs = ccarbs;
+          _todayFat = cfat;
+          _todayProtein = cprot;
+          _logsLoading = false;
+        });
     }
     List<dynamic> rows;
     try {
@@ -668,25 +772,51 @@ class FitnessPageState extends State<FitnessPage> {
           .eq('user_id', user.id)
           .eq('log_date', todayKey)
           .order('created_at', ascending: true);
-      sync.cacheList('daily_macro_logs_$todayKey', user.id, List<Map<String, dynamic>>.from(rows));
+      sync.cacheList(
+        'daily_macro_logs_$todayKey',
+        user.id,
+        List<Map<String, dynamic>>.from(rows),
+      );
     } catch (_) {
       rows = cachedLogs;
     }
     final logs = rows.map((r) => _MacroLogEntry.fromMap(r)).toList();
     double cal = 0, carbs = 0, fat = 0, protein = 0;
-    for (final l in logs) { cal += l.calories; carbs += l.carbs; fat += l.fat; protein += l.protein; }
+    for (final l in logs) {
+      cal += l.calories;
+      carbs += l.carbs;
+      fat += l.fat;
+      protein += l.protein;
+    }
     if (!mounted) return;
-    setState(() { _todayLogs = logs; _todayCalories = cal; _todayCarbs = carbs; _todayFat = fat; _todayProtein = protein; _logsLoading = false; });
+    setState(() {
+      _todayLogs = logs;
+      _todayCalories = cal;
+      _todayCarbs = carbs;
+      _todayFat = fat;
+      _todayProtein = protein;
+      _logsLoading = false;
+    });
   }
 
   Future<void> _removeLog(_MacroLogEntry entry) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-    SyncService.instance.removeFromCachedList('daily_macro_logs_${_todayKey()}', user.id, 'id', entry.id);
+    SyncService.instance.removeFromCachedList(
+      'daily_macro_logs_${_todayKey()}',
+      user.id,
+      'id',
+      entry.id,
+    );
     try {
       await _client.from('daily_macro_logs').delete().eq('id', entry.id);
     } catch (_) {
-      SyncService.instance.enqueue(table: 'daily_macro_logs', type: 'delete', data: {}, match: {'id': entry.id});
+      SyncService.instance.enqueue(
+        table: 'daily_macro_logs',
+        type: 'delete',
+        data: {},
+        match: {'id': entry.id},
+      );
     }
     await _loadTodayLogs();
   }
@@ -705,28 +835,49 @@ class FitnessPageState extends State<FitnessPage> {
           .from('ingredients')
           .select('name, calories, carbs_g, protein_g, fat_g')
           .eq('user_id', user.id);
-      sync.cacheList('ingredients', user.id, List<Map<String, dynamic>>.from(freshIng));
+      sync.cacheList(
+        'ingredients',
+        user.id,
+        List<Map<String, dynamic>>.from(freshIng),
+      );
       ingRows = freshIng;
       final freshRecipes = await _client
           .from('favorite_recipes')
           .select('recipe_id, title')
           .eq('user_id', user.id);
-      sync.cacheList('favorite_recipes', user.id, List<Map<String, dynamic>>.from(freshRecipes));
+      sync.cacheList(
+        'favorite_recipes',
+        user.id,
+        List<Map<String, dynamic>>.from(freshRecipes),
+      );
       recipeRows = freshRecipes;
     } catch (_) {}
     for (final r in ingRows) {
-      final cal = r['calories'], carbs = r['carbs_g'], fat = r['fat_g'], protein = r['protein_g'];
-      final hasNutrition = cal != null && carbs != null && fat != null && protein != null;
-      options.add(_EatOption(
-        name: r['name'].toString(), type: 'ingredient',
-        calories: hasNutrition ? (cal as num).toDouble() : null,
-        carbs: hasNutrition ? (carbs as num).toDouble() : null,
-        fat: hasNutrition ? (fat as num).toDouble() : null,
-        protein: hasNutrition ? (protein as num).toDouble() : null,
-      ));
+      final cal = r['calories'],
+          carbs = r['carbs_g'],
+          fat = r['fat_g'],
+          protein = r['protein_g'];
+      final hasNutrition =
+          cal != null && carbs != null && fat != null && protein != null;
+      options.add(
+        _EatOption(
+          name: r['name'].toString(),
+          type: 'ingredient',
+          calories: hasNutrition ? (cal as num).toDouble() : null,
+          carbs: hasNutrition ? (carbs as num).toDouble() : null,
+          fat: hasNutrition ? (fat as num).toDouble() : null,
+          protein: hasNutrition ? (protein as num).toDouble() : null,
+        ),
+      );
     }
     for (final r in recipeRows) {
-      options.add(_EatOption(name: r['title'].toString(), type: 'recipe', spoonacularId: (r['recipe_id'] as num).toInt()));
+      options.add(
+        _EatOption(
+          name: r['title'].toString(),
+          type: 'recipe',
+          spoonacularId: (r['recipe_id'] as num).toInt(),
+        ),
+      );
     }
 
     if (!mounted) return;
@@ -795,15 +946,29 @@ class FitnessPageState extends State<FitnessPage> {
       protein = (nutrition['protein'] as double) / perServing * servings;
     }
     final logData = {
-      'user_id': user.id, 'log_date': _todayKey(), 'item_name': option.name,
-      'item_type': option.type, 'calories': cal, 'carbs': carbs, 'fat': fat,
-      'protein': protein, 'servings': servings,
+      'user_id': user.id,
+      'log_date': _todayKey(),
+      'item_name': option.name,
+      'item_type': option.type,
+      'calories': cal,
+      'carbs': carbs,
+      'fat': fat,
+      'protein': protein,
+      'servings': servings,
     };
-    SyncService.instance.addToCachedList('daily_macro_logs_${_todayKey()}', user.id, logData);
+    SyncService.instance.addToCachedList(
+      'daily_macro_logs_${_todayKey()}',
+      user.id,
+      logData,
+    );
     try {
       await _client.from('daily_macro_logs').insert(logData);
     } catch (_) {
-      SyncService.instance.enqueue(table: 'daily_macro_logs', type: 'insert', data: logData);
+      SyncService.instance.enqueue(
+        table: 'daily_macro_logs',
+        type: 'insert',
+        data: logData,
+      );
     }
     await _loadTodayLogs();
   }
@@ -1227,7 +1392,9 @@ class FitnessPageState extends State<FitnessPage> {
     final cachedConvs = sync.getCachedList('archived_conversations', user.id);
     if (cachedConvs.isNotEmpty && mounted) {
       setState(() {
-        _archivedConversations = cachedConvs.map((r) => _ArchivedConversation.fromMap(r)).toList();
+        _archivedConversations = cachedConvs
+            .map((r) => _ArchivedConversation.fromMap(r))
+            .toList();
         _archivedLoading = false;
       });
     }
@@ -1238,13 +1405,19 @@ class FitnessPageState extends State<FitnessPage> {
           .select('id, name, messages, created_at')
           .eq('user_id', user.id)
           .order('created_at', ascending: false);
-      sync.cacheList('archived_conversations', user.id, List<Map<String, dynamic>>.from(rows));
+      sync.cacheList(
+        'archived_conversations',
+        user.id,
+        List<Map<String, dynamic>>.from(rows),
+      );
     } catch (_) {
       rows = cachedConvs;
     }
     if (!mounted) return;
     setState(() {
-      _archivedConversations = rows.map((r) => _ArchivedConversation.fromMap(r)).toList();
+      _archivedConversations = rows
+          .map((r) => _ArchivedConversation.fromMap(r))
+          .toList();
       _archivedLoading = false;
     });
   }
@@ -1344,34 +1517,67 @@ class FitnessPageState extends State<FitnessPage> {
           .toList();
 
       final convData = {'user_id': user.id, 'name': name, 'messages': messages};
-      SyncService.instance.addToCachedList('archived_conversations', user.id, convData);
+      SyncService.instance.addToCachedList(
+        'archived_conversations',
+        user.id,
+        convData,
+      );
       try {
         await _client.from('archived_conversations').insert(convData);
       } catch (_) {
-        SyncService.instance.enqueue(table: 'archived_conversations', type: 'insert', data: convData);
+        SyncService.instance.enqueue(
+          table: 'archived_conversations',
+          type: 'insert',
+          data: convData,
+        );
       }
       await _loadArchivedConversations();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          backgroundColor: Colors.black,
-          shape: RoundedRectangleBorder(side: BorderSide(color: _neonGreen, width: 1.5), borderRadius: BorderRadius.circular(12)),
-          behavior: SnackBarBehavior.floating,
-          content: Text('Conversation saved as "$name"', style: const TextStyle(color: _neonGreen)),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              side: BorderSide(color: _neonGreen, width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+              'Conversation saved as "$name"',
+              style: const TextStyle(color: _neonGreen),
+            ),
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save conversation: $e')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save conversation: $e')),
+        );
     }
   }
 
   Future<void> _deleteArchivedConversation(String id) async {
     final user = _client.auth.currentUser;
     if (user == null) return;
-    SyncService.instance.removeFromCachedList('archived_conversations', user.id, 'id', id);
+    SyncService.instance.removeFromCachedList(
+      'archived_conversations',
+      user.id,
+      'id',
+      id,
+    );
     try {
-      await _client.from('archived_conversations').delete().eq('id', id).eq('user_id', user.id);
+      await _client
+          .from('archived_conversations')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', user.id);
     } catch (_) {
-      SyncService.instance.enqueue(table: 'archived_conversations', type: 'delete', data: {}, match: {'id': id});
+      SyncService.instance.enqueue(
+        table: 'archived_conversations',
+        type: 'delete',
+        data: {},
+        match: {'id': id},
+      );
     }
     await _loadArchivedConversations();
   }
@@ -1717,13 +1923,15 @@ class FitnessPageState extends State<FitnessPage> {
     if (user == null) return {'error': 'User not signed in.'};
 
     try {
-      switch (name) {        case 'log_weight_entry':
+      switch (name) {
+        case 'log_weight_entry':
           final weight = (args['weight'] as num).toDouble();
           final dateKey = _todayKey();
           await _client.from('weight_entries').upsert({
             'user_id': user.id,
             'entry_date': dateKey,
-            'weight': weight,          }, onConflict: 'user_id,entry_date');
+            'weight': weight,
+          }, onConflict: 'user_id,entry_date');
           if (mounted) {
             setState(() => _weightsByDay[dateKey] = weight);
             if (_goalWeight != null && weight <= _goalWeight!) {
@@ -2527,17 +2735,15 @@ class _TypingBubbleState extends State<_TypingBubble>
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) {
-        final dots = '.${_ctrl.value > 0.33 ? '.' : ' '}${_ctrl.value > 0.66 ? '.' : ' '}';
+        final dots =
+            '.${_ctrl.value > 0.33 ? '.' : ' '}${_ctrl.value > 0.66 ? '.' : ' '}';
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.black,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: _neonGreen.withOpacity(0.6),
-              width: 1.2,
-            ),
+            border: Border.all(color: _neonGreen.withOpacity(0.6), width: 1.2),
           ),
           child: Text(
             dots,
@@ -3289,6 +3495,21 @@ class _InfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: Hive.box(
+        'selected_apps',
+      ).listenable(keys: ['show_info_buttons']),
+      builder: (context, box, _) {
+        final showInfo =
+            (box as dynamic).get('show_info_buttons', defaultValue: true)
+                as bool;
+        if (!showInfo) return const SizedBox.shrink();
+        return _buildButton(context);
+      },
+    );
+  }
+
+  Widget _buildButton(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final overlay = Overlay.of(context);
